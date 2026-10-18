@@ -19,6 +19,13 @@ import {
 
 /**
  * PostgreSQL schema: `next_round`
+ *
+ * Drizzle models the three cyclic foreign keys below but cannot represent
+ * DEFERRABLE INITIALLY DEFERRED. Reviewed migration
+ * 0001_deferred_foreign_keys.sql owns that PostgreSQL-only property.
+ * Keep these foreign keys in the model/snapshots so subsequent generation
+ * does not remove them; if a migration recreates one, reapply its deferred
+ * attributes in that same reviewed SQL migration before deployment.
  */
 export const nextRound = pgSchema("next_round");
 
@@ -46,7 +53,9 @@ export const principals = nextRound.table(
     authEpoch: bigint("auth_epoch", { mode: "number" }).notNull().default(0),
     inboxRevision: bigint("inbox_revision", { mode: "number" }).notNull().default(0),
     homeRevision: bigint("home_revision", { mode: "number" }).notNull().default(0),
-    guestMatchId: uuid("guest_match_id").references((): AnyPgColumn => matches.id),
+    guestMatchId: uuid("guest_match_id").references((): AnyPgColumn => matches.id, {
+      onDelete: "restrict",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -200,13 +209,23 @@ export const auditLog = nextRound.table("audit_log", {
  * 8. modules
  * Registered game modules installed on the platform.
  */
-export const modules = nextRound.table("modules", {
-  id: text("id").primaryKey(),
-  enabled: boolean("enabled").notNull().default(true),
-  defaultVersion: text("default_version").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const modules = nextRound.table(
+  "modules",
+  {
+    id: text("id").primaryKey(),
+    enabled: boolean("enabled").notNull().default(true),
+    defaultVersion: text("default_version").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.id, table.defaultVersion],
+      foreignColumns: [moduleVersions.moduleId, moduleVersions.version],
+      name: "modules_default_version_fk",
+    }).onDelete("restrict"),
+  ]
+);
 
 /**
  * 9. module_versions
@@ -217,7 +236,7 @@ export const moduleVersions = nextRound.table(
   {
     moduleId: text("module_id")
       .notNull()
-      .references(() => modules.id),
+      .references((): AnyPgColumn => modules.id),
     version: text("version").notNull(),
     manifest: jsonb("manifest").notNull(),
     serverHash: text("server_hash").notNull(),
@@ -336,6 +355,11 @@ export const matches = nextRound.table(
       foreignColumns: [moduleVersions.moduleId, moduleVersions.version],
       name: "matches_module_version_fk",
     }),
+    foreignKey({
+      columns: [table.id, table.hostMemberId],
+      foreignColumns: [matchMembers.matchId, matchMembers.id],
+      name: "matches_host_member_fk",
+    }).onDelete("restrict"),
     index("matches_phase_module_idx").on(table.phase, table.moduleId),
     index("matches_updated_at_idx").on(table.updatedAt),
   ]
@@ -351,7 +375,7 @@ export const matchMembers = nextRound.table(
     id: uuid("id").primaryKey().defaultRandom(),
     matchId: uuid("match_id")
       .notNull()
-      .references(() => matches.id),
+      .references((): AnyPgColumn => matches.id),
     principalId: uuid("principal_id")
       .notNull()
       .references(() => principals.id),
@@ -366,6 +390,7 @@ export const matchMembers = nextRound.table(
     check("match_members_status_check", sql`${table.status} IN ('active', 'left', 'removed')`),
     uniqueIndex("match_members_match_principal_idx").on(table.matchId, table.principalId),
     uniqueIndex("match_members_match_join_ordinal_idx").on(table.matchId, table.joinOrdinal),
+    uniqueIndex("match_members_match_id_id_idx").on(table.matchId, table.id),
   ]
 );
 
