@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false
+  },
+  "include": [],
+  "references": [
+    { "path": "./packages/contracts" },
+    { "path": "./packages/game-sdk" },
+    { "path": "./packages/game-client" },
+    { "path": "./packages/db" },
+    { "path": "./packages/platform" },
+    { "path": "./packages/ui" },
+    { "path": "./packages/game-harness" },
+    { "path": "./apps/api" },
+    { "path": "./apps/worker" },
+    { "path": "./apps/web" },
+    { "path": "./games/test-counter" }
+  ]
+}

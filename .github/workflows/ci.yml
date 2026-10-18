@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Build, Typecheck & Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.0"
+
+      - name: Setup pnpm 12.14.0
+        uses: pnpm/action-setup@v4
+        with:
+          version: "12.14.0"
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build packages and applications
+        run: pnpm build
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Verify browser bundle excludes server exports
+        run: |
+          if [ -d apps/web/dist ]; then
+            if grep -rE "fastify|pg-boss|argon2|drizzle-kit" apps/web/dist/; then
+              echo "Server exports leaked into browser bundle!"
+              exit 1
+            else
+              echo "Browser bundle verified clean."
+            fi
+          fi
