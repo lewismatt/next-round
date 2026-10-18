@@ -1,0 +1,3721 @@
+{
+  "format": "next-round-image-notices/1",
+  "images": [
+    {
+      "name": "node",
+      "version": "24.22.0-bookworm-slim",
+      "digest": "sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5",
+      "upstream": "https://github.com/nodejs/node/tree/v24.22.0",
+      "license": "MIT AND bundled third-party licenses",
+      "source": "https://nodejs.org/dist/v24.22.0/node-v24.22.0.tar.xz",
+      "variantDigest": "sha256:ec857ea6bb60cb3d0fa4d97495590c5fe7d51be8572c307b55957eeb06569cf7",
+      "containerSource": "https://github.com/nodejs/docker-node.git#f27125230b3c367dcf63043ea3fe286fb3d0914c:24/bookworm-slim",
+      "containerSourceRevision": "f27125230b3c367dcf63043ea3fe286fb3d0914c",
+      "reference": "node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5",
+      "inventoryPlatform": "linux/amd64",
+      "osRelease": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"12\"\nVERSION=\"12 (bookworm)\"\nVERSION_CODENAME=bookworm\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+      "packages": [
+        {
+          "name": "adduser",
+          "version": "3.134",
+          "source": "adduser",
+          "sourceUrl": "https://snapshot.debian.org/package/adduser/3.134/",
+          "architecture": "all",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "apt",
+          "version": "2.6.1",
+          "source": "apt",
+          "sourceUrl": "https://snapshot.debian.org/package/apt/2.6.1/",
+          "architecture": "amd64",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "base-files",
+          "version": "12.4+deb12u15",
+          "source": "base-files",
+          "sourceUrl": "https://snapshot.debian.org/package/base-files/12.4%2Bdeb12u15/",
+          "architecture": "amd64",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "base-passwd",
+          "version": "3.6.1",
+          "source": "base-passwd",
+          "sourceUrl": "https://snapshot.debian.org/package/base-passwd/3.6.1/",
+          "architecture": "amd64",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "bash",
+          "version": "5.2.15-2+b13",
+          "source": "bash (5.2.15-2)",
+          "sourceUrl": "https://snapshot.debian.org/package/bash/5.2.15-2/",
+          "architecture": "amd64",
+          "upstream": "http://tiswww.case.edu/php/chet/bash/bashtop.html",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "bsdutils",
+          "version": "1:2.38.1-5+deb12u3",
+          "source": "util-linux (2.38.1-5+deb12u3)",
+          "sourceUrl": "https://snapshot.debian.org/package/util-linux/2.38.1-5%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://www.kernel.org/pub/linux/utils/util-linux/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "coreutils",
+          "version": "9.1-1",
+          "source": "coreutils",
+          "sourceUrl": "https://snapshot.debian.org/package/coreutils/9.1-1/",
+          "architecture": "amd64",
+          "upstream": "http://gnu.org/software/coreutils",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "dash",
+          "version": "0.5.12-2",
+          "source": "dash",
+          "sourceUrl": "https://snapshot.debian.org/package/dash/0.5.12-2/",
+          "architecture": "amd64",
+          "upstream": "http://gondor.apana.org.au/~herbert/dash/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "debconf",
+          "version": "1.5.82",
+          "source": "debconf",
+          "sourceUrl": "https://snapshot.debian.org/package/debconf/1.5.82/",
+          "architecture": "all",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "debian-archive-keyring",
+          "version": "2023.3+deb12u2",
+          "source": "debian-archive-keyring",
+          "sourceUrl": "https://snapshot.debian.org/package/debian-archive-keyring/2023.3%2Bdeb12u2/",
+          "architecture": "all",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "debianutils",
+          "version": "5.7-0.5~deb12u1",
+          "source": "debianutils",
+          "sourceUrl": "https://snapshot.debian.org/package/debianutils/5.7-0.5~deb12u1/",
+          "architecture": "amd64",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "diffutils",
+          "version": "1:3.8-4",
+          "source": "diffutils",
+          "sourceUrl": "https://snapshot.debian.org/package/diffutils/1%3A3.8-4/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/diffutils/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "dpkg",
+          "version": "1.21.23",
+          "source": "dpkg",
+          "sourceUrl": "https://snapshot.debian.org/package/dpkg/1.21.23/",
+          "architecture": "amd64",
+          "upstream": "https://wiki.debian.org/Teams/Dpkg",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "e2fsprogs",
+          "version": "1.47.0-2+b2",
+          "source": "e2fsprogs (1.47.0-2)",
+          "sourceUrl": "https://snapshot.debian.org/package/e2fsprogs/1.47.0-2/",
+          "architecture": "amd64",
+          "upstream": "http://e2fsprogs.sourceforge.net",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "findutils",
+          "version": "4.9.0-4",
+          "source": "findutils",
+          "sourceUrl": "https://snapshot.debian.org/package/findutils/4.9.0-4/",
+          "architecture": "amd64",
+          "upstream": "https://savannah.gnu.org/projects/findutils/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "gcc-12-base",
+          "version": "12.2.0-14+deb12u1",
+          "source": "gcc-12",
+          "sourceUrl": "https://snapshot.debian.org/package/gcc-12/12.2.0-14%2Bdeb12u1/",
+          "architecture": "amd64",
+          "upstream": "http://gcc.gnu.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "gpgv",
+          "version": "2.2.40-1.1+deb12u2",
+          "source": "gnupg2",
+          "sourceUrl": "https://snapshot.debian.org/package/gnupg2/2.2.40-1.1%2Bdeb12u2/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnupg.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "grep",
+          "version": "3.8-5",
+          "source": "grep",
+          "sourceUrl": "https://snapshot.debian.org/package/grep/3.8-5/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/grep/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "gzip",
+          "version": "1.12-1",
+          "source": "gzip",
+          "sourceUrl": "https://snapshot.debian.org/package/gzip/1.12-1/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/gzip/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "hostname",
+          "version": "3.23+nmu1",
+          "source": "hostname",
+          "sourceUrl": "https://snapshot.debian.org/package/hostname/3.23%2Bnmu1/",
+          "architecture": "amd64",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "init-system-helpers",
+          "version": "1.65.2+deb12u1",
+          "source": "init-system-helpers",
+          "sourceUrl": "https://snapshot.debian.org/package/init-system-helpers/1.65.2%2Bdeb12u1/",
+          "architecture": "all",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libacl1",
+          "version": "2.3.1-3",
+          "source": "acl",
+          "sourceUrl": "https://snapshot.debian.org/package/acl/2.3.1-3/",
+          "architecture": "amd64",
+          "upstream": "https://savannah.nongnu.org/projects/acl/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libapt-pkg6.0",
+          "version": "2.6.1",
+          "source": "apt",
+          "sourceUrl": "https://snapshot.debian.org/package/apt/2.6.1/",
+          "architecture": "amd64",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libattr1",
+          "version": "1:2.5.1-4",
+          "source": "attr",
+          "sourceUrl": "https://snapshot.debian.org/package/attr/1%3A2.5.1-4/",
+          "architecture": "amd64",
+          "upstream": "https://savannah.nongnu.org/projects/attr/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libaudit-common",
+          "version": "1:3.0.9-1",
+          "source": "audit",
+          "sourceUrl": "https://snapshot.debian.org/package/audit/1%3A3.0.9-1/",
+          "architecture": "all",
+          "upstream": "https://people.redhat.com/sgrubb/audit/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libaudit1",
+          "version": "1:3.0.9-1",
+          "source": "audit",
+          "sourceUrl": "https://snapshot.debian.org/package/audit/1%3A3.0.9-1/",
+          "architecture": "amd64",
+          "upstream": "https://people.redhat.com/sgrubb/audit/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libblkid1",
+          "version": "2.38.1-5+deb12u3",
+          "source": "util-linux",
+          "sourceUrl": "https://snapshot.debian.org/package/util-linux/2.38.1-5%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://www.kernel.org/pub/linux/utils/util-linux/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libbz2-1.0",
+          "version": "1.0.8-5+b1",
+          "source": "bzip2 (1.0.8-5)",
+          "sourceUrl": "https://snapshot.debian.org/package/bzip2/1.0.8-5/",
+          "architecture": "amd64",
+          "upstream": "https://sourceware.org/bzip2/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libc-bin",
+          "version": "2.36-9+deb12u14",
+          "source": "glibc",
+          "sourceUrl": "https://snapshot.debian.org/package/glibc/2.36-9%2Bdeb12u14/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/libc/libc.html",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libc6",
+          "version": "2.36-9+deb12u14",
+          "source": "glibc",
+          "sourceUrl": "https://snapshot.debian.org/package/glibc/2.36-9%2Bdeb12u14/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/libc/libc.html",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libcap-ng0",
+          "version": "0.8.3-1+b3",
+          "source": "libcap-ng (0.8.3-1)",
+          "sourceUrl": "https://snapshot.debian.org/package/libcap-ng/0.8.3-1/",
+          "architecture": "amd64",
+          "upstream": "https://people.redhat.com/sgrubb/libcap-ng",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libcap2",
+          "version": "1:2.66-4+deb12u3+b1",
+          "source": "libcap2 (1:2.66-4+deb12u3)",
+          "sourceUrl": "https://snapshot.debian.org/package/libcap2/1%3A2.66-4%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://sites.google.com/site/fullycapable/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libcom-err2",
+          "version": "1.47.0-2+b2",
+          "source": "e2fsprogs (1.47.0-2)",
+          "sourceUrl": "https://snapshot.debian.org/package/e2fsprogs/1.47.0-2/",
+          "architecture": "amd64",
+          "upstream": "http://e2fsprogs.sourceforge.net",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libcrypt1",
+          "version": "1:4.4.33-2",
+          "source": "libxcrypt",
+          "sourceUrl": "https://snapshot.debian.org/package/libxcrypt/1%3A4.4.33-2/",
+          "architecture": "amd64",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libdb5.3",
+          "version": "5.3.28+dfsg2-1",
+          "source": "db5.3",
+          "sourceUrl": "https://snapshot.debian.org/package/db5.3/5.3.28%2Bdfsg2-1/",
+          "architecture": "amd64",
+          "upstream": "http://www.oracle.com/technetwork/database/database-technologies/berkeleydb/overview/index.html",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libdebconfclient0",
+          "version": "0.270",
+          "source": "cdebconf",
+          "sourceUrl": "https://snapshot.debian.org/package/cdebconf/0.270/",
+          "architecture": "amd64",
+          "upstream": null,
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libext2fs2",
+          "version": "1.47.0-2+b2",
+          "source": "e2fsprogs (1.47.0-2)",
+          "sourceUrl": "https://snapshot.debian.org/package/e2fsprogs/1.47.0-2/",
+          "architecture": "amd64",
+          "upstream": "http://e2fsprogs.sourceforge.net",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libffi8",
+          "version": "3.4.4-1",
+          "source": "libffi",
+          "sourceUrl": "https://snapshot.debian.org/package/libffi/3.4.4-1/",
+          "architecture": "amd64",
+          "upstream": "https://sourceware.org/libffi/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libgcc-s1",
+          "version": "12.2.0-14+deb12u1",
+          "source": "gcc-12",
+          "sourceUrl": "https://snapshot.debian.org/package/gcc-12/12.2.0-14%2Bdeb12u1/",
+          "architecture": "amd64",
+          "upstream": "http://gcc.gnu.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libgcrypt20",
+          "version": "1.10.1-3+deb12u1",
+          "source": "libgcrypt20",
+          "sourceUrl": "https://snapshot.debian.org/package/libgcrypt20/1.10.1-3%2Bdeb12u1/",
+          "architecture": "amd64",
+          "upstream": "https://directory.fsf.org/project/libgcrypt/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libgmp10",
+          "version": "2:6.2.1+dfsg1-1.1",
+          "source": "gmp",
+          "sourceUrl": "https://snapshot.debian.org/package/gmp/2%3A6.2.1%2Bdfsg1-1.1/",
+          "architecture": "amd64",
+          "upstream": "https://gmplib.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libgnutls30",
+          "version": "3.7.9-2+deb12u7",
+          "source": "gnutls28",
+          "sourceUrl": "https://snapshot.debian.org/package/gnutls28/3.7.9-2%2Bdeb12u7/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnutls.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libgpg-error0",
+          "version": "1.46-1",
+          "source": "libgpg-error",
+          "sourceUrl": "https://snapshot.debian.org/package/libgpg-error/1.46-1/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnupg.org/related_software/libgpg-error/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libhogweed6",
+          "version": "3.8.1-2",
+          "source": "nettle",
+          "sourceUrl": "https://snapshot.debian.org/package/nettle/3.8.1-2/",
+          "architecture": "amd64",
+          "upstream": "http://www.lysator.liu.se/~nisse/nettle/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libidn2-0",
+          "version": "2.3.3-1+b1",
+          "source": "libidn2 (2.3.3-1)",
+          "sourceUrl": "https://snapshot.debian.org/package/libidn2/2.3.3-1/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/libidn/#libidn2",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "liblz4-1",
+          "version": "1.9.4-1",
+          "source": "lz4",
+          "sourceUrl": "https://snapshot.debian.org/package/lz4/1.9.4-1/",
+          "architecture": "amd64",
+          "upstream": "https://github.com/lz4/lz4",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "liblzma5",
+          "version": "5.4.1-1+deb12u2",
+          "source": "xz-utils",
+          "sourceUrl": "https://snapshot.debian.org/package/xz-utils/5.4.1-1%2Bdeb12u2/",
+          "architecture": "amd64",
+          "upstream": "https://tukaani.org/xz/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libmd0",
+          "version": "1.0.4-2",
+          "source": "libmd",
+          "sourceUrl": "https://snapshot.debian.org/package/libmd/1.0.4-2/",
+          "architecture": "amd64",
+          "upstream": "https://www.hadrons.org/software/libmd/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libmount1",
+          "version": "2.38.1-5+deb12u3",
+          "source": "util-linux",
+          "sourceUrl": "https://snapshot.debian.org/package/util-linux/2.38.1-5%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://www.kernel.org/pub/linux/utils/util-linux/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libnettle8",
+          "version": "3.8.1-2",
+          "source": "nettle",
+          "sourceUrl": "https://snapshot.debian.org/package/nettle/3.8.1-2/",
+          "architecture": "amd64",
+          "upstream": "http://www.lysator.liu.se/~nisse/nettle/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libp11-kit0",
+          "version": "0.24.1-2",
+          "source": "p11-kit",
+          "sourceUrl": "https://snapshot.debian.org/package/p11-kit/0.24.1-2/",
+          "architecture": "amd64",
+          "upstream": "https://p11-glue.github.io/p11-glue/p11-kit.html",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libpam-modules",
+          "version": "1.5.2-6+deb12u2",
+          "source": "pam",
+          "sourceUrl": "https://snapshot.debian.org/package/pam/1.5.2-6%2Bdeb12u2/",
+          "architecture": "amd64",
+          "upstream": "http://www.linux-pam.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libpam-modules-bin",
+          "version": "1.5.2-6+deb12u2",
+          "source": "pam",
+          "sourceUrl": "https://snapshot.debian.org/package/pam/1.5.2-6%2Bdeb12u2/",
+          "architecture": "amd64",
+          "upstream": "http://www.linux-pam.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libpam-runtime",
+          "version": "1.5.2-6+deb12u2",
+          "source": "pam",
+          "sourceUrl": "https://snapshot.debian.org/package/pam/1.5.2-6%2Bdeb12u2/",
+          "architecture": "all",
+          "upstream": "http://www.linux-pam.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libpam0g",
+          "version": "1.5.2-6+deb12u2",
+          "source": "pam",
+          "sourceUrl": "https://snapshot.debian.org/package/pam/1.5.2-6%2Bdeb12u2/",
+          "architecture": "amd64",
+          "upstream": "http://www.linux-pam.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libpcre2-8-0",
+          "version": "10.42-1+deb12u2",
+          "source": "pcre2",
+          "sourceUrl": "https://snapshot.debian.org/package/pcre2/10.42-1%2Bdeb12u2/",
+          "architecture": "amd64",
+          "upstream": "https://pcre.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libseccomp2",
+          "version": "2.5.4-1+deb12u1",
+          "source": "libseccomp",
+          "sourceUrl": "https://snapshot.debian.org/package/libseccomp/2.5.4-1%2Bdeb12u1/",
+          "architecture": "amd64",
+          "upstream": "https://github.com/seccomp/libseccomp",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libselinux1",
+          "version": "3.4-1+b6",
+          "source": "libselinux (3.4-1)",
+          "sourceUrl": "https://snapshot.debian.org/package/libselinux/3.4-1/",
+          "architecture": "amd64",
+          "upstream": "https://selinuxproject.org",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libsemanage-common",
+          "version": "3.4-1",
+          "source": "libsemanage",
+          "sourceUrl": "https://snapshot.debian.org/package/libsemanage/3.4-1/",
+          "architecture": "all",
+          "upstream": "https://selinuxproject.org",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libsemanage2",
+          "version": "3.4-1+b5",
+          "source": "libsemanage (3.4-1)",
+          "sourceUrl": "https://snapshot.debian.org/package/libsemanage/3.4-1/",
+          "architecture": "amd64",
+          "upstream": "https://selinuxproject.org",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libsepol2",
+          "version": "3.4-2.1",
+          "source": "libsepol",
+          "sourceUrl": "https://snapshot.debian.org/package/libsepol/3.4-2.1/",
+          "architecture": "amd64",
+          "upstream": "https://selinuxproject.org",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libsmartcols1",
+          "version": "2.38.1-5+deb12u3",
+          "source": "util-linux",
+          "sourceUrl": "https://snapshot.debian.org/package/util-linux/2.38.1-5%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://www.kernel.org/pub/linux/utils/util-linux/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libss2",
+          "version": "1.47.0-2+b2",
+          "source": "e2fsprogs (1.47.0-2)",
+          "sourceUrl": "https://snapshot.debian.org/package/e2fsprogs/1.47.0-2/",
+          "architecture": "amd64",
+          "upstream": "http://e2fsprogs.sourceforge.net",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libstdc++6",
+          "version": "12.2.0-14+deb12u1",
+          "source": "gcc-12",
+          "sourceUrl": "https://snapshot.debian.org/package/gcc-12/12.2.0-14%2Bdeb12u1/",
+          "architecture": "amd64",
+          "upstream": "http://gcc.gnu.org/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libsystemd0",
+          "version": "252.39-1~deb12u2",
+          "source": "systemd",
+          "sourceUrl": "https://snapshot.debian.org/package/systemd/252.39-1~deb12u2/",
+          "architecture": "amd64",
+          "upstream": "https://www.freedesktop.org/wiki/Software/systemd",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libtasn1-6",
+          "version": "4.19.0-2+deb12u1",
+          "source": "libtasn1-6",
+          "sourceUrl": "https://snapshot.debian.org/package/libtasn1-6/4.19.0-2%2Bdeb12u1/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/libtasn1/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libtinfo6",
+          "version": "6.4-4",
+          "source": "ncurses",
+          "sourceUrl": "https://snapshot.debian.org/package/ncurses/6.4-4/",
+          "architecture": "amd64",
+          "upstream": "https://invisible-island.net/ncurses/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libudev1",
+          "version": "252.39-1~deb12u2",
+          "source": "systemd",
+          "sourceUrl": "https://snapshot.debian.org/package/systemd/252.39-1~deb12u2/",
+          "architecture": "amd64",
+          "upstream": "https://www.freedesktop.org/wiki/Software/systemd",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libunistring2",
+          "version": "1.0-2",
+          "source": "libunistring",
+          "sourceUrl": "https://snapshot.debian.org/package/libunistring/1.0-2/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/libunistring/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libuuid1",
+          "version": "2.38.1-5+deb12u3",
+          "source": "util-linux",
+          "sourceUrl": "https://snapshot.debian.org/package/util-linux/2.38.1-5%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://www.kernel.org/pub/linux/utils/util-linux/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libxxhash0",
+          "version": "0.8.1-1",
+          "source": "xxhash",
+          "sourceUrl": "https://snapshot.debian.org/package/xxhash/0.8.1-1/",
+          "architecture": "amd64",
+          "upstream": "https://cyan4973.github.io/xxHash",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "libzstd1",
+          "version": "1.5.4+dfsg2-5",
+          "source": "libzstd",
+          "sourceUrl": "https://snapshot.debian.org/package/libzstd/1.5.4%2Bdfsg2-5/",
+          "architecture": "amd64",
+          "upstream": "https://github.com/facebook/zstd",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "login",
+          "version": "1:4.13+dfsg1-1+deb12u2",
+          "source": "shadow",
+          "sourceUrl": "https://snapshot.debian.org/package/shadow/1%3A4.13%2Bdfsg1-1%2Bdeb12u2/",
+          "architecture": "amd64",
+          "upstream": "https://github.com/shadow-maint/shadow",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "logsave",
+          "version": "1.47.0-2+b2",
+          "source": "e2fsprogs (1.47.0-2)",
+          "sourceUrl": "https://snapshot.debian.org/package/e2fsprogs/1.47.0-2/",
+          "architecture": "amd64",
+          "upstream": "http://e2fsprogs.sourceforge.net",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "mawk",
+          "version": "1.3.4.20200120-3.1",
+          "source": "mawk",
+          "sourceUrl": "https://snapshot.debian.org/package/mawk/1.3.4.20200120-3.1/",
+          "architecture": "amd64",
+          "upstream": "https://invisible-island.net/mawk/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "mount",
+          "version": "2.38.1-5+deb12u3",
+          "source": "util-linux",
+          "sourceUrl": "https://snapshot.debian.org/package/util-linux/2.38.1-5%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://www.kernel.org/pub/linux/utils/util-linux/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "ncurses-base",
+          "version": "6.4-4",
+          "source": "ncurses",
+          "sourceUrl": "https://snapshot.debian.org/package/ncurses/6.4-4/",
+          "architecture": "all",
+          "upstream": "https://invisible-island.net/ncurses/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "ncurses-bin",
+          "version": "6.4-4",
+          "source": "ncurses",
+          "sourceUrl": "https://snapshot.debian.org/package/ncurses/6.4-4/",
+          "architecture": "amd64",
+          "upstream": "https://invisible-island.net/ncurses/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "passwd",
+          "version": "1:4.13+dfsg1-1+deb12u2",
+          "source": "shadow",
+          "sourceUrl": "https://snapshot.debian.org/package/shadow/1%3A4.13%2Bdfsg1-1%2Bdeb12u2/",
+          "architecture": "amd64",
+          "upstream": "https://github.com/shadow-maint/shadow",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "perl-base",
+          "version": "5.36.0-7+deb12u3",
+          "source": "perl",
+          "sourceUrl": "https://snapshot.debian.org/package/perl/5.36.0-7%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "http://dev.perl.org/perl5/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "sed",
+          "version": "4.9-1+deb12u1",
+          "source": "sed",
+          "sourceUrl": "https://snapshot.debian.org/package/sed/4.9-1%2Bdeb12u1/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/sed/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "sysvinit-utils",
+          "version": "3.06-4",
+          "source": "sysvinit",
+          "sourceUrl": "https://snapshot.debian.org/package/sysvinit/3.06-4/",
+          "architecture": "amd64",
+          "upstream": "https://github.com/slicer69/sysvinit",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "tar",
+          "version": "1.34+dfsg-1.2+deb12u1",
+          "source": "tar",
+          "sourceUrl": "https://snapshot.debian.org/package/tar/1.34%2Bdfsg-1.2%2Bdeb12u1/",
+          "architecture": "amd64",
+          "upstream": "https://www.gnu.org/software/tar/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "tzdata",
+          "version": "2026c-0+deb12u1",
+          "source": "tzdata",
+          "sourceUrl": "https://snapshot.debian.org/package/tzdata/2026c-0%2Bdeb12u1/",
+          "architecture": "all",
+          "upstream": "https://www.iana.org/time-zones",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "usr-is-merged",
+          "version": "37~deb12u1",
+          "source": "usrmerge",
+          "sourceUrl": "https://snapshot.debian.org/package/usrmerge/37~deb12u1/",
+          "architecture": "all",
+          "upstream": "https://wiki.debian.org/UsrMerge",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "util-linux",
+          "version": "2.38.1-5+deb12u3",
+          "source": "util-linux",
+          "sourceUrl": "https://snapshot.debian.org/package/util-linux/2.38.1-5%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://www.kernel.org/pub/linux/utils/util-linux/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "util-linux-extra",
+          "version": "2.38.1-5+deb12u3",
+          "source": "util-linux",
+          "sourceUrl": "https://snapshot.debian.org/package/util-linux/2.38.1-5%2Bdeb12u3/",
+          "architecture": "amd64",
+          "upstream": "https://www.kernel.org/pub/linux/utils/util-linux/",
+          "license": "See package copyright material"
+        },
+        {
+          "name": "zlib1g",
+          "version": "1:1.2.13.dfsg-1",
+          "source": "zlib",
+          "sourceUrl": "https://snapshot.debian.org/package/zlib/1%3A1.2.13.dfsg-1/",
+          "architecture": "amd64",
+          "upstream": "http://zlib.net/",
+          "license": "See package copyright material"
+        }
+      ],
+      "files": [
+        {
+          "path": "OCI image index",
+          "material": "materials/d9983e6ea0ec42751b58cc45c4b2447c5fad73d19c4925c0653bb01dcc92b5f1.txt"
+        },
+        {
+          "path": "/var/lib/dpkg/status",
+          "material": "materials/eb7a7c1b0ca66b26e088916193a213a223176294a51b19503e75fab937726e4e.txt"
+        },
+        {
+          "path": "/usr/local/LICENSE",
+          "material": "materials/5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/corepack/LICENSE.md",
+          "material": "materials/30a7b8ba5c4483d97d6123f5634da2362d578fb81f42ed6e1dfbb84fb1cd8fe4.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/LICENSE",
+          "material": "materials/7610d223851f421d315df5e77974f1c68a04b97e02060e5bbbcf13d95e3ca257.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@gar/promise-retry/LICENSE",
+          "material": "materials/1c66b5311fc6328ab70616d2cf8e20a8e0a787f534831cf8a311b20098b617a5.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@isaacs/fs-minipass/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@isaacs/string-locale-compare/LICENSE",
+          "material": "materials/05dc4d785ac3a488676d3ed10e901b75ad89dafcc63f8e66610fd4a39cc5c7e8.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/LICENSE.md",
+          "material": "materials/27d998b503b18cdb16c49e93da04069a99ba8a1d7e18d67146de8e242f9a6d21.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/bin/license.js",
+          "material": "materials/3c7c2b07a2591835cb6c60687a23e425540565d9ccb65fef17478c6073bf6841.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/config/LICENSE",
+          "material": "materials/898c2bcff663681498ad1ca8235d45b6e70b10cdf1f869a5b5e69f6e46efedd3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/fs/LICENSE.md",
+          "material": "materials/27d998b503b18cdb16c49e93da04069a99ba8a1d7e18d67146de8e242f9a6d21.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/fs/lib/cp/LICENSE",
+          "material": "materials/1e76029602ae9b21cc4e612db2496d92febed882ba13ba745f8b3309e85f9d39.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/git/LICENSE",
+          "material": "materials/565acf764f4583abe4cf4b02128f01b5d4d1b4c62c253e92df7ed6a8a8ad406b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/installed-package-contents/LICENSE",
+          "material": "materials/898c2bcff663681498ad1ca8235d45b6e70b10cdf1f869a5b5e69f6e46efedd3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/map-workspaces/LICENSE.md",
+          "material": "materials/27d998b503b18cdb16c49e93da04069a99ba8a1d7e18d67146de8e242f9a6d21.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/metavuln-calculator/LICENSE",
+          "material": "materials/898c2bcff663681498ad1ca8235d45b6e70b10cdf1f869a5b5e69f6e46efedd3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/name-from-folder/LICENSE",
+          "material": "materials/802fae69bfe8fcb201f15b6a12505580028158679c3ed3254df5ea8f0912aed4.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/node-gyp/LICENSE",
+          "material": "materials/8da13c785af46eb3d0bf2ce4c34bdf191b8c57bf43e410e9359d5b5eab5f4b0f.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/package-json/LICENSE",
+          "material": "materials/65675229fc81818c9490a1942f361f7ef31cd525bef9111e62a6c84e9bd4769d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/package-json/lib/license.js",
+          "material": "materials/bc4c06b48b593b8b63f3e1557f52bdd37ebf40295033cfdb03d420d181809c11.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/promise-spawn/LICENSE",
+          "material": "materials/565acf764f4583abe4cf4b02128f01b5d4d1b4c62c253e92df7ed6a8a8ad406b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/query/LICENSE",
+          "material": "materials/27d998b503b18cdb16c49e93da04069a99ba8a1d7e18d67146de8e242f9a6d21.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/redact/LICENSE",
+          "material": "materials/d0b7cddf14a2005e05b397a950b9f69e1de412b8c6749e5b5d70610fb119e9ee.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@npmcli/run-script/LICENSE",
+          "material": "materials/898c2bcff663681498ad1ca8235d45b6e70b10cdf1f869a5b5e69f6e46efedd3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@sigstore/bundle/LICENSE",
+          "material": "materials/364a130d2ca340bd56eb1e6d045fc6929bb0f9d0aa018f2c1949b29517e1cdd0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@sigstore/core/LICENSE",
+          "material": "materials/364a130d2ca340bd56eb1e6d045fc6929bb0f9d0aa018f2c1949b29517e1cdd0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@sigstore/protobuf-specs/LICENSE",
+          "material": "materials/364a130d2ca340bd56eb1e6d045fc6929bb0f9d0aa018f2c1949b29517e1cdd0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@sigstore/sign/LICENSE",
+          "material": "materials/364a130d2ca340bd56eb1e6d045fc6929bb0f9d0aa018f2c1949b29517e1cdd0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@sigstore/tuf/LICENSE",
+          "material": "materials/364a130d2ca340bd56eb1e6d045fc6929bb0f9d0aa018f2c1949b29517e1cdd0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@tufjs/canonical-json/LICENSE",
+          "material": "materials/564bcb001d6e131452a8e9fba0f0ccc59e8b881f84ce3e46e319a5a33e191e10.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/@tufjs/models/LICENSE",
+          "material": "materials/564bcb001d6e131452a8e9fba0f0ccc59e8b881f84ce3e46e319a5a33e191e10.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/abbrev/LICENSE",
+          "material": "materials/9e0d5c7989f7e9f07d7c4b158aceff270f235eb7464ace41c5e7b200834a43e0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/agent-base/LICENSE",
+          "material": "materials/8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/aproba/LICENSE",
+          "material": "materials/0cef05dfff8b6aa7f35596984f5709f0d17c2582924a751efa471a76de7cdc11.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/archy/LICENSE",
+          "material": "materials/435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/balanced-match/LICENSE.md",
+          "material": "materials/d408f38ffa3355c5faec517153295338892eb0f1ea43f57874bb23c6075979b5.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/bin-links/LICENSE",
+          "material": "materials/898c2bcff663681498ad1ca8235d45b6e70b10cdf1f869a5b5e69f6e46efedd3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/binary-extensions/license",
+          "material": "materials/96f0820026bd6dadc4af99c6dba7111d2e0190c092c376a746c13863e151d072.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/brace-expansion/LICENSE",
+          "material": "materials/9c63a23124d68cd30cd316a94a1a0bca34f032786df6df69fc4b5f136bac8d2e.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/cacache/LICENSE.md",
+          "material": "materials/720836c9bdad386485a492ab41fe08007ecf85ca278ddd8f9333494dcac4949d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/chalk/license",
+          "material": "materials/5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/chownr/LICENSE.md",
+          "material": "materials/a49c9ba464796f65b59fca3f1e6ca40912df1e859f575383223f7ec6c5baae09.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/ci-info/LICENSE",
+          "material": "materials/f58943cb354fb2707fea2f7b26b04e6014ddb56835cdfd414c9d2c6c59165b64.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/cidr-regex/LICENSE",
+          "material": "materials/23e60503dc06abf04b9e535e17797b4e0f9224e6c5abf9207317d5a67c88c743.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/cmd-shim/LICENSE",
+          "material": "materials/ec361617c0473d39347b020eaa6dceedaebab43879fa1cd8b8f0f97a8e80a475.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/common-ancestor-path/LICENSE.md",
+          "material": "materials/8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/cssesc/LICENSE-MIT.txt",
+          "material": "materials/483acb265f182907d1caf6cff9c16c96f31325ed23792832cc5d8b12d5f88c8a.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/debug/LICENSE",
+          "material": "materials/3a61c6c96caf5c1d9b623fb9b04c822b783dfcb78aa7e49c76a3f643e6ed7f95.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/diff/LICENSE",
+          "material": "materials/eda81a415869e67809f6a9f3fd6056062cb83a462118e07eec5e92b2e0c40ce9.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/env-paths/license",
+          "material": "materials/48da2f39e100d4085767e94966b43f4fa95ff6a0698fba57ed460914e35f94a0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/exponential-backoff/LICENSE",
+          "material": "materials/f5afc95c69e116ea6b1755f91a8763f53eadb78b4f1582a08d2d18586a03a117.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/fastest-levenshtein/LICENSE.md",
+          "material": "materials/b8baf91be313643f3e87a01da77704b68e12795184a62e51e537a5a43c2932f3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/fs-minipass/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/glob/LICENSE.md",
+          "material": "materials/a49c9ba464796f65b59fca3f1e6ca40912df1e859f575383223f7ec6c5baae09.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/graceful-fs/LICENSE",
+          "material": "materials/f65c5d9f22a317b2a10803bd1868461ce6499c2ed7217bc80c0cc772a748789c.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/hosted-git-info/LICENSE",
+          "material": "materials/c1476ec53119cd4c8370f91f5152ac76312a29b4fae2d49b5e0e0970fe0fa5ee.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/http-cache-semantics/LICENSE",
+          "material": "materials/ab868ad5a2ef5068560d9cd3b2180ec63c140bb4c5cae1ba779d300a0ac74fa3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/http-proxy-agent/LICENSE",
+          "material": "materials/71368fd0f5b4129191e9afcd1e1ef2dc89a9090d3e4d80bbab92dafd032b3bef.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/https-proxy-agent/LICENSE",
+          "material": "materials/8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/iconv-lite/LICENSE",
+          "material": "materials/ac779f7314c74f232ef847ea86e714abe25cf6eeb5cc97b69451b74e2af6492d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/ignore-walk/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/ini/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/init-package-json/LICENSE.md",
+          "material": "materials/7f75bb21103e77b7acfcf88a6ad0286741a18b5d13c4326160346e8cf7e356ad.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/ip-address/LICENSE",
+          "material": "materials/f8d791359a50cbcac82c29cb7b0b1b889b28be76fdd35b8ee33f0f7c8704702a.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/is-cidr/LICENSE",
+          "material": "materials/23e60503dc06abf04b9e535e17797b4e0f9224e6c5abf9207317d5a67c88c743.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/isexe/LICENSE.md",
+          "material": "materials/8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/json-parse-even-better-errors/LICENSE.md",
+          "material": "materials/50627796eb4236cd05674e71d090e594447995225b7d94cd59e57c25fa3a0217.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/json-stringify-nice/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/jsonparse/LICENSE",
+          "material": "materials/ed251dc3a48522399fffe95fe04d94fbcadcd9edd0e7689f3b71cf73403a6138.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/just-diff-apply/LICENSE",
+          "material": "materials/ebb30d70f7ebd918f223ce6ed7621fa4cef3ec2d59d6707c23868b01def28ce2.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/just-diff/LICENSE",
+          "material": "materials/ebb30d70f7ebd918f223ce6ed7621fa4cef3ec2d59d6707c23868b01def28ce2.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmaccess/LICENSE",
+          "material": "materials/77d72758faff2d3a086b1c77f66f4dcfa63a1ee1a9bab5df4ab3c2e8f3eb646d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmdiff/LICENSE",
+          "material": "materials/7967f87257c7d5f0ef29012d472a8b99a0fb1c5202b6d861a2c81671329a2ee4.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmexec/LICENSE",
+          "material": "materials/7967f87257c7d5f0ef29012d472a8b99a0fb1c5202b6d861a2c81671329a2ee4.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmfund/LICENSE",
+          "material": "materials/9dd1bc5666fd1e32f086518046532e993f5307749327aff37cecf98355f2b9a0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmorg/LICENSE",
+          "material": "materials/77d72758faff2d3a086b1c77f66f4dcfa63a1ee1a9bab5df4ab3c2e8f3eb646d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmpack/LICENSE",
+          "material": "materials/77d72758faff2d3a086b1c77f66f4dcfa63a1ee1a9bab5df4ab3c2e8f3eb646d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmpublish/LICENSE",
+          "material": "materials/77d72758faff2d3a086b1c77f66f4dcfa63a1ee1a9bab5df4ab3c2e8f3eb646d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmsearch/LICENSE",
+          "material": "materials/77d72758faff2d3a086b1c77f66f4dcfa63a1ee1a9bab5df4ab3c2e8f3eb646d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmteam/LICENSE",
+          "material": "materials/77d72758faff2d3a086b1c77f66f4dcfa63a1ee1a9bab5df4ab3c2e8f3eb646d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/libnpmversion/LICENSE",
+          "material": "materials/05dc4d785ac3a488676d3ed10e901b75ad89dafcc63f8e66610fd4a39cc5c7e8.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/lru-cache/LICENSE.md",
+          "material": "materials/8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/make-fetch-happen/LICENSE",
+          "material": "materials/a806e21000ee60cfd64a6f1416f29c7552b4834701974e86c0156f99c0cdd806.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minimatch/LICENSE.md",
+          "material": "materials/2c7c5d22ed5a8ee968c64757710979afcd77438c48b4a265b94e615babd8a901.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minipass-collect/LICENSE",
+          "material": "materials/b630651f34d0e0284ea940601bbe0a58f306ad7e9819e351d9dfab812f8d0f38.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minipass-fetch/LICENSE",
+          "material": "materials/1dedee6f84f5875ce4dc398d4d767274eb952a43cfd510a6ada856b2ed347472.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minipass-flush/LICENSE.md",
+          "material": "materials/8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minipass-pipeline/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minipass-pipeline/node_modules/minipass/LICENSE",
+          "material": "materials/a5a110eb524bf3217958e405b5e3411277e915a2f5902c330348877000337e53.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minipass-pipeline/node_modules/yallist/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minipass-sized/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minipass/LICENSE.md",
+          "material": "materials/8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/minizlib/LICENSE",
+          "material": "materials/df05697a04b8997c79d423930534e59cc18828f6e22d0c8c2d62fcbea1c4f50b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/ms/license.md",
+          "material": "materials/1662fae9b5314d11cf51284e2dcd1f006a354f7343f08712a730fcff9a359801.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/mute-stream/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/negotiator/LICENSE",
+          "material": "materials/553d4d20029a24e315b428a1a54a9e109eaa340f2e958a4f50a92362c2c4070b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/node-gyp/LICENSE",
+          "material": "materials/662a1b0115251cfb29c6aed0f221f8847bc49c6365d1c53a62c9f4bccc2489c3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/node-gyp/gyp/LICENSE",
+          "material": "materials/ca90abb6ed71de0774461ef9f928de33e748b617aeb79f9e52415cf08d69230e.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/LICENSE",
+          "material": "materials/cad1ef5bd340d73e074ba614d26f7deaca5c7940c3d8c34852e65c4909686c48.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/LICENSE.APACHE",
+          "material": "materials/0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/node-gyp/gyp/pylib/packaging/LICENSE.BSD",
+          "material": "materials/b70e7e9b742f1cc6f948b34c16aa39ffece94196364bc88ff0d2180f0028fac5.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/nopt/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-audit-report/LICENSE",
+          "material": "materials/720836c9bdad386485a492ab41fe08007ecf85ca278ddd8f9333494dcac4949d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-bundled/LICENSE",
+          "material": "materials/ec361617c0473d39347b020eaa6dceedaebab43879fa1cd8b8f0f97a8e80a475.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-install-checks/LICENSE",
+          "material": "materials/f674630c4d3e668dabac6d955fb5f74c75b4a63a707ac93a8833b74bdc57221e.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-normalize-package-bin/LICENSE",
+          "material": "materials/898c2bcff663681498ad1ca8235d45b6e70b10cdf1f869a5b5e69f6e46efedd3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-package-arg/LICENSE",
+          "material": "materials/898c2bcff663681498ad1ca8235d45b6e70b10cdf1f869a5b5e69f6e46efedd3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-packlist/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-pick-manifest/LICENSE.md",
+          "material": "materials/720836c9bdad386485a492ab41fe08007ecf85ca278ddd8f9333494dcac4949d.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-profile/LICENSE.md",
+          "material": "materials/27d998b503b18cdb16c49e93da04069a99ba8a1d7e18d67146de8e242f9a6d21.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-registry-fetch/LICENSE.md",
+          "material": "materials/27d998b503b18cdb16c49e93da04069a99ba8a1d7e18d67146de8e242f9a6d21.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/npm-user-validate/LICENSE",
+          "material": "materials/8b8404b77ea2a20e045fbad73de1661091a852bfe1f4997e0b646c688f3d18e4.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/p-map/license",
+          "material": "materials/5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/pacote/LICENSE",
+          "material": "materials/36ec394cd0f976603cfec687c19175a703c1c0d9db717a76915391e756522c8e.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/parse-conflict-json/LICENSE.md",
+          "material": "materials/27d998b503b18cdb16c49e93da04069a99ba8a1d7e18d67146de8e242f9a6d21.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/path-scurry/LICENSE.md",
+          "material": "materials/8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/postcss-selector-parser/LICENSE-MIT",
+          "material": "materials/2998094b38f7ace25f141fb36f334d8338f65a1812978d618b1161f4d77ae10e.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/proc-log/LICENSE",
+          "material": "materials/dc32a0dee275e0a9aeffbc974dbf4899a30dcdc2e5ffa8934aecb69261065864.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/proggy/LICENSE",
+          "material": "materials/dc32a0dee275e0a9aeffbc974dbf4899a30dcdc2e5ffa8934aecb69261065864.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/promise-all-reject-late/LICENSE",
+          "material": "materials/05dc4d785ac3a488676d3ed10e901b75ad89dafcc63f8e66610fd4a39cc5c7e8.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/promise-call-limit/LICENSE",
+          "material": "materials/05dc4d785ac3a488676d3ed10e901b75ad89dafcc63f8e66610fd4a39cc5c7e8.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/promzard/LICENSE",
+          "material": "materials/05dc4d785ac3a488676d3ed10e901b75ad89dafcc63f8e66610fd4a39cc5c7e8.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/qrcode-terminal/LICENSE",
+          "material": "materials/b3c7a2fadb2515b8106eae58439a4b9c0581a4eaa88d6a265701f8d4dd7dadb8.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/read-cmd-shim/LICENSE",
+          "material": "materials/0cef05dfff8b6aa7f35596984f5709f0d17c2582924a751efa471a76de7cdc11.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/read/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/safer-buffer/LICENSE",
+          "material": "materials/4bc935e71be198c67ddf3c2b5fddb195f6edc182bfc155a96a6db61b44b494b9.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/semver/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/signal-exit/LICENSE.txt",
+          "material": "materials/b173e19b9a78df305577ace0e52ef45a4bcc915ea28b47b256dc3b68dcb1f7e7.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/sigstore/LICENSE",
+          "material": "materials/364a130d2ca340bd56eb1e6d045fc6929bb0f9d0aa018f2c1949b29517e1cdd0.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/smart-buffer/LICENSE",
+          "material": "materials/c46e2c333e1c9e6fcfd130cf91b8e54bf67b60fabbc04996f7e199b990353ff3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/socks-proxy-agent/LICENSE",
+          "material": "materials/8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/socks/LICENSE",
+          "material": "materials/4f4f28866154c8d758241a64296e8790d45d7d912ff7b029930778c06d8f2a72.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/spdx-expression-parse/LICENSE",
+          "material": "materials/7edb57f7065309027de249642341292a5b21410d5773cc55bba73ff9cf01060e.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/ssri/LICENSE.md",
+          "material": "materials/3749709146345fa15546aaba4e3ab1b3b92a4d930077b5bc32d90815cb63afaf.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/supports-color/license",
+          "material": "materials/5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/tar/LICENSE.md",
+          "material": "materials/8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/text-table/LICENSE",
+          "material": "materials/435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/tiny-relative-date/LICENSE.md",
+          "material": "materials/b219efd4921cb32913a471269807d931b4973190d48269bedcfda6205c526100.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/tinyglobby/LICENSE",
+          "material": "materials/22c68811e174cbbfb3813d4135918df4f540959c14d872e601d9abe83d3cde8f.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/tinyglobby/node_modules/fdir/LICENSE",
+          "material": "materials/9a39f2aadab11a3697edd668ff2d8ad885b649737b7ab4d3bf12b34e5ada0c86.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/tinyglobby/node_modules/picomatch/LICENSE",
+          "material": "materials/d0cd141b0c322fded5dfad1d4645bb2fedfc05b7321fe1009469638190d59ef9.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/treeverse/LICENSE",
+          "material": "materials/ec361617c0473d39347b020eaa6dceedaebab43879fa1cd8b8f0f97a8e80a475.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/tuf-js/LICENSE",
+          "material": "materials/564bcb001d6e131452a8e9fba0f0ccc59e8b881f84ce3e46e319a5a33e191e10.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/undici/LICENSE",
+          "material": "materials/a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/undici/lib/web/fetch/LICENSE",
+          "material": "materials/a21d6c8d3fc631198b97e57584697f7f9c37805c71c6cf9a12e4442b40394b88.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/util-deprecate/LICENSE",
+          "material": "materials/0154425673db15cdfa80ecba2c9b1f1a867f7197a006764712849bfc3a93cbb7.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/validate-npm-package-name/LICENSE",
+          "material": "materials/f3e1645267f7dd77ee6545283cc1766e5883e8fb3b5088fe2cfb995defbb3dde.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/walk-up-path/LICENSE",
+          "material": "materials/825dacf686e3d026be4a5b3e4efb8ddd67a8676f9e96085a53cfa045a5bd0509.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/which/LICENSE",
+          "material": "materials/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/write-file-atomic/LICENSE.md",
+          "material": "materials/ff75aaa5aaf56005eeea7723b287f9df3dd45b33b310a7eb347d3ab28ea26593.txt"
+        },
+        {
+          "path": "/usr/local/lib/node_modules/npm/node_modules/yallist/LICENSE.md",
+          "material": "materials/a49c9ba464796f65b59fca3f1e6ca40912df1e859f575383223f7ec6c5baae09.txt"
+        },
+        {
+          "path": "/usr/share/doc/adduser/copyright",
+          "material": "materials/b143053a4862ab354831487b5f8bd31dc9ffdc589d15de9d9c764332a0209796.txt"
+        },
+        {
+          "path": "/usr/share/doc/apt/copyright",
+          "material": "materials/b4701305243d8d746f4acaafe15d94f946251b05691bd6917fef41dd15e9ee12.txt"
+        },
+        {
+          "path": "/usr/share/doc/base-files/copyright",
+          "material": "materials/fd7e4aae7e7b05f217bcf2d02322825c360e66c52c4c2f1b28d784d6297a1c23.txt"
+        },
+        {
+          "path": "/usr/share/doc/base-passwd/copyright",
+          "material": "materials/0f1cde79bd80a75f9029ae9a8c252b642223027ef36f6989c63a8230aae576a7.txt"
+        },
+        {
+          "path": "/usr/share/doc/bash/copyright",
+          "material": "materials/06319d84c3e5ed096036f6a9310a030c7e84e50dff2b8a6792285c83ec0ada73.txt"
+        },
+        {
+          "path": "/usr/share/doc/bsdutils/copyright",
+          "material": "materials/30539a2df6a89d844f43c727505a3193a60515f8ec6cdede8cc515ed22941d1c.txt"
+        },
+        {
+          "path": "/usr/share/doc/coreutils/copyright",
+          "material": "materials/24e86c5ca53d6bfd8e0c47988160daa62d10a74997fe11f651e1d9533c78bff6.txt"
+        },
+        {
+          "path": "/usr/share/doc/dash/copyright",
+          "material": "materials/d98c53f281321baad38164aa9ae6e368a9253be6ec51bd26a759b5e72b326f4a.txt"
+        },
+        {
+          "path": "/usr/share/doc/debconf/copyright",
+          "material": "materials/57163c71bd8a5289660892827dd0dfaa7fef47f89deedc9dc6711ced7d0a28d7.txt"
+        },
+        {
+          "path": "/usr/share/doc/debian-archive-keyring/copyright",
+          "material": "materials/b32aecaae84643700a33bc9ee83fa9b36938d35aa7b61b5042092eca77ddb732.txt"
+        },
+        {
+          "path": "/usr/share/doc/debianutils/copyright",
+          "material": "materials/fd2d797e208bcfb713510e47a89867191180943e1167d44c2acd8ff1b88e5c10.txt"
+        },
+        {
+          "path": "/usr/share/doc/diffutils/copyright",
+          "material": "materials/8654d7cc7cdae1f31bb67a3ce5bf35d512c0bdfffd071df757edc54153cc7930.txt"
+        },
+        {
+          "path": "/usr/share/doc/dpkg/copyright",
+          "material": "materials/7442bdadcd44e818fddd786057db07639cc68225c389c7c240d3bb3984b05173.txt"
+        },
+        {
+          "path": "/usr/share/doc/e2fsprogs/copyright",
+          "material": "materials/1ca415a294c0e56958c4f795b3f1f69ea3479bca53d7811f5cdd020a258949db.txt"
+        },
+        {
+          "path": "/usr/share/doc/findutils/copyright",
+          "material": "materials/8fbcc77ed31f480a85654e9b6d1d25cbb95b62e9dc5159ae1565bca684c3e1dc.txt"
+        },
+        {
+          "path": "/usr/share/doc/gcc-12-base/copyright",
+          "material": "materials/da8191658b3452ce9caf31638ba61dab31a38c619fa39df119812e050f592fd3.txt"
+        },
+        {
+          "path": "/usr/share/doc/gpgv/copyright",
+          "material": "materials/84dab06b5c1baf3a7a45c3cdc5f98fb121234e98fdd6266c3f773d54fcdc4f54.txt"
+        },
+        {
+          "path": "/usr/share/doc/grep/copyright",
+          "material": "materials/42d9b4d610396b1e8d1303dcb9487af3f5a2d2709623cf03a04cf76acdf6c5e3.txt"
+        },
+        {
+          "path": "/usr/share/doc/gzip/copyright",
+          "material": "materials/1ca5dd5098fe2e1c0f0d05196f5b3da8b414a807702e6ca8b536eb5fd3059130.txt"
+        },
+        {
+          "path": "/usr/share/doc/hostname/copyright",
+          "material": "materials/94189fc5a9a7b7224d96e1a0cfdfe9be0df2018b04bf21d591627ab96b30cad1.txt"
+        },
+        {
+          "path": "/usr/share/doc/init-system-helpers/copyright",
+          "material": "materials/7534601cc4fa513804d16490359f5831e7b6a1212da3bbf948bebdd4c8799783.txt"
+        },
+        {
+          "path": "/usr/share/doc/libacl1/copyright",
+          "material": "materials/9a2dfb4a5abc7e84be2cc41f1089be665519c9409549296f6c19de57ab1d37c2.txt"
+        },
+        {
+          "path": "/usr/share/doc/libapt-pkg6.0/copyright",
+          "material": "materials/b4701305243d8d746f4acaafe15d94f946251b05691bd6917fef41dd15e9ee12.txt"
+        },
+        {
+          "path": "/usr/share/doc/libattr1/copyright",
+          "material": "materials/0cbec745d85ea775450b2d54fac55277197f429e52d611f72852ed420450620e.txt"
+        },
+        {
+          "path": "/usr/share/doc/libaudit-common/copyright",
+          "material": "materials/6c7011e93f643b112c4cc3622131e28a30477afad6c4f5efe466b13aa7f603cc.txt"
+        },
+        {
+          "path": "/usr/share/doc/libaudit1/copyright",
+          "material": "materials/6c7011e93f643b112c4cc3622131e28a30477afad6c4f5efe466b13aa7f603cc.txt"
+        },
+        {
+          "path": "/usr/share/doc/libblkid1/copyright",
+          "material": "materials/30539a2df6a89d844f43c727505a3193a60515f8ec6cdede8cc515ed22941d1c.txt"
+        },
+        {
+          "path": "/usr/share/doc/libbz2-1.0/copyright",
+          "material": "materials/832ed535ff3c3d025a8d2348eb1b697b89addcf2eaadbc17650262040b9145e2.txt"
+        },
+        {
+          "path": "/usr/share/doc/libc-bin/copyright",
+          "material": "materials/40c7e1f2118531f038ca22999bd976901254e1bc5cd1b0f0211bdd064c599987.txt"
+        },
+        {
+          "path": "/usr/share/doc/libc6/copyright",
+          "material": "materials/40c7e1f2118531f038ca22999bd976901254e1bc5cd1b0f0211bdd064c599987.txt"
+        },
+        {
+          "path": "/usr/share/doc/libcap-ng0/copyright",
+          "material": "materials/49b5db19990a3e3cc1a9ed716aed231f6f3c1c217e58f62ae4dc2818c6d3e9cc.txt"
+        },
+        {
+          "path": "/usr/share/doc/libcap2/copyright",
+          "material": "materials/e60a5642e12e340060e4e519a65b2eb0330be2917854841c644e36268f607d54.txt"
+        },
+        {
+          "path": "/usr/share/doc/libcom-err2/copyright",
+          "material": "materials/1ca415a294c0e56958c4f795b3f1f69ea3479bca53d7811f5cdd020a258949db.txt"
+        },
+        {
+          "path": "/usr/share/doc/libcrypt1/copyright",
+          "material": "materials/5a5e7ca0e9f3f9679977e3a3e9ede45ad92885a3297ea78e766979f9866c5a16.txt"
+        },
+        {
+          "path": "/usr/share/doc/libdb5.3/copyright",
+          "material": "materials/8b53da37d73289d9df7317b3a2dbe16491f1fa9fec8b77b86d69704b40ce2c26.txt"
+        },
+        {
+          "path": "/usr/share/doc/libdebconfclient0/copyright",
+          "material": "materials/cf63099896d1c0f6529c41b8d95738e6fea342ffba609187d339c4f38ce36ecc.txt"
+        },
+        {
+          "path": "/usr/share/doc/libext2fs2/copyright",
+          "material": "materials/1ca415a294c0e56958c4f795b3f1f69ea3479bca53d7811f5cdd020a258949db.txt"
+        },
+        {
+          "path": "/usr/share/doc/libffi8/copyright",
+          "material": "materials/f83d2ecba1ea4d99957e81c50bebbd076a128194288a3ec22cc8ccdb77c43087.txt"
+        },
+        {
+          "path": "/usr/share/doc/libgcc-s1/copyright",
+          "material": "materials/da8191658b3452ce9caf31638ba61dab31a38c619fa39df119812e050f592fd3.txt"
+        },
+        {
+          "path": "/usr/share/doc/libgcrypt20/copyright",
+          "material": "materials/95db2f9da663f2bfe2aabe9c72fce9d6c9ae767b912f397d7823f50bd55a1a7d.txt"
+        },
+        {
+          "path": "/usr/share/doc/libgmp10/copyright",
+          "material": "materials/7d366aef5ba325150246de1d7820c4c9926cd27ca61a69948492b26cd3b61601.txt"
+        },
+        {
+          "path": "/usr/share/doc/libgnutls30/copyright",
+          "material": "materials/bb7e5c24b3e27bbba5671dd710d159a0066833bda4caa1d55d8027ffed539337.txt"
+        },
+        {
+          "path": "/usr/share/doc/libgpg-error0/copyright",
+          "material": "materials/8760fd36efa1d7186f8769d4e76a3e678045b94d54465bf6f2db5eb871c7c27f.txt"
+        },
+        {
+          "path": "/usr/share/doc/libhogweed6/copyright",
+          "material": "materials/ca2ca597320220c00ef6dc0fe5d0d82025548d6d4ba80e85615eb691f9021f93.txt"
+        },
+        {
+          "path": "/usr/share/doc/libidn2-0/copyright",
+          "material": "materials/41702469f28e8ff406345e3d1dd0c741f11bdfca319264f67036efd6aaa79e4b.txt"
+        },
+        {
+          "path": "/usr/share/doc/liblz4-1/copyright",
+          "material": "materials/d3be0f43fe14da244f97c451bbae789c0acf868612598a69f5f22a289abeca40.txt"
+        },
+        {
+          "path": "/usr/share/doc/liblzma5/copyright",
+          "material": "materials/a2dc8fac0f496e1c58aff67018cf0c6b88336316afa5642f9335b71642e28aa8.txt"
+        },
+        {
+          "path": "/usr/share/doc/libmd0/copyright",
+          "material": "materials/4365ef6255ad553fce69dd4bc0e093472c5d0e41b8ea493a545cc926ce171aa6.txt"
+        },
+        {
+          "path": "/usr/share/doc/libmount1/copyright",
+          "material": "materials/30539a2df6a89d844f43c727505a3193a60515f8ec6cdede8cc515ed22941d1c.txt"
+        },
+        {
+          "path": "/usr/share/doc/libnettle8/copyright",
+          "material": "materials/ca2ca597320220c00ef6dc0fe5d0d82025548d6d4ba80e85615eb691f9021f93.txt"
+        },
+        {
+          "path": "/usr/share/doc/libp11-kit0/copyright",
+          "material": "materials/ed139379f7c874f0ee75f3ddcc2e01091dd828d84ee1a0bdff6a1c5673ee6e58.txt"
+        },
+        {
+          "path": "/usr/share/doc/libpam-modules-bin/copyright",
+          "material": "materials/9596b9028339d66c285422237728d6170e1e29d0b0d9adf0e9f1bda82e2391ce.txt"
+        },
+        {
+          "path": "/usr/share/doc/libpam-modules/copyright",
+          "material": "materials/9596b9028339d66c285422237728d6170e1e29d0b0d9adf0e9f1bda82e2391ce.txt"
+        },
+        {
+          "path": "/usr/share/doc/libpam-runtime/copyright",
+          "material": "materials/9596b9028339d66c285422237728d6170e1e29d0b0d9adf0e9f1bda82e2391ce.txt"
+        },
+        {
+          "path": "/usr/share/doc/libpam0g/copyright",
+          "material": "materials/9596b9028339d66c285422237728d6170e1e29d0b0d9adf0e9f1bda82e2391ce.txt"
+        },
+        {
+          "path": "/usr/share/doc/libpcre2-8-0/copyright",
+          "material": "materials/030511beb4d9d620ad09914c369c36ec0528dcf301d1923cc643c948ee7c6a38.txt"
+        },
+        {
+          "path": "/usr/share/doc/libseccomp2/copyright",
+          "material": "materials/6da0653a365b80ab31478dbfe9e7c358e80d58b6d2b52b4e16b4dbb42d7d9f5c.txt"
+        },
+        {
+          "path": "/usr/share/doc/libselinux1/copyright",
+          "material": "materials/641806738b0c6a3d03168c2649e6b94205198bb66cd557e6bae3a20b71c9bb0b.txt"
+        },
+        {
+          "path": "/usr/share/doc/libsemanage-common/copyright",
+          "material": "materials/e00e6a86c598f9e24ced0180a70a5f2f2e45e133d93adf2b17ce8a06ce4b1b51.txt"
+        },
+        {
+          "path": "/usr/share/doc/libsemanage2/copyright",
+          "material": "materials/e00e6a86c598f9e24ced0180a70a5f2f2e45e133d93adf2b17ce8a06ce4b1b51.txt"
+        },
+        {
+          "path": "/usr/share/doc/libsepol2/copyright",
+          "material": "materials/78d2a34606a0302057ec499a3b3c07bcbc43ca334064ce4c80891a0f69c8f6c6.txt"
+        },
+        {
+          "path": "/usr/share/doc/libsmartcols1/copyright",
+          "material": "materials/30539a2df6a89d844f43c727505a3193a60515f8ec6cdede8cc515ed22941d1c.txt"
+        },
+        {
+          "path": "/usr/share/doc/libss2/copyright",
+          "material": "materials/1ca415a294c0e56958c4f795b3f1f69ea3479bca53d7811f5cdd020a258949db.txt"
+        },
+        {
+          "path": "/usr/share/doc/libstdc++6/copyright",
+          "material": "materials/da8191658b3452ce9caf31638ba61dab31a38c619fa39df119812e050f592fd3.txt"
+        },
+        {
+          "path": "/usr/share/doc/libsystemd0/copyright",
+          "material": "materials/a7d06854714a1ca99f6dbd1a1641dde5bcf28635be149f6554449618f8f427f3.txt"
+        },
+        {
+          "path": "/usr/share/doc/libtasn1-6/copyright",
+          "material": "materials/572ad60ad184d8f52c6dc66d83a61a68f137db560b3452ce00588c9ecf128a65.txt"
+        },
+        {
+          "path": "/usr/share/doc/libtinfo6/copyright",
+          "material": "materials/f0974fb41778e23c94111ff90da0546de8971f8270c58877283d372e6bd7f17e.txt"
+        },
+        {
+          "path": "/usr/share/doc/libudev1/copyright",
+          "material": "materials/a7d06854714a1ca99f6dbd1a1641dde5bcf28635be149f6554449618f8f427f3.txt"
+        },
+        {
+          "path": "/usr/share/doc/libunistring2/copyright",
+          "material": "materials/0035f89e5317f3cec389383e8727788521b0fde3e75cea881fa0e92e1d48cb57.txt"
+        },
+        {
+          "path": "/usr/share/doc/libuuid1/copyright",
+          "material": "materials/30539a2df6a89d844f43c727505a3193a60515f8ec6cdede8cc515ed22941d1c.txt"
+        },
+        {
+          "path": "/usr/share/doc/libxxhash0/copyright",
+          "material": "materials/a123c93b07e781919ae996276ac02bb1c8b19dfde88176cd1240ab277c14a4ce.txt"
+        },
+        {
+          "path": "/usr/share/doc/libzstd1/copyright",
+          "material": "materials/35e85e8e9bbb71492c5f5dddf39ed65b68775a02ad8d710c25d097b497f06c49.txt"
+        },
+        {
+          "path": "/usr/share/doc/login/copyright",
+          "material": "materials/a4c3e5b19700dd3cc5961663d204bd7150f65f913314682aede5931548c436d5.txt"
+        },
+        {
+          "path": "/usr/share/doc/logsave/copyright",
+          "material": "materials/1ca415a294c0e56958c4f795b3f1f69ea3479bca53d7811f5cdd020a258949db.txt"
+        },
+        {
+          "path": "/usr/share/doc/mawk/copyright",
+          "material": "materials/167d04422f2fdf76ab565878c23be8ba0c2ebb2c57a5dac0a5a59ccd27e747a5.txt"
+        },
+        {
+          "path": "/usr/share/doc/mount/copyright",
+          "material": "materials/30539a2df6a89d844f43c727505a3193a60515f8ec6cdede8cc515ed22941d1c.txt"
+        },
+        {
+          "path": "/usr/share/doc/ncurses-base/copyright",
+          "material": "materials/f0974fb41778e23c94111ff90da0546de8971f8270c58877283d372e6bd7f17e.txt"
+        },
+        {
+          "path": "/usr/share/doc/ncurses-bin/copyright",
+          "material": "materials/f0974fb41778e23c94111ff90da0546de8971f8270c58877283d372e6bd7f17e.txt"
+        },
+        {
+          "path": "/usr/share/doc/passwd/copyright",
+          "material": "materials/a4c3e5b19700dd3cc5961663d204bd7150f65f913314682aede5931548c436d5.txt"
+        },
+        {
+          "path": "/usr/share/doc/perl-base/copyright",
+          "material": "materials/b52f3ca17b45473cb0da6ec46748949101fcf0dda1fd5d8b306e6c97fd41af4d.txt"
+        },
+        {
+          "path": "/usr/share/doc/sed/copyright",
+          "material": "materials/719320e425e8e6da53a55e0fcfa2f2ed9b1332cea16abd65321bd651b2a88568.txt"
+        },
+        {
+          "path": "/usr/share/doc/sysvinit-utils/copyright",
+          "material": "materials/ad7cb339e58a88918a883d553ca236795191f027e158788a8b33f747ff502fb2.txt"
+        },
+        {
+          "path": "/usr/share/doc/tar/copyright",
+          "material": "materials/bea61e0c172868e07845cf50423f97f093a9a46de167dbbe333a38be610c8e00.txt"
+        },
+        {
+          "path": "/usr/share/doc/tzdata/copyright",
+          "material": "materials/cb61132bc0fc7b26ef5a82ee18b2fb644a1362f4f286ed980ff22e408471f59a.txt"
+        },
+        {
+          "path": "/usr/share/doc/usr-is-merged/copyright",
+          "material": "materials/9836bfe2ef94505bbf29701e8c90799ab1a5fd966d26d60d019a822cdbf3d61a.txt"
+        },
+        {
+          "path": "/usr/share/doc/util-linux-extra/copyright",
+          "material": "materials/30539a2df6a89d844f43c727505a3193a60515f8ec6cdede8cc515ed22941d1c.txt"
+        },
+        {
+          "path": "/usr/share/doc/util-linux/copyright",
+          "material": "materials/30539a2df6a89d844f43c727505a3193a60515f8ec6cdede8cc515ed22941d1c.txt"
+        },
+        {
+          "path": "/usr/share/doc/zlib1g/copyright",
+          "material": "materials/9e5b96d63773a5d177ba264254390f792be07e41748ebd94730981c6cac31cc6.txt"
+        }
+      ]
+    },
+    {
+      "name": "postgres",
+      "version": "18.6-alpine",
+      "digest": "sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873",
+      "upstream": "https://github.com/postgres/postgres/tree/REL_18_6",
+      "license": "PostgreSQL",
+      "source": "https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2",
+      "variantDigest": "sha256:d8703cd7fba306b9fec9268ecedfa8a966846c053036a60e3635791957eb2f66",
+      "containerSource": "https://github.com/docker-library/postgres.git#e00e1bd34ec5c8a8e7ad89b273b3d42efaf6d5bc:18/alpine3.24",
+      "containerSourceRevision": "e00e1bd34ec5c8a8e7ad89b273b3d42efaf6d5bc",
+      "reference": "postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873",
+      "inventoryPlatform": "linux/amd64",
+      "osRelease": "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.24.2\nPRETTY_NAME=\"Alpine Linux v3.24\"\nHOME_URL=\"https://alpinelinux.org/\"\nBUG_REPORT_URL=\"https://gitlab.alpinelinux.org/alpine/aports/-/issues\"\n",
+      "packages": [
+        {
+          "name": ".postgresql-rundeps",
+          "version": "20260917.212948",
+          "architecture": "noarch",
+          "license": null,
+          "upstream": null,
+          "origin": null,
+          "packagingCommit": null,
+          "source": null
+        },
+        {
+          "name": "alpine-baselayout",
+          "version": "3.7.2-r1",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/main/alpine-baselayout",
+          "origin": "alpine-baselayout",
+          "packagingCommit": "60a7585bbab2fa0f762504eb617dbca90216e31f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/60a7585bbab2fa0f762504eb617dbca90216e31f"
+        },
+        {
+          "name": "alpine-baselayout-data",
+          "version": "3.7.2-r1",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/main/alpine-baselayout",
+          "origin": "alpine-baselayout",
+          "packagingCommit": "60a7585bbab2fa0f762504eb617dbca90216e31f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/60a7585bbab2fa0f762504eb617dbca90216e31f"
+        },
+        {
+          "name": "alpine-keys",
+          "version": "2.6-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://alpinelinux.org",
+          "origin": "alpine-keys",
+          "packagingCommit": "b9f23becced4d7b3ccc0fa0f28530243ccd314a0",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/b9f23becced4d7b3ccc0fa0f28530243ccd314a0"
+        },
+        {
+          "name": "alpine-release",
+          "version": "3.24.2-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://alpinelinux.org",
+          "origin": "alpine-base",
+          "packagingCommit": "d9d560d5de74ff9a7a73f3c903d6f126a0bf3142",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/d9d560d5de74ff9a7a73f3c903d6f126a0bf3142"
+        },
+        {
+          "name": "apk-tools",
+          "version": "3.0.8-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://gitlab.alpinelinux.org/alpine/apk-tools",
+          "origin": "apk-tools",
+          "packagingCommit": "4588b452722bd4800efdc6cce4f6e980e02a997f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/4588b452722bd4800efdc6cce4f6e980e02a997f"
+        },
+        {
+          "name": "bash",
+          "version": "5.3.9-r1",
+          "architecture": "x86_64",
+          "license": "GPL-3.0-or-later",
+          "upstream": "https://www.gnu.org/software/bash/bash.html",
+          "origin": "bash",
+          "packagingCommit": "1522c3193610902d8493f9790a2755c11f21f26d",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/1522c3193610902d8493f9790a2755c11f21f26d"
+        },
+        {
+          "name": "brotli-libs",
+          "version": "1.2.0-r1",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://github.com/google/brotli",
+          "origin": "brotli",
+          "packagingCommit": "1ee249c9da168084b1c6c9f7488bdffa2ac33c84",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/1ee249c9da168084b1c6c9f7488bdffa2ac33c84"
+        },
+        {
+          "name": "busybox",
+          "version": "1.37.0-r31",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://busybox.net/",
+          "origin": "busybox",
+          "packagingCommit": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/c3ef5d10e6ef6528852c51f0564963e2f8c1be19"
+        },
+        {
+          "name": "busybox-binsh",
+          "version": "1.37.0-r31",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://busybox.net/",
+          "origin": "busybox",
+          "packagingCommit": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/c3ef5d10e6ef6528852c51f0564963e2f8c1be19"
+        },
+        {
+          "name": "c-ares",
+          "version": "1.34.8-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://c-ares.org/",
+          "origin": "c-ares",
+          "packagingCommit": "138a6bf9dea5974644e48fef4826b7c474f2f7d8",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/138a6bf9dea5974644e48fef4826b7c474f2f7d8"
+        },
+        {
+          "name": "ca-certificates-bundle",
+          "version": "20260909-r0",
+          "architecture": "x86_64",
+          "license": "MPL-2.0 AND MIT",
+          "upstream": "https://www.mozilla.org/en-US/about/governance/policies/security-group/certs/",
+          "origin": "ca-certificates",
+          "packagingCommit": "eb7078df3a16d666e8f7723f94bb92e00d4b9236",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/eb7078df3a16d666e8f7723f94bb92e00d4b9236"
+        },
+        {
+          "name": "gdbm",
+          "version": "1.26-r0",
+          "architecture": "x86_64",
+          "license": "GPL-3.0-or-later",
+          "upstream": "https://www.gnu.org/software/gdbm/",
+          "origin": "gdbm",
+          "packagingCommit": "1ea03990396db618edfcc8a9a0bc6b72662bac8f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/1ea03990396db618edfcc8a9a0bc6b72662bac8f"
+        },
+        {
+          "name": "icu-data-full",
+          "version": "78.1-r0",
+          "architecture": "x86_64",
+          "license": "ICU",
+          "upstream": "https://icu.unicode.org/",
+          "origin": "icu",
+          "packagingCommit": "6755fdb21483ba250d374c3244f0f48bc63447e2",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/6755fdb21483ba250d374c3244f0f48bc63447e2"
+        },
+        {
+          "name": "icu-libs",
+          "version": "78.1-r0",
+          "architecture": "x86_64",
+          "license": "ICU",
+          "upstream": "https://icu.unicode.org/",
+          "origin": "icu",
+          "packagingCommit": "6755fdb21483ba250d374c3244f0f48bc63447e2",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/6755fdb21483ba250d374c3244f0f48bc63447e2"
+        },
+        {
+          "name": "keyutils-libs",
+          "version": "1.6.3-r4",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later AND LGPL-2.0-or-later",
+          "upstream": "https://people.redhat.com/~dhowells/keyutils/",
+          "origin": "keyutils",
+          "packagingCommit": "8bac74716d06c84627ab02d101fd9d2bafd0a34c",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/8bac74716d06c84627ab02d101fd9d2bafd0a34c"
+        },
+        {
+          "name": "krb5-conf",
+          "version": "1.0-r2",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://web.mit.edu/kerberos/www/",
+          "origin": "krb5-conf",
+          "packagingCommit": "4a46b2cb955e25fd6d6f913794d35bc6d876aea9",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/4a46b2cb955e25fd6d6f913794d35bc6d876aea9"
+        },
+        {
+          "name": "krb5-libs",
+          "version": "1.22.2-r1",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://web.mit.edu/kerberos/www/",
+          "origin": "krb5",
+          "packagingCommit": "92bc4f0d36aa5307e819fb57167fc19952cf515f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/92bc4f0d36aa5307e819fb57167fc19952cf515f"
+        },
+        {
+          "name": "libapk",
+          "version": "3.0.8-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://gitlab.alpinelinux.org/alpine/apk-tools",
+          "origin": "apk-tools",
+          "packagingCommit": "4588b452722bd4800efdc6cce4f6e980e02a997f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/4588b452722bd4800efdc6cce4f6e980e02a997f"
+        },
+        {
+          "name": "libcom_err",
+          "version": "1.47.4-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+          "upstream": "https://e2fsprogs.sourceforge.net/",
+          "origin": "e2fsprogs",
+          "packagingCommit": "8683a6972cb245fbbdb535dad6435a9930bb9374",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/8683a6972cb245fbbdb535dad6435a9930bb9374"
+        },
+        {
+          "name": "libcrypto3",
+          "version": "3.5.8-r0",
+          "architecture": "x86_64",
+          "license": "Apache-2.0",
+          "upstream": "https://www.openssl.org/",
+          "origin": "openssl",
+          "packagingCommit": "013edf8b29199933e8ea34dde460b5584b979042",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/013edf8b29199933e8ea34dde460b5584b979042"
+        },
+        {
+          "name": "libcurl",
+          "version": "8.22.0-r0",
+          "architecture": "x86_64",
+          "license": "curl",
+          "upstream": "https://curl.se/",
+          "origin": "curl",
+          "packagingCommit": "ab53c408436ac7199ed5b67bde204aaca73003bd",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/ab53c408436ac7199ed5b67bde204aaca73003bd"
+        },
+        {
+          "name": "libedit",
+          "version": "20260508.3.1-r1",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause",
+          "upstream": "https://www.thrysoee.dk/editline",
+          "origin": "libedit",
+          "packagingCommit": "7c805161e588c028cdee3f19f500849fb2c75d42",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/7c805161e588c028cdee3f19f500849fb2c75d42"
+        },
+        {
+          "name": "libffi",
+          "version": "3.5.2-r1",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://sourceware.org/libffi/",
+          "origin": "libffi",
+          "packagingCommit": "2c2a7bb4a8b16066834e90402567b2c19403a790",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/2c2a7bb4a8b16066834e90402567b2c19403a790"
+        },
+        {
+          "name": "libgcc",
+          "version": "15.2.0-r5",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+          "upstream": "https://gcc.gnu.org",
+          "origin": "gcc",
+          "packagingCommit": "423a8ad043d07f2c7546c8ec3e2b0384cda360ae",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/423a8ad043d07f2c7546c8ec3e2b0384cda360ae"
+        },
+        {
+          "name": "libidn2",
+          "version": "2.3.8-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later OR LGPL-3.0-or-later",
+          "upstream": "https://www.gnu.org/software/libidn#libidn2",
+          "origin": "libidn2",
+          "packagingCommit": "8240e09aa2fdd8f9979b2016be082273965aff0c",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/8240e09aa2fdd8f9979b2016be082273965aff0c"
+        },
+        {
+          "name": "libldap",
+          "version": "2.6.14-r0",
+          "architecture": "x86_64",
+          "license": "OLDAP-2.8",
+          "upstream": "https://www.openldap.org/",
+          "origin": "openldap",
+          "packagingCommit": "1f9cbd23a8be05afabdd96072263ba025e097c8f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/1f9cbd23a8be05afabdd96072263ba025e097c8f"
+        },
+        {
+          "name": "libncursesw",
+          "version": "6.6_p20260516-r0",
+          "architecture": "x86_64",
+          "license": "X11",
+          "upstream": "https://invisible-island.net/ncurses/",
+          "origin": "ncurses",
+          "packagingCommit": "2cee8a7328d061418336ad327b512d96bcd7bc5e",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/2cee8a7328d061418336ad327b512d96bcd7bc5e"
+        },
+        {
+          "name": "libpsl",
+          "version": "0.21.5-r3",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://rockdaboot.github.io/libpsl",
+          "origin": "libpsl",
+          "packagingCommit": "6bd45b53fb316dc01bda59f5feaf1e127eb64f22",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/6bd45b53fb316dc01bda59f5feaf1e127eb64f22"
+        },
+        {
+          "name": "libsasl",
+          "version": "2.1.28-r9",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause-Attribution AND BSD-4-Clause",
+          "upstream": "https://www.cyrusimap.org/sasl/",
+          "origin": "cyrus-sasl",
+          "packagingCommit": "fac808c0fddf93e8980ec1f55972e6f69b78ba6f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/fac808c0fddf93e8980ec1f55972e6f69b78ba6f"
+        },
+        {
+          "name": "libssl3",
+          "version": "3.5.8-r0",
+          "architecture": "x86_64",
+          "license": "Apache-2.0",
+          "upstream": "https://www.openssl.org/",
+          "origin": "openssl",
+          "packagingCommit": "013edf8b29199933e8ea34dde460b5584b979042",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/013edf8b29199933e8ea34dde460b5584b979042"
+        },
+        {
+          "name": "libstdc++",
+          "version": "15.2.0-r5",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+          "upstream": "https://gcc.gnu.org",
+          "origin": "gcc",
+          "packagingCommit": "423a8ad043d07f2c7546c8ec3e2b0384cda360ae",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/423a8ad043d07f2c7546c8ec3e2b0384cda360ae"
+        },
+        {
+          "name": "libunistring",
+          "version": "1.4.2-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later OR LGPL-3.0-or-later",
+          "upstream": "https://www.gnu.org/software/libunistring/",
+          "origin": "libunistring",
+          "packagingCommit": "30d9f19340385b2cd16eaf1cc6a9a8b30c4afe1c",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/30d9f19340385b2cd16eaf1cc6a9a8b30c4afe1c"
+        },
+        {
+          "name": "liburing",
+          "version": "2.14-r0",
+          "architecture": "x86_64",
+          "license": "LGPL-2.1-or-later OR MIT",
+          "upstream": "https://git.kernel.dk/cgit/liburing/",
+          "origin": "liburing",
+          "packagingCommit": "b2acc93a60ed96de5b6e3043c505744957cc7d00",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/b2acc93a60ed96de5b6e3043c505744957cc7d00"
+        },
+        {
+          "name": "libuuid",
+          "version": "2.42.3-r1",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause",
+          "upstream": "https://git.kernel.org/cgit/utils/util-linux/util-linux.git",
+          "origin": "util-linux",
+          "packagingCommit": "d98c55af59055e6ca60fbe36e171546918709965",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/d98c55af59055e6ca60fbe36e171546918709965"
+        },
+        {
+          "name": "libverto",
+          "version": "0.3.2-r2",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://github.com/latchset/libverto",
+          "origin": "libverto",
+          "packagingCommit": "84a227baf001b6e0208e3352b294e4d7a40e93de",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/84a227baf001b6e0208e3352b294e4d7a40e93de"
+        },
+        {
+          "name": "libxml2",
+          "version": "2.13.9-r2",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://gitlab.gnome.org/GNOME/libxml2",
+          "origin": "libxml2",
+          "packagingCommit": "f1bd5b6767a0e7fdda380c95138a1c938eb6e102",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/f1bd5b6767a0e7fdda380c95138a1c938eb6e102"
+        },
+        {
+          "name": "libxslt",
+          "version": "1.1.43-r3",
+          "architecture": "x86_64",
+          "license": "X11",
+          "upstream": "http://xmlsoft.org/XSLT/",
+          "origin": "libxslt",
+          "packagingCommit": "730f2f5bdc97be98b2beee33f55134c622e6189c",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/730f2f5bdc97be98b2beee33f55134c622e6189c"
+        },
+        {
+          "name": "llvm21-libs",
+          "version": "21.1.8-r1",
+          "architecture": "x86_64",
+          "license": "Apache-2.0",
+          "upstream": "https://llvm.org/",
+          "origin": "llvm21",
+          "packagingCommit": "4b9b094db09064adf09759b02ce63d23ab3d8cbb",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/4b9b094db09064adf09759b02ce63d23ab3d8cbb"
+        },
+        {
+          "name": "lz4-libs",
+          "version": "1.10.0-r1",
+          "architecture": "x86_64",
+          "license": "BSD-2-Clause AND GPL-2.0-or-later",
+          "upstream": "https://github.com/lz4/lz4",
+          "origin": "lz4",
+          "packagingCommit": "1f16962f34234a77fab0f4651459c4381b4a0cd6",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/1f16962f34234a77fab0f4651459c4381b4a0cd6"
+        },
+        {
+          "name": "musl",
+          "version": "1.2.6-r2",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://musl.libc.org/",
+          "origin": "musl",
+          "packagingCommit": "f5640d3a10f664c9119720c60515265d3d6f6d01",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/f5640d3a10f664c9119720c60515265d3d6f6d01"
+        },
+        {
+          "name": "musl-utils",
+          "version": "1.2.6-r2",
+          "architecture": "x86_64",
+          "license": "MIT AND BSD-2-Clause AND GPL-2.0-or-later",
+          "upstream": "https://musl.libc.org/",
+          "origin": "musl",
+          "packagingCommit": "f5640d3a10f664c9119720c60515265d3d6f6d01",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/f5640d3a10f664c9119720c60515265d3d6f6d01"
+        },
+        {
+          "name": "ncurses-terminfo-base",
+          "version": "6.6_p20260516-r0",
+          "architecture": "x86_64",
+          "license": "X11",
+          "upstream": "https://invisible-island.net/ncurses/",
+          "origin": "ncurses",
+          "packagingCommit": "2cee8a7328d061418336ad327b512d96bcd7bc5e",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/2cee8a7328d061418336ad327b512d96bcd7bc5e"
+        },
+        {
+          "name": "nghttp2-libs",
+          "version": "1.69.0-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://nghttp2.org",
+          "origin": "nghttp2",
+          "packagingCommit": "2f3038c86a2a055b2becb5a8c4fd86365f77347a",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/2f3038c86a2a055b2becb5a8c4fd86365f77347a"
+        },
+        {
+          "name": "nss_wrapper",
+          "version": "1.1.12-r1",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause",
+          "upstream": "https://cwrap.org/nss_wrapper.html",
+          "origin": "nss_wrapper",
+          "packagingCommit": "44ce39a091100c59a3bd90df6c0312d302be3171",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/44ce39a091100c59a3bd90df6c0312d302be3171"
+        },
+        {
+          "name": "readline",
+          "version": "8.3.3-r1",
+          "architecture": "x86_64",
+          "license": "GPL-3.0-or-later",
+          "upstream": "https://tiswww.cwru.edu/php/chet/readline/rltop.html",
+          "origin": "readline",
+          "packagingCommit": "a854c03acdac188901fb012f7acbee70a36e8041",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/a854c03acdac188901fb012f7acbee70a36e8041"
+        },
+        {
+          "name": "scanelf",
+          "version": "1.3.9-r1",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://wiki.gentoo.org/wiki/Hardened/PaX_Utilities",
+          "origin": "pax-utils",
+          "packagingCommit": "c61801eeacb3ffcd9c2025b09e402153bb93fb39",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/c61801eeacb3ffcd9c2025b09e402153bb93fb39"
+        },
+        {
+          "name": "ssl_client",
+          "version": "1.37.0-r31",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://busybox.net/",
+          "origin": "busybox",
+          "packagingCommit": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/c3ef5d10e6ef6528852c51f0564963e2f8c1be19"
+        },
+        {
+          "name": "tzdata",
+          "version": "2026d-r0",
+          "architecture": "x86_64",
+          "license": "Public-Domain",
+          "upstream": "https://www.iana.org/time-zones",
+          "origin": "tzdata",
+          "packagingCommit": "a19caf9fe771707618d4d9e4fa2dd9db8155b461",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/a19caf9fe771707618d4d9e4fa2dd9db8155b461"
+        },
+        {
+          "name": "xz-libs",
+          "version": "5.8.4-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later",
+          "upstream": "https://tukaani.org/xz/",
+          "origin": "xz",
+          "packagingCommit": "0c088d609f9fe69eedd6b4c7f4b99cdad847c20a",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/0c088d609f9fe69eedd6b4c7f4b99cdad847c20a"
+        },
+        {
+          "name": "zlib",
+          "version": "1.3.2-r0",
+          "architecture": "x86_64",
+          "license": "Zlib",
+          "upstream": "https://zlib.net/",
+          "origin": "zlib",
+          "packagingCommit": "f248b33b5943c7dc69bf691031d7612ab2e8ed93",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/f248b33b5943c7dc69bf691031d7612ab2e8ed93"
+        },
+        {
+          "name": "zstd",
+          "version": "1.5.7-r2",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause OR GPL-2.0-or-later",
+          "upstream": "https://facebook.github.io/zstd/",
+          "origin": "zstd",
+          "packagingCommit": "3c6e2ee2b16f403d53eab39c4426eb61f003c322",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/3c6e2ee2b16f403d53eab39c4426eb61f003c322"
+        },
+        {
+          "name": "zstd-libs",
+          "version": "1.5.7-r2",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause OR GPL-2.0-or-later",
+          "upstream": "https://facebook.github.io/zstd/",
+          "origin": "zstd",
+          "packagingCommit": "3c6e2ee2b16f403d53eab39c4426eb61f003c322",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/3c6e2ee2b16f403d53eab39c4426eb61f003c322"
+        }
+      ],
+      "files": [
+        {
+          "path": "OCI image index",
+          "material": "materials/8c091d11dd17560b3fd920f33582ef47b535095ece70b025fa5c96ef5aa99f4d.txt"
+        },
+        {
+          "path": "/lib/apk/db/installed",
+          "material": "materials/d2ec62639ba958cdf0cfd8ee2d8dfebc9781ec586c7045f51ecf54e0aaf47688.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/COPYRIGHT",
+          "material": "materials/3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd.txt"
+        }
+      ]
+    },
+    {
+      "name": "caddy",
+      "version": "2.11.7-alpine",
+      "digest": "sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
+      "upstream": "https://github.com/caddyserver/caddy/tree/v2.11.7",
+      "license": "Apache-2.0 AND bundled third-party licenses",
+      "source": "https://github.com/caddyserver/caddy/archive/refs/tags/v2.11.7.tar.gz",
+      "variantDigest": "sha256:173b26306d711395accaeba8b67afcaad2a085ccb1e6bf26010bfe8c095a5229",
+      "containerSource": "https://github.com/caddyserver/caddy-docker.git#9234f5785658cae8129bfae366e196d0670468ac:2.11/alpine",
+      "containerSourceRevision": "9234f5785658cae8129bfae366e196d0670468ac",
+      "bundledGoModules": [
+        {
+          "name": "cel.dev/cel-go",
+          "version": "v0.32.0",
+          "checksum": "h1:irvpFKr5EuGPyxeME03ERh0rii1TX+BDAnB9eL3IvNk=",
+          "source": "https://proxy.golang.org/cel.dev/cel-go/@v/v0.32.0.zip",
+          "notices": "https://pkg.go.dev/cel.dev/cel-go@v0.32.0?tab=licenses"
+        },
+        {
+          "name": "cel.dev/expr",
+          "version": "v0.25.3",
+          "checksum": "h1:A2jO8jwOugrrovveCWfj0KEZOfqiLgAcwjpHPhzIGw0=",
+          "source": "https://proxy.golang.org/cel.dev/expr/@v/v0.25.3.zip",
+          "notices": "https://pkg.go.dev/cel.dev/expr@v0.25.3?tab=licenses"
+        },
+        {
+          "name": "cloud.google.com/go/auth",
+          "version": "v0.23.3",
+          "checksum": "h1:UMK+oBtuNGMCR/6i6mmySUItqjOazpJrbmZyhGbGBWo=",
+          "source": "https://proxy.golang.org/cloud.google.com/go/auth/@v/v0.23.3.zip",
+          "notices": "https://pkg.go.dev/cloud.google.com/go/auth@v0.23.3?tab=licenses"
+        },
+        {
+          "name": "cloud.google.com/go/auth/oauth2adapt",
+          "version": "v0.2.8",
+          "checksum": "h1:keo8NaayQZ6wimpNSmW5OPc283g65QNIiLpZnkHRbnc=",
+          "source": "https://proxy.golang.org/cloud.google.com/go/auth/oauth2adapt/@v/v0.2.8.zip",
+          "notices": "https://pkg.go.dev/cloud.google.com/go/auth/oauth2adapt@v0.2.8?tab=licenses"
+        },
+        {
+          "name": "cloud.google.com/go/compute/metadata",
+          "version": "v0.9.1",
+          "checksum": "h1:CTE1OWBQ0vnF5uHwdFAQJvMQ0Fi/KRcqqKTo9V0F8Ik=",
+          "source": "https://proxy.golang.org/cloud.google.com/go/compute/metadata/@v/v0.9.1.zip",
+          "notices": "https://pkg.go.dev/cloud.google.com/go/compute/metadata@v0.9.1?tab=licenses"
+        },
+        {
+          "name": "dario.cat/mergo",
+          "version": "v1.0.2",
+          "checksum": "h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=",
+          "source": "https://proxy.golang.org/dario.cat/mergo/@v/v1.0.2.zip",
+          "notices": "https://pkg.go.dev/dario.cat/mergo@v1.0.2?tab=licenses"
+        },
+        {
+          "name": "filippo.io/bigmod",
+          "version": "v0.1.0",
+          "checksum": "h1:UNzDk7y9ADKST+axd9skUpBQeW7fG2KrTZyOE4uGQy8=",
+          "source": "https://proxy.golang.org/filippo.io/bigmod/@v/v0.1.0.zip",
+          "notices": "https://pkg.go.dev/filippo.io/bigmod@v0.1.0?tab=licenses"
+        },
+        {
+          "name": "filippo.io/edwards25519",
+          "version": "v1.2.0",
+          "checksum": "h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=",
+          "source": "https://proxy.golang.org/filippo.io/edwards25519/@v/v1.2.0.zip",
+          "notices": "https://pkg.go.dev/filippo.io/edwards25519@v1.2.0?tab=licenses"
+        },
+        {
+          "name": "github.com/BurntSushi/toml",
+          "version": "v1.6.0",
+          "checksum": "h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=",
+          "source": "https://proxy.golang.org/github.com/!burnt!sushi/toml/@v/v1.6.0.zip",
+          "notices": "https://pkg.go.dev/github.com/BurntSushi/toml@v1.6.0?tab=licenses"
+        },
+        {
+          "name": "github.com/DeRuina/timberjack",
+          "version": "v1.4.8",
+          "checksum": "h1:V7SIoCzkyWD93WmyKECSX+tMu/hLqQQvptlhEsbBIhI=",
+          "source": "https://proxy.golang.org/github.com/!de!ruina/timberjack/@v/v1.4.8.zip",
+          "notices": "https://pkg.go.dev/github.com/DeRuina/timberjack@v1.4.8?tab=licenses"
+        },
+        {
+          "name": "github.com/KimMachineGun/automemlimit",
+          "version": "v1.0.0",
+          "checksum": "h1:+MqlvDE/pkJNjk1rU+O14QsH8k10nJAD0frB0lsxyvw=",
+          "source": "https://proxy.golang.org/github.com/!kim!machine!gun/automemlimit/@v/v1.0.0.zip",
+          "notices": "https://pkg.go.dev/github.com/KimMachineGun/automemlimit@v1.0.0?tab=licenses"
+        },
+        {
+          "name": "github.com/Masterminds/goutils",
+          "version": "v1.1.1",
+          "checksum": "h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=",
+          "source": "https://proxy.golang.org/github.com/!masterminds/goutils/@v/v1.1.1.zip",
+          "notices": "https://pkg.go.dev/github.com/Masterminds/goutils@v1.1.1?tab=licenses"
+        },
+        {
+          "name": "github.com/Masterminds/semver/v3",
+          "version": "v3.5.0",
+          "checksum": "h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=",
+          "source": "https://proxy.golang.org/github.com/!masterminds/semver/v3/@v/v3.5.0.zip",
+          "notices": "https://pkg.go.dev/github.com/Masterminds/semver/v3@v3.5.0?tab=licenses"
+        },
+        {
+          "name": "github.com/Masterminds/sprig/v3",
+          "version": "v3.3.0",
+          "checksum": "h1:mQh0Yrg1XPo6vjYXgtf5OtijNAKJRNcTdOOGZe3tPhs=",
+          "source": "https://proxy.golang.org/github.com/!masterminds/sprig/v3/@v/v3.3.0.zip",
+          "notices": "https://pkg.go.dev/github.com/Masterminds/sprig/v3@v3.3.0?tab=licenses"
+        },
+        {
+          "name": "github.com/alecthomas/chroma/v2",
+          "version": "v2.27.0",
+          "checksum": "h1:FodwmyOBgJULFYmDqibcp9pvfDLWdtPRh9v/r5BXYZs=",
+          "source": "https://proxy.golang.org/github.com/alecthomas/chroma/v2/@v/v2.27.0.zip",
+          "notices": "https://pkg.go.dev/github.com/alecthomas/chroma/v2@v2.27.0?tab=licenses"
+        },
+        {
+          "name": "github.com/antlr4-go/antlr/v4",
+          "version": "v4.13.1",
+          "checksum": "h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=",
+          "source": "https://proxy.golang.org/github.com/antlr4-go/antlr/v4/@v/v4.13.1.zip",
+          "notices": "https://pkg.go.dev/github.com/antlr4-go/antlr/v4@v4.13.1?tab=licenses"
+        },
+        {
+          "name": "github.com/aryann/difflib",
+          "version": "v0.0.0-20210328193216-ff5ff6dc229b",
+          "checksum": "h1:uUXgbcPDK3KpW29o4iy7GtuappbWT0l5NaMo9H9pJDw=",
+          "source": "https://proxy.golang.org/github.com/aryann/difflib/@v/v0.0.0-20210328193216-ff5ff6dc229b.zip",
+          "notices": "https://pkg.go.dev/github.com/aryann/difflib@v0.0.0-20210328193216-ff5ff6dc229b?tab=licenses"
+        },
+        {
+          "name": "github.com/beorn7/perks",
+          "version": "v1.0.1",
+          "checksum": "h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=",
+          "source": "https://proxy.golang.org/github.com/beorn7/perks/@v/v1.0.1.zip",
+          "notices": "https://pkg.go.dev/github.com/beorn7/perks@v1.0.1?tab=licenses"
+        },
+        {
+          "name": "github.com/bits-and-blooms/bitset",
+          "version": "v1.25.0",
+          "checksum": "h1:0Ro0qF4abCkM6SqWPVj29sFhAbMPAZpaDD7xhJ10beM=",
+          "source": "https://proxy.golang.org/github.com/bits-and-blooms/bitset/@v/v1.25.0.zip",
+          "notices": "https://pkg.go.dev/github.com/bits-and-blooms/bitset@v1.25.0?tab=licenses"
+        },
+        {
+          "name": "github.com/caddyserver/caddy/v2",
+          "version": "v2.11.7",
+          "checksum": "h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+          "source": "https://proxy.golang.org/github.com/caddyserver/caddy/v2/@v/v2.11.7.zip",
+          "notices": "https://pkg.go.dev/github.com/caddyserver/caddy/v2@v2.11.7?tab=licenses"
+        },
+        {
+          "name": "github.com/caddyserver/certmagic",
+          "version": "v0.25.6",
+          "checksum": "h1:vHMtFSLKTa6kuZz6w0SnRMpQ388tSkww8ye355BgAM4=",
+          "source": "https://proxy.golang.org/github.com/caddyserver/certmagic/@v/v0.25.6.zip",
+          "notices": "https://pkg.go.dev/github.com/caddyserver/certmagic@v0.25.6?tab=licenses"
+        },
+        {
+          "name": "github.com/caddyserver/zerossl",
+          "version": "v0.1.6",
+          "checksum": "h1:1yrhTx5DWi43wOJPQ+Y4mVl++EPmSqqT/4REW//lsas=",
+          "source": "https://proxy.golang.org/github.com/caddyserver/zerossl/@v/v0.1.6.zip",
+          "notices": "https://pkg.go.dev/github.com/caddyserver/zerossl@v0.1.6?tab=licenses"
+        },
+        {
+          "name": "github.com/ccoveille/go-safecast/v2",
+          "version": "v2.0.1",
+          "checksum": "h1:2+mIu3gXtwmWelBia2kkxfB8eP4orTHDH7ClSlWkd6I=",
+          "source": "https://proxy.golang.org/github.com/ccoveille/go-safecast/v2/@v/v2.0.1.zip",
+          "notices": "https://pkg.go.dev/github.com/ccoveille/go-safecast/v2@v2.0.1?tab=licenses"
+        },
+        {
+          "name": "github.com/cenkalti/backoff/v5",
+          "version": "v5.0.3",
+          "checksum": "h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=",
+          "source": "https://proxy.golang.org/github.com/cenkalti/backoff/v5/@v/v5.0.3.zip",
+          "notices": "https://pkg.go.dev/github.com/cenkalti/backoff/v5@v5.0.3?tab=licenses"
+        },
+        {
+          "name": "github.com/cespare/xxhash/v2",
+          "version": "v2.3.0",
+          "checksum": "h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=",
+          "source": "https://proxy.golang.org/github.com/cespare/xxhash/v2/@v/v2.3.0.zip",
+          "notices": "https://pkg.go.dev/github.com/cespare/xxhash/v2@v2.3.0?tab=licenses"
+        },
+        {
+          "name": "github.com/chzyer/readline",
+          "version": "v1.5.1",
+          "checksum": "h1:upd/6fQk4src78LMRzh5vItIt361/o4uq553V8B5sGI=",
+          "source": "https://proxy.golang.org/github.com/chzyer/readline/@v/v1.5.1.zip",
+          "notices": "https://pkg.go.dev/github.com/chzyer/readline@v1.5.1?tab=licenses"
+        },
+        {
+          "name": "github.com/cloudflare/circl",
+          "version": "v1.6.5",
+          "checksum": "h1:O64F26HEqNhznd/hrC5KZXVKYuKM2rx4deZDTc4ihQA=",
+          "source": "https://proxy.golang.org/github.com/cloudflare/circl/@v/v1.6.5.zip",
+          "notices": "https://pkg.go.dev/github.com/cloudflare/circl@v1.6.5?tab=licenses"
+        },
+        {
+          "name": "github.com/coreos/go-oidc/v3",
+          "version": "v3.21.0",
+          "checksum": "h1:wZo4Q9Pum8dYEj0eMUPrqR+kvuGkeUplbLpNCkBqoWM=",
+          "source": "https://proxy.golang.org/github.com/coreos/go-oidc/v3/@v/v3.21.0.zip",
+          "notices": "https://pkg.go.dev/github.com/coreos/go-oidc/v3@v3.21.0?tab=licenses"
+        },
+        {
+          "name": "github.com/cpuguy83/go-md2man/v2",
+          "version": "v2.0.7",
+          "checksum": "h1:zbFlGlXEAKlwXpmvle3d8Oe3YnkKIK4xSRTd3sHPnBo=",
+          "source": "https://proxy.golang.org/github.com/cpuguy83/go-md2man/v2/@v/v2.0.7.zip",
+          "notices": "https://pkg.go.dev/github.com/cpuguy83/go-md2man/v2@v2.0.7?tab=licenses"
+        },
+        {
+          "name": "github.com/dlclark/regexp2/v2",
+          "version": "v2.8.0",
+          "checksum": "h1:CekDhPLGfm+GAJmPVFIG+5dqMIQPkyHJll7BbdneDfw=",
+          "source": "https://proxy.golang.org/github.com/dlclark/regexp2/v2/@v/v2.8.0.zip",
+          "notices": "https://pkg.go.dev/github.com/dlclark/regexp2/v2@v2.8.0?tab=licenses"
+        },
+        {
+          "name": "github.com/dunglas/go-urlpattern",
+          "version": "v1.0.0",
+          "checksum": "h1:AmMwIDXWJFezeE1v38rxvQRGvvzTlityFuifLLVfoQQ=",
+          "source": "https://proxy.golang.org/github.com/dunglas/go-urlpattern/@v/v1.0.0.zip",
+          "notices": "https://pkg.go.dev/github.com/dunglas/go-urlpattern@v1.0.0?tab=licenses"
+        },
+        {
+          "name": "github.com/dunglas/httpsfv",
+          "version": "v1.1.1",
+          "checksum": "h1:HoSs101zIE9I23DlqlmljJ/OIi7ILwrH347pXhRZdxI=",
+          "source": "https://proxy.golang.org/github.com/dunglas/httpsfv/@v/v1.1.1.zip",
+          "notices": "https://pkg.go.dev/github.com/dunglas/httpsfv@v1.1.1?tab=licenses"
+        },
+        {
+          "name": "github.com/dustin/go-humanize",
+          "version": "v1.1.0",
+          "checksum": "h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2xWg=",
+          "source": "https://proxy.golang.org/github.com/dustin/go-humanize/@v/v1.1.0.zip",
+          "notices": "https://pkg.go.dev/github.com/dustin/go-humanize@v1.1.0?tab=licenses"
+        },
+        {
+          "name": "github.com/felixge/httpsnoop",
+          "version": "v1.1.0",
+          "checksum": "h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeORc=",
+          "source": "https://proxy.golang.org/github.com/felixge/httpsnoop/@v/v1.1.0.zip",
+          "notices": "https://pkg.go.dev/github.com/felixge/httpsnoop@v1.1.0?tab=licenses"
+        },
+        {
+          "name": "github.com/fxamacker/cbor/v2",
+          "version": "v2.9.4",
+          "checksum": "h1:xwjVlxEMR3S605oUlgBjKLTTeGFciYPGYCtF/35LKGo=",
+          "source": "https://proxy.golang.org/github.com/fxamacker/cbor/v2/@v/v2.9.4.zip",
+          "notices": "https://pkg.go.dev/github.com/fxamacker/cbor/v2@v2.9.4?tab=licenses"
+        },
+        {
+          "name": "github.com/go-chi/chi/v5",
+          "version": "v5.3.2",
+          "checksum": "h1:5YQkICvTCSZ25hoRsyJazN0scjzKGiu4VAUc7H1o1nY=",
+          "source": "https://proxy.golang.org/github.com/go-chi/chi/v5/@v/v5.3.2.zip",
+          "notices": "https://pkg.go.dev/github.com/go-chi/chi/v5@v5.3.2?tab=licenses"
+        },
+        {
+          "name": "github.com/go-jose/go-jose/v3",
+          "version": "v3.0.5",
+          "checksum": "h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ=",
+          "source": "https://proxy.golang.org/github.com/go-jose/go-jose/v3/@v/v3.0.5.zip",
+          "notices": "https://pkg.go.dev/github.com/go-jose/go-jose/v3@v3.0.5?tab=licenses"
+        },
+        {
+          "name": "github.com/go-jose/go-jose/v4",
+          "version": "v4.1.5",
+          "checksum": "h1:RjgjO2LOtWOJKUC5wpwY9LR3B3vwVAz6JS2YHfYU6eA=",
+          "source": "https://proxy.golang.org/github.com/go-jose/go-jose/v4/@v/v4.1.5.zip",
+          "notices": "https://pkg.go.dev/github.com/go-jose/go-jose/v4@v4.1.5?tab=licenses"
+        },
+        {
+          "name": "github.com/go-logr/logr",
+          "version": "v1.4.4",
+          "checksum": "h1:tG4xh9yMsRCAiodLVTxyrkzSZ9+o0L1Kg/+cPVcbP/8=",
+          "source": "https://proxy.golang.org/github.com/go-logr/logr/@v/v1.4.4.zip",
+          "notices": "https://pkg.go.dev/github.com/go-logr/logr@v1.4.4?tab=licenses"
+        },
+        {
+          "name": "github.com/go-logr/stdr",
+          "version": "v1.2.2",
+          "checksum": "h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=",
+          "source": "https://proxy.golang.org/github.com/go-logr/stdr/@v/v1.2.2.zip",
+          "notices": "https://pkg.go.dev/github.com/go-logr/stdr@v1.2.2?tab=licenses"
+        },
+        {
+          "name": "github.com/google/certificate-transparency-go",
+          "version": "v1.3.3",
+          "checksum": "h1:hq/rSxztSkXN2tx/3jQqF6Xc0O565UQPdHrOWvZwybo=",
+          "source": "https://proxy.golang.org/github.com/google/certificate-transparency-go/@v/v1.3.3.zip",
+          "notices": "https://pkg.go.dev/github.com/google/certificate-transparency-go@v1.3.3?tab=licenses"
+        },
+        {
+          "name": "github.com/google/go-tpm",
+          "version": "v0.9.8",
+          "checksum": "h1:slArAR9Ft+1ybZu0lBwpSmpwhRXaa85hWtMinMyRAWo=",
+          "source": "https://proxy.golang.org/github.com/google/go-tpm/@v/v0.9.8.zip",
+          "notices": "https://pkg.go.dev/github.com/google/go-tpm@v0.9.8?tab=licenses"
+        },
+        {
+          "name": "github.com/google/go-tspi",
+          "version": "v0.3.0",
+          "checksum": "h1:ADtq8RKfP+jrTyIWIZDIYcKOMecRqNJFOew2IT0Inus=",
+          "source": "https://proxy.golang.org/github.com/google/go-tspi/@v/v0.3.0.zip",
+          "notices": "https://pkg.go.dev/github.com/google/go-tspi@v0.3.0?tab=licenses"
+        },
+        {
+          "name": "github.com/google/s2a-go",
+          "version": "v0.1.10",
+          "checksum": "h1:EMp+aOuXN6l8cE/gjF5Bt+vyZxsUuyCWe9chDWR/+uU=",
+          "source": "https://proxy.golang.org/github.com/google/s2a-go/@v/v0.1.10.zip",
+          "notices": "https://pkg.go.dev/github.com/google/s2a-go@v0.1.10?tab=licenses"
+        },
+        {
+          "name": "github.com/google/uuid",
+          "version": "v1.6.0",
+          "checksum": "h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=",
+          "source": "https://proxy.golang.org/github.com/google/uuid/@v/v1.6.0.zip",
+          "notices": "https://pkg.go.dev/github.com/google/uuid@v1.6.0?tab=licenses"
+        },
+        {
+          "name": "github.com/googleapis/enterprise-certificate-proxy",
+          "version": "v0.3.22",
+          "checksum": "h1:NU4XpII6jD+Dxcot94fqjE+AfJoE/lQP9q3faYGzC/c=",
+          "source": "https://proxy.golang.org/github.com/googleapis/enterprise-certificate-proxy/@v/v0.3.22.zip",
+          "notices": "https://pkg.go.dev/github.com/googleapis/enterprise-certificate-proxy@v0.3.22?tab=licenses"
+        },
+        {
+          "name": "github.com/googleapis/gax-go/v2",
+          "version": "v2.25.0",
+          "checksum": "h1:77gyzCOrTyzPKfzGZJG/V5DO4/Kuamek8W+cYJQ4U8k=",
+          "source": "https://proxy.golang.org/github.com/googleapis/gax-go/v2/@v/v2.25.0.zip",
+          "notices": "https://pkg.go.dev/github.com/googleapis/gax-go/v2@v2.25.0?tab=licenses"
+        },
+        {
+          "name": "github.com/grpc-ecosystem/grpc-gateway/v2",
+          "version": "v2.30.0",
+          "checksum": "h1:/Tnpcb2E0Pz/tN9s3bfEY2Q8ePCEX9iuS+cneUwncnw=",
+          "source": "https://proxy.golang.org/github.com/grpc-ecosystem/grpc-gateway/v2/@v/v2.30.0.zip",
+          "notices": "https://pkg.go.dev/github.com/grpc-ecosystem/grpc-gateway/v2@v2.30.0?tab=licenses"
+        },
+        {
+          "name": "github.com/huandu/xstrings",
+          "version": "v1.6.1",
+          "checksum": "h1:yYdKSd6Sjv3fNZt9BDjl1FDsPNfQEaYi19L5LzK2JKs=",
+          "source": "https://proxy.golang.org/github.com/huandu/xstrings/@v/v1.6.1.zip",
+          "notices": "https://pkg.go.dev/github.com/huandu/xstrings@v1.6.1?tab=licenses"
+        },
+        {
+          "name": "github.com/klauspost/compress",
+          "version": "v1.20.1",
+          "checksum": "h1:T7kKElXUMXrUJ2E9QhQhxFtcK5rPyLdsGZvdbLMPdiQ=",
+          "source": "https://proxy.golang.org/github.com/klauspost/compress/@v/v1.20.1.zip",
+          "notices": "https://pkg.go.dev/github.com/klauspost/compress@v1.20.1?tab=licenses"
+        },
+        {
+          "name": "github.com/klauspost/cpuid/v2",
+          "version": "v2.4.0",
+          "checksum": "h1:S6Hrbc7+ywsr0r+RLapfGBHfyefhCTwEh3A0tV913Dw=",
+          "source": "https://proxy.golang.org/github.com/klauspost/cpuid/v2/@v/v2.4.0.zip",
+          "notices": "https://pkg.go.dev/github.com/klauspost/cpuid/v2@v2.4.0?tab=licenses"
+        },
+        {
+          "name": "github.com/libdns/libdns",
+          "version": "v1.1.1",
+          "checksum": "h1:wPrHrXILoSHKWJKGd0EiAVmiJbFShguILTg9leS/P/U=",
+          "source": "https://proxy.golang.org/github.com/libdns/libdns/@v/v1.1.1.zip",
+          "notices": "https://pkg.go.dev/github.com/libdns/libdns@v1.1.1?tab=licenses"
+        },
+        {
+          "name": "github.com/manifoldco/promptui",
+          "version": "v0.9.0",
+          "checksum": "h1:3V4HzJk1TtXW1MTZMP7mdlwbBpIinw3HztaIlYthEiA=",
+          "source": "https://proxy.golang.org/github.com/manifoldco/promptui/@v/v0.9.0.zip",
+          "notices": "https://pkg.go.dev/github.com/manifoldco/promptui@v0.9.0?tab=licenses"
+        },
+        {
+          "name": "github.com/mattn/go-colorable",
+          "version": "v0.1.15",
+          "checksum": "h1:+u9SLTRGnXv73cEsnsmoZBom+dMU88B2M0aDcWy0/jY=",
+          "source": "https://proxy.golang.org/github.com/mattn/go-colorable/@v/v0.1.15.zip",
+          "notices": "https://pkg.go.dev/github.com/mattn/go-colorable@v0.1.15?tab=licenses"
+        },
+        {
+          "name": "github.com/mattn/go-isatty",
+          "version": "v0.0.24",
+          "checksum": "h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=",
+          "source": "https://proxy.golang.org/github.com/mattn/go-isatty/@v/v0.0.24.zip",
+          "notices": "https://pkg.go.dev/github.com/mattn/go-isatty@v0.0.24?tab=licenses"
+        },
+        {
+          "name": "github.com/mgutz/ansi",
+          "version": "v0.0.0-20200706080929-d51e80ef957d",
+          "checksum": "h1:5PJl274Y63IEHC+7izoQE9x6ikvDFZS2mDVS3drnohI=",
+          "source": "https://proxy.golang.org/github.com/mgutz/ansi/@v/v0.0.0-20200706080929-d51e80ef957d.zip",
+          "notices": "https://pkg.go.dev/github.com/mgutz/ansi@v0.0.0-20200706080929-d51e80ef957d?tab=licenses"
+        },
+        {
+          "name": "github.com/mholt/acmez/v3",
+          "version": "v3.1.7",
+          "checksum": "h1:XTqpuUcRdRoIBuDoI+M4mCnRnPTPN4rqH3Mb723Rg4U=",
+          "source": "https://proxy.golang.org/github.com/mholt/acmez/v3/@v/v3.1.7.zip",
+          "notices": "https://pkg.go.dev/github.com/mholt/acmez/v3@v3.1.7?tab=licenses"
+        },
+        {
+          "name": "github.com/miekg/dns",
+          "version": "v1.1.73",
+          "checksum": "h1:uhT8nJxmTrPJYClxVxTCX+CVn6qnzSiybRk72Z6DgrE=",
+          "source": "https://proxy.golang.org/github.com/miekg/dns/@v/v1.1.73.zip",
+          "notices": "https://pkg.go.dev/github.com/miekg/dns@v1.1.73?tab=licenses"
+        },
+        {
+          "name": "github.com/mitchellh/copystructure",
+          "version": "v1.2.0",
+          "checksum": "h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa15WveJJGw=",
+          "source": "https://proxy.golang.org/github.com/mitchellh/copystructure/@v/v1.2.0.zip",
+          "notices": "https://pkg.go.dev/github.com/mitchellh/copystructure@v1.2.0?tab=licenses"
+        },
+        {
+          "name": "github.com/mitchellh/go-ps",
+          "version": "v1.0.0",
+          "checksum": "h1:i6ampVEEF4wQFF+bkYfwYgY+F/uYJDktmvLPf7qIgjc=",
+          "source": "https://proxy.golang.org/github.com/mitchellh/go-ps/@v/v1.0.0.zip",
+          "notices": "https://pkg.go.dev/github.com/mitchellh/go-ps@v1.0.0?tab=licenses"
+        },
+        {
+          "name": "github.com/mitchellh/reflectwalk",
+          "version": "v1.0.2",
+          "checksum": "h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zxSIeXaQ=",
+          "source": "https://proxy.golang.org/github.com/mitchellh/reflectwalk/@v/v1.0.2.zip",
+          "notices": "https://pkg.go.dev/github.com/mitchellh/reflectwalk@v1.0.2?tab=licenses"
+        },
+        {
+          "name": "github.com/munnerz/goautoneg",
+          "version": "v0.0.0-20191010083416-a7dc8b61c822",
+          "checksum": "h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=",
+          "source": "https://proxy.golang.org/github.com/munnerz/goautoneg/@v/v0.0.0-20191010083416-a7dc8b61c822.zip",
+          "notices": "https://pkg.go.dev/github.com/munnerz/goautoneg@v0.0.0-20191010083416-a7dc8b61c822?tab=licenses"
+        },
+        {
+          "name": "github.com/nlnwa/whatwg-url",
+          "version": "v0.6.2",
+          "checksum": "h1:jU61lU2ig4LANydbEJmA2nPrtCGiKdtgT0rmMd2VZ/Q=",
+          "source": "https://proxy.golang.org/github.com/nlnwa/whatwg-url/@v/v0.6.2.zip",
+          "notices": "https://pkg.go.dev/github.com/nlnwa/whatwg-url@v0.6.2?tab=licenses"
+        },
+        {
+          "name": "github.com/pbnjay/memory",
+          "version": "v0.0.0-20210728143218-7b4eea64cf58",
+          "checksum": "h1:onHthvaw9LFnH4t2DcNVpwGmV9E1BkGknEliJkfwQj0=",
+          "source": "https://proxy.golang.org/github.com/pbnjay/memory/@v/v0.0.0-20210728143218-7b4eea64cf58.zip",
+          "notices": "https://pkg.go.dev/github.com/pbnjay/memory@v0.0.0-20210728143218-7b4eea64cf58?tab=licenses"
+        },
+        {
+          "name": "github.com/pires/go-proxyproto",
+          "version": "v0.15.0",
+          "checksum": "h1:dTshmNbFm/D+0+sbrxUuddPOZ5Y0B7c5NhtsBkm6LqI=",
+          "source": "https://proxy.golang.org/github.com/pires/go-proxyproto/@v/v0.15.0.zip",
+          "notices": "https://pkg.go.dev/github.com/pires/go-proxyproto@v0.15.0?tab=licenses"
+        },
+        {
+          "name": "github.com/pkg/errors",
+          "version": "v0.9.1",
+          "checksum": "h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=",
+          "source": "https://proxy.golang.org/github.com/pkg/errors/@v/v0.9.1.zip",
+          "notices": "https://pkg.go.dev/github.com/pkg/errors@v0.9.1?tab=licenses"
+        },
+        {
+          "name": "github.com/prometheus/client_golang",
+          "version": "v1.24.1",
+          "checksum": "h1:JnJkREXzWxUdCuPFpIWZiPispT9xVV59uiuyR2bPlnU=",
+          "source": "https://proxy.golang.org/github.com/prometheus/client_golang/@v/v1.24.1.zip",
+          "notices": "https://pkg.go.dev/github.com/prometheus/client_golang@v1.24.1?tab=licenses"
+        },
+        {
+          "name": "github.com/prometheus/client_model",
+          "version": "v0.6.3",
+          "checksum": "h1:O0jaTVAYNxTHYInEPFJt5I3+sN8zqBtVMPTB1qyxiEo=",
+          "source": "https://proxy.golang.org/github.com/prometheus/client_model/@v/v0.6.3.zip",
+          "notices": "https://pkg.go.dev/github.com/prometheus/client_model@v0.6.3?tab=licenses"
+        },
+        {
+          "name": "github.com/prometheus/common",
+          "version": "v0.71.0",
+          "checksum": "h1:9KDAKb7Mj3HEVKyFCK6Dc/HIwlBzZIN2l7/lrHl3KK8=",
+          "source": "https://proxy.golang.org/github.com/prometheus/common/@v/v0.71.0.zip",
+          "notices": "https://pkg.go.dev/github.com/prometheus/common@v0.71.0?tab=licenses"
+        },
+        {
+          "name": "github.com/prometheus/otlptranslator",
+          "version": "v1.0.0",
+          "checksum": "h1:s0LJW/iN9dkIH+EnhiD3BlkkP5QVIUVEoIwkU+A6qos=",
+          "source": "https://proxy.golang.org/github.com/prometheus/otlptranslator/@v/v1.0.0.zip",
+          "notices": "https://pkg.go.dev/github.com/prometheus/otlptranslator@v1.0.0?tab=licenses"
+        },
+        {
+          "name": "github.com/prometheus/procfs",
+          "version": "v0.22.0",
+          "checksum": "h1:6q9+/JL9IKAPbCmBrv9n5O5Ty3NKnciV5X7YGw0oics=",
+          "source": "https://proxy.golang.org/github.com/prometheus/procfs/@v/v0.22.0.zip",
+          "notices": "https://pkg.go.dev/github.com/prometheus/procfs@v0.22.0?tab=licenses"
+        },
+        {
+          "name": "github.com/quic-go/qpack",
+          "version": "v0.6.0",
+          "checksum": "h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=",
+          "source": "https://proxy.golang.org/github.com/quic-go/qpack/@v/v0.6.0.zip",
+          "notices": "https://pkg.go.dev/github.com/quic-go/qpack@v0.6.0?tab=licenses"
+        },
+        {
+          "name": "github.com/quic-go/quic-go",
+          "version": "v0.63.0",
+          "checksum": "h1:LIFGHI4PFUhhw2dDD1ARHdCff143ffMHwZtbnbuJ78A=",
+          "source": "https://proxy.golang.org/github.com/quic-go/quic-go/@v/v0.63.0.zip",
+          "notices": "https://pkg.go.dev/github.com/quic-go/quic-go@v0.63.0?tab=licenses"
+        },
+        {
+          "name": "github.com/rs/xid",
+          "version": "v1.6.0",
+          "checksum": "h1:fV591PaemRlL6JfRxGDEPl69wICngIQ3shQtzfy2gxU=",
+          "source": "https://proxy.golang.org/github.com/rs/xid/@v/v1.6.0.zip",
+          "notices": "https://pkg.go.dev/github.com/rs/xid@v1.6.0?tab=licenses"
+        },
+        {
+          "name": "github.com/russross/blackfriday/v2",
+          "version": "v2.1.0",
+          "checksum": "h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=",
+          "source": "https://proxy.golang.org/github.com/russross/blackfriday/v2/@v/v2.1.0.zip",
+          "notices": "https://pkg.go.dev/github.com/russross/blackfriday/v2@v2.1.0?tab=licenses"
+        },
+        {
+          "name": "github.com/shopspring/decimal",
+          "version": "v1.4.0",
+          "checksum": "h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp81k=",
+          "source": "https://proxy.golang.org/github.com/shopspring/decimal/@v/v1.4.0.zip",
+          "notices": "https://pkg.go.dev/github.com/shopspring/decimal@v1.4.0?tab=licenses"
+        },
+        {
+          "name": "github.com/shurcooL/sanitized_anchor_name",
+          "version": "v1.0.0",
+          "checksum": "h1:PdmoCO6wvbs+7yrJyMORt4/BmY5IYyJwS/kOiWx8mHo=",
+          "source": "https://proxy.golang.org/github.com/shurcoo!l/sanitized_anchor_name/@v/v1.0.0.zip",
+          "notices": "https://pkg.go.dev/github.com/shurcooL/sanitized_anchor_name@v1.0.0?tab=licenses"
+        },
+        {
+          "name": "github.com/sirupsen/logrus",
+          "version": "v1.10.2",
+          "checksum": "h1:G2SED73/qrAu6YwbdxOD6peLkCBI3z7L+ykJFTXJBBo=",
+          "source": "https://proxy.golang.org/github.com/sirupsen/logrus/@v/v1.10.2.zip",
+          "notices": "https://pkg.go.dev/github.com/sirupsen/logrus@v1.10.2?tab=licenses"
+        },
+        {
+          "name": "github.com/slackhq/nebula",
+          "version": "v1.11.2",
+          "checksum": "h1:eP61cSfUuoEVGViD50gZBsAbBLPUAhoNOYewPmEwPG4=",
+          "source": "https://proxy.golang.org/github.com/slackhq/nebula/@v/v1.11.2.zip",
+          "notices": "https://pkg.go.dev/github.com/slackhq/nebula@v1.11.2?tab=licenses"
+        },
+        {
+          "name": "github.com/smallstep/certificates",
+          "version": "v0.30.2",
+          "checksum": "h1:1G3xBi8sJ740iA1mMPW2Svv7EIZKJ4Zf/iQtA5QlN0Y=",
+          "source": "https://proxy.golang.org/github.com/smallstep/certificates/@v/v0.30.2.zip",
+          "notices": "https://pkg.go.dev/github.com/smallstep/certificates@v0.30.2?tab=licenses"
+        },
+        {
+          "name": "github.com/smallstep/cli-utils",
+          "version": "v0.12.2",
+          "checksum": "h1:lGzM9PJrH/qawbzMC/s2SvgLdJPKDWKwKzx9doCVO+k=",
+          "source": "https://proxy.golang.org/github.com/smallstep/cli-utils/@v/v0.12.2.zip",
+          "notices": "https://pkg.go.dev/github.com/smallstep/cli-utils@v0.12.2?tab=licenses"
+        },
+        {
+          "name": "github.com/smallstep/go-attestation",
+          "version": "v0.4.4-0.20260814222900-a849f4e2cd68",
+          "checksum": "h1:KcK2guFXrE5sX/nvF1b+atHP6DjRB1gCv3ppyTXB2Zk=",
+          "source": "https://proxy.golang.org/github.com/smallstep/go-attestation/@v/v0.4.4-0.20260814222900-a849f4e2cd68.zip",
+          "notices": "https://pkg.go.dev/github.com/smallstep/go-attestation@v0.4.4-0.20260814222900-a849f4e2cd68?tab=licenses"
+        },
+        {
+          "name": "github.com/smallstep/linkedca",
+          "version": "v0.26.0",
+          "checksum": "h1:NsxTVo3zI3KwOFFiVodeHtuGgKq0b5kOUXVLjjNTvXY=",
+          "source": "https://proxy.golang.org/github.com/smallstep/linkedca/@v/v0.26.0.zip",
+          "notices": "https://pkg.go.dev/github.com/smallstep/linkedca@v0.26.0?tab=licenses"
+        },
+        {
+          "name": "github.com/smallstep/nosql",
+          "version": "v0.8.0",
+          "checksum": "h1:FBTCUfKPmWYbrozW+RBKu+fnvbn+zr5rVli/XB4Jp4A=",
+          "source": "https://proxy.golang.org/github.com/smallstep/nosql/@v/v0.8.0.zip",
+          "notices": "https://pkg.go.dev/github.com/smallstep/nosql@v0.8.0?tab=licenses"
+        },
+        {
+          "name": "github.com/smallstep/pkcs7",
+          "version": "v0.2.3",
+          "checksum": "h1:bhoQ3TeZmdoXTatcwxCbk+FMcdsyr0gYrrW2Xq2qr+s=",
+          "source": "https://proxy.golang.org/github.com/smallstep/pkcs7/@v/v0.2.3.zip",
+          "notices": "https://pkg.go.dev/github.com/smallstep/pkcs7@v0.2.3?tab=licenses"
+        },
+        {
+          "name": "github.com/smallstep/scep",
+          "version": "v0.0.0-20260331191114-261f960a40d1",
+          "checksum": "h1:lpXBkQKj1rT1oGX/2idvt8xbrOrnoQxH/+CjoeMxs9E=",
+          "source": "https://proxy.golang.org/github.com/smallstep/scep/@v/v0.0.0-20260331191114-261f960a40d1.zip",
+          "notices": "https://pkg.go.dev/github.com/smallstep/scep@v0.0.0-20260331191114-261f960a40d1?tab=licenses"
+        },
+        {
+          "name": "github.com/smallstep/truststore",
+          "version": "v0.13.0",
+          "checksum": "h1:90if9htAOblavbMeWlqNLnO9bsjjgVv2hQeQJCi/py4=",
+          "source": "https://proxy.golang.org/github.com/smallstep/truststore/@v/v0.13.0.zip",
+          "notices": "https://pkg.go.dev/github.com/smallstep/truststore@v0.13.0?tab=licenses"
+        },
+        {
+          "name": "github.com/spf13/cast",
+          "version": "v1.10.0",
+          "checksum": "h1:h2x0u2shc1QuLHfxi+cTJvs30+ZAHOGRic8uyGTDWxY=",
+          "source": "https://proxy.golang.org/github.com/spf13/cast/@v/v1.10.0.zip",
+          "notices": "https://pkg.go.dev/github.com/spf13/cast@v1.10.0?tab=licenses"
+        },
+        {
+          "name": "github.com/spf13/cobra",
+          "version": "v1.10.2",
+          "checksum": "h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=",
+          "source": "https://proxy.golang.org/github.com/spf13/cobra/@v/v1.10.2.zip",
+          "notices": "https://pkg.go.dev/github.com/spf13/cobra@v1.10.2?tab=licenses"
+        },
+        {
+          "name": "github.com/spf13/pflag",
+          "version": "v1.0.10",
+          "checksum": "h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk=",
+          "source": "https://proxy.golang.org/github.com/spf13/pflag/@v/v1.0.10.zip",
+          "notices": "https://pkg.go.dev/github.com/spf13/pflag@v1.0.10?tab=licenses"
+        },
+        {
+          "name": "github.com/tailscale/tscert",
+          "version": "v0.0.0-20251216020129-aea342f6d747",
+          "checksum": "h1:RnBbFMmodYzhC6adOjTbtUQXyzV8dcvKYbolzs6Qch0=",
+          "source": "https://proxy.golang.org/github.com/tailscale/tscert/@v/v0.0.0-20251216020129-aea342f6d747.zip",
+          "notices": "https://pkg.go.dev/github.com/tailscale/tscert@v0.0.0-20251216020129-aea342f6d747?tab=licenses"
+        },
+        {
+          "name": "github.com/urfave/cli",
+          "version": "v1.22.17",
+          "checksum": "h1:SYzXoiPfQjHBbkYxbew5prZHS1TOLT3ierW8SYLqtVQ=",
+          "source": "https://proxy.golang.org/github.com/urfave/cli/@v/v1.22.17.zip",
+          "notices": "https://pkg.go.dev/github.com/urfave/cli@v1.22.17?tab=licenses"
+        },
+        {
+          "name": "github.com/x448/float16",
+          "version": "v0.8.4",
+          "checksum": "h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=",
+          "source": "https://proxy.golang.org/github.com/x448/float16/@v/v0.8.4.zip",
+          "notices": "https://pkg.go.dev/github.com/x448/float16@v0.8.4?tab=licenses"
+        },
+        {
+          "name": "github.com/yuin/goldmark",
+          "version": "v1.8.6",
+          "checksum": "h1:d0VcaP1sx9GkFVkoW+KtggpGi2KZ965i14b0+bDQST4=",
+          "source": "https://proxy.golang.org/github.com/yuin/goldmark/@v/v1.8.6.zip",
+          "notices": "https://pkg.go.dev/github.com/yuin/goldmark@v1.8.6?tab=licenses"
+        },
+        {
+          "name": "github.com/yuin/goldmark-highlighting/v2",
+          "version": "v2.0.0-20230729083705-37449abec8cc",
+          "checksum": "h1:+IAOyRda+RLrxa1WC7umKOZRsGq4QrFFMYApOeHzQwQ=",
+          "source": "https://proxy.golang.org/github.com/yuin/goldmark-highlighting/v2/@v/v2.0.0-20230729083705-37449abec8cc.zip",
+          "notices": "https://pkg.go.dev/github.com/yuin/goldmark-highlighting/v2@v2.0.0-20230729083705-37449abec8cc?tab=licenses"
+        },
+        {
+          "name": "github.com/zeebo/blake3",
+          "version": "v0.2.4",
+          "checksum": "h1:KYQPkhpRtcqh0ssGYcKLG1JYvddkEA8QwCM/yBqhaZI=",
+          "source": "https://proxy.golang.org/github.com/zeebo/blake3/@v/v0.2.4.zip",
+          "notices": "https://pkg.go.dev/github.com/zeebo/blake3@v0.2.4?tab=licenses"
+        },
+        {
+          "name": "go.etcd.io/bbolt",
+          "version": "v1.5.0",
+          "checksum": "h1:S7GAl7Fxv12yohbwFfIbQCGDWbQbtDGPET4P/bD4lxU=",
+          "source": "https://proxy.golang.org/go.etcd.io/bbolt/@v/v1.5.0.zip",
+          "notices": "https://pkg.go.dev/go.etcd.io/bbolt@v1.5.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/auto/sdk",
+          "version": "v1.2.1",
+          "checksum": "h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/auto/sdk/@v/v1.2.1.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/auto/sdk@v1.2.1?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/contrib/bridges/prometheus",
+          "version": "v0.71.0",
+          "checksum": "h1:9qgxsFLskbDMXl8WMqThoF6w8yGJgCumn9qRc67OmnI=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/contrib/bridges/prometheus/@v/v0.71.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/contrib/bridges/prometheus@v0.71.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/contrib/exporters/autoexport",
+          "version": "v0.71.0",
+          "checksum": "h1:VCsJbp0YLyPtx2tu5Vgv2a2/qLoaMCj8hT2uZ34+Mx0=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/contrib/exporters/autoexport/@v/v0.71.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/contrib/exporters/autoexport@v0.71.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+          "version": "v0.71.0",
+          "checksum": "h1:3g7B90UzBltIDKq1/5mrTGxTnOFDV0ICOhLoxiZ8jlg=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/@v/v0.71.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp@v0.71.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/contrib/propagators/autoprop",
+          "version": "v0.71.0",
+          "checksum": "h1:uy7dcw6v3XK3LMGj2sB9CXtJtTHX8QA9pjSrLhvf86c=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/contrib/propagators/autoprop/@v/v0.71.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/contrib/propagators/autoprop@v0.71.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/contrib/propagators/aws",
+          "version": "v1.46.0",
+          "checksum": "h1:JslT1wq/5vb6lQsbdOqShvIEs7sDlf0IvKxNZdadfjY=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/contrib/propagators/aws/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/contrib/propagators/aws@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/contrib/propagators/b3",
+          "version": "v1.46.0",
+          "checksum": "h1:OFVqWObn7xLIbOjE/koO0LS9fZJNgAyBD0msA+UQAoc=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/contrib/propagators/b3/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/contrib/propagators/b3@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/contrib/propagators/jaeger",
+          "version": "v1.46.0",
+          "checksum": "h1:uxl0SGcmuBkHj/Adl9oftEAyiawQBPL5RzMAmt/Yvq4=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/contrib/propagators/jaeger/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/contrib/propagators/jaeger@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/contrib/propagators/ot",
+          "version": "v1.46.0",
+          "checksum": "h1:SxC/1xmJJJdGQTNmavqW8ju85TRXiZHeFaQdnEMCWLE=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/contrib/propagators/ot/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/contrib/propagators/ot@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel",
+          "version": "v1.46.0",
+          "checksum": "h1:FHt5/CDyVxi/8IM1CH7VE/rRgq3kLHa2mSTVMO8AWyc=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc",
+          "version": "v0.22.0",
+          "checksum": "h1:Bu39F5tzJct+f2IZbB8989fwyTps3c8e7EsUQsz+vs8=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/@v/v0.22.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc@v0.22.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp",
+          "version": "v0.22.0",
+          "checksum": "h1:lYk7RmxdLK865qLwibroNGldHa1U7SWKYYvNjlK7PIo=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/@v/v0.22.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp@v0.22.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc",
+          "version": "v1.46.0",
+          "checksum": "h1:qkDYCAFiZXLcs1L4aY+tP2wguQ4kURANqHOQMA2et2s=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp",
+          "version": "v1.46.0",
+          "checksum": "h1:AP23h/mFgb/lc7tdck1Kfn9qxsM8TAeNPCU5C3pzaps=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace",
+          "version": "v1.46.0",
+          "checksum": "h1:OFnwLJr+pF3iHrlGSzbxyuo6/6HyBlnlN1CWEJmBVcw=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/otlp/otlptrace/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc",
+          "version": "v1.46.0",
+          "checksum": "h1:w53CDeOA/Kurp7yRsegSr6pbbr759dOvJ+yNmWM6Hxs=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp",
+          "version": "v1.46.0",
+          "checksum": "h1:KrC1YrQeSt46ITMWAbgQx1M1eV1/1TKzttrBzymPmss=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/prometheus",
+          "version": "v0.68.0",
+          "checksum": "h1:QOf2IftqQwITVRJpnn0M7M9ZCbgWfxz4P7i9C9yc2N4=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/prometheus/@v/v0.68.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/prometheus@v0.68.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/stdout/stdoutlog",
+          "version": "v0.22.0",
+          "checksum": "h1:kvMAiLEudKmk+CSG+iYbU8vTUGNNDaf/V09OO5lrTwI=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/stdout/stdoutlog/@v/v0.22.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/stdout/stdoutlog@v0.22.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/stdout/stdoutmetric",
+          "version": "v1.46.0",
+          "checksum": "h1:PR9eAf7o0dQs3hshZNZpE9aW2dXWX/KdDf6pJilVD3U=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/stdout/stdoutmetric/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/stdout/stdoutmetric@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/exporters/stdout/stdouttrace",
+          "version": "v1.46.0",
+          "checksum": "h1:KdRxPiAoMptR3vfWzvjjvutTsSiwbC2uG0496rzZNfo=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/exporters/stdout/stdouttrace/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/exporters/stdout/stdouttrace@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/log",
+          "version": "v0.22.0",
+          "checksum": "h1:5DBNnfvaJ6CVdkJ+Jle8Tzs50aSSv49TXGj9XRsEYw0=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/log/@v/v0.22.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/log@v0.22.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/metric",
+          "version": "v1.46.0",
+          "checksum": "h1:yBnkXvgV7AXFILZc5K6IZe/CBFF3OS7BJ8ov6/lj0K8=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/metric/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/metric@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/sdk",
+          "version": "v1.46.0",
+          "checksum": "h1:h5CNQQjEbuQXY/JfZtgt3i7HVFV3aHPO2OAwO2eTYPI=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/sdk/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/sdk@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/sdk/log",
+          "version": "v0.22.0",
+          "checksum": "h1:PRL+s6P63XT4E/bheEflopPUpVxuvANqZwtt89yhoGk=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/sdk/log/@v/v0.22.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/sdk/log@v0.22.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/sdk/metric",
+          "version": "v1.46.0",
+          "checksum": "h1:0piZ26EG4RBfebb2jhDH6ERCYHoVWduc3kLgPCwSnSE=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/sdk/metric/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/otel/trace",
+          "version": "v1.46.0",
+          "checksum": "h1:OULy7ccdJnZtJ0UDYFOIGaCmiWzJ8Vi2G/Rsu60qs1c=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/otel/trace/@v/v1.46.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/otel/trace@v1.46.0?tab=licenses"
+        },
+        {
+          "name": "go.opentelemetry.io/proto/otlp",
+          "version": "v1.11.0",
+          "checksum": "h1:5rrYs0Ykyj50sdU/JU0x8etU+LubXWb+gED6TbEdMIk=",
+          "source": "https://proxy.golang.org/go.opentelemetry.io/proto/otlp/@v/v1.11.0.zip",
+          "notices": "https://pkg.go.dev/go.opentelemetry.io/proto/otlp@v1.11.0?tab=licenses"
+        },
+        {
+          "name": "go.step.sm/crypto",
+          "version": "v0.91.0",
+          "checksum": "h1:0mN0DwVOvUuh7VbyTnxABZuAkxwak/Grp8Y/b4YaZDU=",
+          "source": "https://proxy.golang.org/go.step.sm/crypto/@v/v0.91.0.zip",
+          "notices": "https://pkg.go.dev/go.step.sm/crypto@v0.91.0?tab=licenses"
+        },
+        {
+          "name": "go.uber.org/automaxprocs",
+          "version": "v1.6.0",
+          "checksum": "h1:O3y2/QNTOdbF+e/dpXNNW7Rx2hZ4sTIPyybbxyNqTUs=",
+          "source": "https://proxy.golang.org/go.uber.org/automaxprocs/@v/v1.6.0.zip",
+          "notices": "https://pkg.go.dev/go.uber.org/automaxprocs@v1.6.0?tab=licenses"
+        },
+        {
+          "name": "go.uber.org/multierr",
+          "version": "v1.11.0",
+          "checksum": "h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=",
+          "source": "https://proxy.golang.org/go.uber.org/multierr/@v/v1.11.0.zip",
+          "notices": "https://pkg.go.dev/go.uber.org/multierr@v1.11.0?tab=licenses"
+        },
+        {
+          "name": "go.uber.org/zap",
+          "version": "v1.28.0",
+          "checksum": "h1:IZzaP1Fv73/T/pBMLk4VutPl36uNC+OSUh3JLG3FIjo=",
+          "source": "https://proxy.golang.org/go.uber.org/zap/@v/v1.28.0.zip",
+          "notices": "https://pkg.go.dev/go.uber.org/zap@v1.28.0?tab=licenses"
+        },
+        {
+          "name": "go.uber.org/zap/exp",
+          "version": "v0.3.0",
+          "checksum": "h1:6JYzdifzYkGmTdRR59oYH+Ng7k49H9qVpWwNSsGJj3U=",
+          "source": "https://proxy.golang.org/go.uber.org/zap/exp/@v/v0.3.0.zip",
+          "notices": "https://pkg.go.dev/go.uber.org/zap/exp@v0.3.0?tab=licenses"
+        },
+        {
+          "name": "go.yaml.in/yaml/v3",
+          "version": "v3.0.5",
+          "checksum": "h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=",
+          "source": "https://proxy.golang.org/go.yaml.in/yaml/v3/@v/v3.0.5.zip",
+          "notices": "https://pkg.go.dev/go.yaml.in/yaml/v3@v3.0.5?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/crypto",
+          "version": "v0.57.0",
+          "checksum": "h1:3ZVCjf8Ggz7zneR/EHRVx68Ctf+2pmIMP2UFhh9cC6M=",
+          "source": "https://proxy.golang.org/golang.org/x/crypto/@v/v0.57.0.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/crypto@v0.57.0?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/crypto/x509roots/fallback",
+          "version": "v0.0.0-20260929172509-b39ff6d641ec",
+          "checksum": "h1:6gLejUU4OPMnmDEz8DkDkWMoyDj2Ny5iUy1Ze3raJhs=",
+          "source": "https://proxy.golang.org/golang.org/x/crypto/x509roots/fallback/@v/v0.0.0-20260929172509-b39ff6d641ec.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/crypto/x509roots/fallback@v0.0.0-20260929172509-b39ff6d641ec?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/exp",
+          "version": "v0.0.0-20260908205506-85c1c2202aba",
+          "checksum": "h1:Ck8QetSgk912qxWLMCKxd0in+aiyBQyDSMae6e/xmpU=",
+          "source": "https://proxy.golang.org/golang.org/x/exp/@v/v0.0.0-20260908205506-85c1c2202aba.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/exp@v0.0.0-20260908205506-85c1c2202aba?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/net",
+          "version": "v0.59.0",
+          "checksum": "h1:5zfYln+w5XCxwrnMMJPufRgNoXEaGxl0wo5GqPXyues=",
+          "source": "https://proxy.golang.org/golang.org/x/net/@v/v0.59.0.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/net@v0.59.0?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/oauth2",
+          "version": "v0.37.0",
+          "checksum": "h1:JUlcxA8oAtauLfiH8FX2/FkAWHAdi0QtGCGc+hofE98=",
+          "source": "https://proxy.golang.org/golang.org/x/oauth2/@v/v0.37.0.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/oauth2@v0.37.0?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/sync",
+          "version": "v0.23.0",
+          "checksum": "h1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=",
+          "source": "https://proxy.golang.org/golang.org/x/sync/@v/v0.23.0.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/sync@v0.23.0?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/sys",
+          "version": "v0.48.0",
+          "checksum": "h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=",
+          "source": "https://proxy.golang.org/golang.org/x/sys/@v/v0.48.0.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/sys@v0.48.0?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/term",
+          "version": "v0.46.0",
+          "checksum": "h1:3+OXuTbaKDgwk8jTi3aSLHRlmWqHEUDUtxnbFigO4YE=",
+          "source": "https://proxy.golang.org/golang.org/x/term/@v/v0.46.0.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/term@v0.46.0?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/text",
+          "version": "v0.42.0",
+          "checksum": "h1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=",
+          "source": "https://proxy.golang.org/golang.org/x/text/@v/v0.42.0.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/text@v0.42.0?tab=licenses"
+        },
+        {
+          "name": "golang.org/x/time",
+          "version": "v0.16.0",
+          "checksum": "h1:vMb6ptszcQMkcwiRTAuNNU50gom6++Q/6gY2hDM6VDE=",
+          "source": "https://proxy.golang.org/golang.org/x/time/@v/v0.16.0.zip",
+          "notices": "https://pkg.go.dev/golang.org/x/time@v0.16.0?tab=licenses"
+        },
+        {
+          "name": "google.golang.org/api",
+          "version": "v0.298.0",
+          "checksum": "h1:YW18RkHBMZBA1ergX0m4biagzgbiPTb2uTsRsDPWNRY=",
+          "source": "https://proxy.golang.org/google.golang.org/api/@v/v0.298.0.zip",
+          "notices": "https://pkg.go.dev/google.golang.org/api@v0.298.0?tab=licenses"
+        },
+        {
+          "name": "google.golang.org/genproto/googleapis/api",
+          "version": "v0.0.0-20260921155816-b14227669459",
+          "checksum": "h1:GS9OIt/j7c8bvBjYNgnKQysVfmV7e4jM0H8ZK95G4t8=",
+          "source": "https://proxy.golang.org/google.golang.org/genproto/googleapis/api/@v/v0.0.0-20260921155816-b14227669459.zip",
+          "notices": "https://pkg.go.dev/google.golang.org/genproto/googleapis/api@v0.0.0-20260921155816-b14227669459?tab=licenses"
+        },
+        {
+          "name": "google.golang.org/genproto/googleapis/rpc",
+          "version": "v0.0.0-20260921155816-b14227669459",
+          "checksum": "h1:b0xCahf3FK2m2Cv0p4vTozGPWncCvLfwV86UNg8xWU8=",
+          "source": "https://proxy.golang.org/google.golang.org/genproto/googleapis/rpc/@v/v0.0.0-20260921155816-b14227669459.zip",
+          "notices": "https://pkg.go.dev/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260921155816-b14227669459?tab=licenses"
+        },
+        {
+          "name": "google.golang.org/grpc",
+          "version": "v1.83.2",
+          "checksum": "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=",
+          "source": "https://proxy.golang.org/google.golang.org/grpc/@v/v1.83.2.zip",
+          "notices": "https://pkg.go.dev/google.golang.org/grpc@v1.83.2?tab=licenses"
+        },
+        {
+          "name": "google.golang.org/protobuf",
+          "version": "v1.36.12",
+          "checksum": "h1:pJOKDDOyeXErUroCihFAd5LQuwXBSpVnKGrj5o/fwxc=",
+          "source": "https://proxy.golang.org/google.golang.org/protobuf/@v/v1.36.12.zip",
+          "notices": "https://pkg.go.dev/google.golang.org/protobuf@v1.36.12?tab=licenses"
+        },
+        {
+          "name": "gopkg.in/yaml.v3",
+          "version": "v3.0.1",
+          "checksum": "h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=",
+          "source": "https://proxy.golang.org/gopkg.in/yaml.v3/@v/v3.0.1.zip",
+          "notices": "https://pkg.go.dev/gopkg.in/yaml.v3@v3.0.1?tab=licenses"
+        }
+      ],
+      "reference": "caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
+      "inventoryPlatform": "linux/amd64",
+      "osRelease": "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.23.6\nPRETTY_NAME=\"Alpine Linux v3.23\"\nHOME_URL=\"https://alpinelinux.org/\"\nBUG_REPORT_URL=\"https://gitlab.alpinelinux.org/alpine/aports/-/issues\"\n",
+      "packages": [
+        {
+          "name": "alpine-baselayout",
+          "version": "3.7.2-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/main/alpine-baselayout",
+          "origin": "alpine-baselayout",
+          "packagingCommit": "15b3b78187b3808104f98f765e9632e0b09281a7",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/15b3b78187b3808104f98f765e9632e0b09281a7"
+        },
+        {
+          "name": "alpine-baselayout-data",
+          "version": "3.7.2-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/main/alpine-baselayout",
+          "origin": "alpine-baselayout",
+          "packagingCommit": "15b3b78187b3808104f98f765e9632e0b09281a7",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/15b3b78187b3808104f98f765e9632e0b09281a7"
+        },
+        {
+          "name": "alpine-keys",
+          "version": "2.6-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://alpinelinux.org",
+          "origin": "alpine-keys",
+          "packagingCommit": "b9f23becced4d7b3ccc0fa0f28530243ccd314a0",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/b9f23becced4d7b3ccc0fa0f28530243ccd314a0"
+        },
+        {
+          "name": "alpine-release",
+          "version": "3.23.6-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://alpinelinux.org",
+          "origin": "alpine-base",
+          "packagingCommit": "8608c79733409c3aa716f7985d1cb45aedba55bd",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/8608c79733409c3aa716f7985d1cb45aedba55bd"
+        },
+        {
+          "name": "apk-tools",
+          "version": "3.0.8-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://gitlab.alpinelinux.org/alpine/apk-tools",
+          "origin": "apk-tools",
+          "packagingCommit": "286502dc74df00f907f93b0563867630dcc139e5",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/286502dc74df00f907f93b0563867630dcc139e5"
+        },
+        {
+          "name": "brotli-libs",
+          "version": "1.2.0-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://github.com/google/brotli",
+          "origin": "brotli",
+          "packagingCommit": "e1a74d1bc0c4e0308990de2e9ec9d82529fcac8f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/e1a74d1bc0c4e0308990de2e9ec9d82529fcac8f"
+        },
+        {
+          "name": "busybox",
+          "version": "1.37.0-r30",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://busybox.net/",
+          "origin": "busybox",
+          "packagingCommit": "1e823a60eb85606954b3a5af5f8e5bbd1ea680cf",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/1e823a60eb85606954b3a5af5f8e5bbd1ea680cf"
+        },
+        {
+          "name": "busybox-binsh",
+          "version": "1.37.0-r30",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://busybox.net/",
+          "origin": "busybox",
+          "packagingCommit": "1e823a60eb85606954b3a5af5f8e5bbd1ea680cf",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/1e823a60eb85606954b3a5af5f8e5bbd1ea680cf"
+        },
+        {
+          "name": "c-ares",
+          "version": "1.34.8-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://c-ares.org/",
+          "origin": "c-ares",
+          "packagingCommit": "5d4c6f7c12416f51673a8364ae60a3046345f11f",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/5d4c6f7c12416f51673a8364ae60a3046345f11f"
+        },
+        {
+          "name": "ca-certificates",
+          "version": "20260909-r0",
+          "architecture": "x86_64",
+          "license": "MPL-2.0 AND MIT",
+          "upstream": "https://www.mozilla.org/en-US/about/governance/policies/security-group/certs/",
+          "origin": "ca-certificates",
+          "packagingCommit": "c733d58a9d16316e7fb6a49e65f28ecda365c56b",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/c733d58a9d16316e7fb6a49e65f28ecda365c56b"
+        },
+        {
+          "name": "ca-certificates-bundle",
+          "version": "20260909-r0",
+          "architecture": "x86_64",
+          "license": "MPL-2.0 AND MIT",
+          "upstream": "https://www.mozilla.org/en-US/about/governance/policies/security-group/certs/",
+          "origin": "ca-certificates",
+          "packagingCommit": "c733d58a9d16316e7fb6a49e65f28ecda365c56b",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/c733d58a9d16316e7fb6a49e65f28ecda365c56b"
+        },
+        {
+          "name": "curl",
+          "version": "8.22.0-r0",
+          "architecture": "x86_64",
+          "license": "curl",
+          "upstream": "https://curl.se/",
+          "origin": "curl",
+          "packagingCommit": "ce63a8e353eacc32ad36fd49ae1f427f4306da87",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/ce63a8e353eacc32ad36fd49ae1f427f4306da87"
+        },
+        {
+          "name": "libapk",
+          "version": "3.0.8-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://gitlab.alpinelinux.org/alpine/apk-tools",
+          "origin": "apk-tools",
+          "packagingCommit": "286502dc74df00f907f93b0563867630dcc139e5",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/286502dc74df00f907f93b0563867630dcc139e5"
+        },
+        {
+          "name": "libcap",
+          "version": "2.78-r0",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause OR GPL-2.0-only",
+          "upstream": "https://sites.google.com/site/fullycapable/",
+          "origin": "libcap",
+          "packagingCommit": "91f6971a1590396adc8c65ddf45c324f9540a1a0",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/91f6971a1590396adc8c65ddf45c324f9540a1a0"
+        },
+        {
+          "name": "libcap-getcap",
+          "version": "2.78-r0",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause OR GPL-2.0-only",
+          "upstream": "https://sites.google.com/site/fullycapable/",
+          "origin": "libcap",
+          "packagingCommit": "91f6971a1590396adc8c65ddf45c324f9540a1a0",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/91f6971a1590396adc8c65ddf45c324f9540a1a0"
+        },
+        {
+          "name": "libcap-setcap",
+          "version": "2.78-r0",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause OR GPL-2.0-only",
+          "upstream": "https://sites.google.com/site/fullycapable/",
+          "origin": "libcap",
+          "packagingCommit": "91f6971a1590396adc8c65ddf45c324f9540a1a0",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/91f6971a1590396adc8c65ddf45c324f9540a1a0"
+        },
+        {
+          "name": "libcap-utils",
+          "version": "2.78-r0",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause OR GPL-2.0-only",
+          "upstream": "https://sites.google.com/site/fullycapable/",
+          "origin": "libcap",
+          "packagingCommit": "91f6971a1590396adc8c65ddf45c324f9540a1a0",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/91f6971a1590396adc8c65ddf45c324f9540a1a0"
+        },
+        {
+          "name": "libcap2",
+          "version": "2.78-r0",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause OR GPL-2.0-only",
+          "upstream": "https://sites.google.com/site/fullycapable/",
+          "origin": "libcap",
+          "packagingCommit": "91f6971a1590396adc8c65ddf45c324f9540a1a0",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/91f6971a1590396adc8c65ddf45c324f9540a1a0"
+        },
+        {
+          "name": "libcrypto3",
+          "version": "3.5.8-r0",
+          "architecture": "x86_64",
+          "license": "Apache-2.0",
+          "upstream": "https://www.openssl.org/",
+          "origin": "openssl",
+          "packagingCommit": "2b4b2590f782b95276d31dcaaf41554b1a597a0b",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/2b4b2590f782b95276d31dcaaf41554b1a597a0b"
+        },
+        {
+          "name": "libcurl",
+          "version": "8.22.0-r0",
+          "architecture": "x86_64",
+          "license": "curl",
+          "upstream": "https://curl.se/",
+          "origin": "curl",
+          "packagingCommit": "ce63a8e353eacc32ad36fd49ae1f427f4306da87",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/ce63a8e353eacc32ad36fd49ae1f427f4306da87"
+        },
+        {
+          "name": "libidn2",
+          "version": "2.3.8-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later OR LGPL-3.0-or-later",
+          "upstream": "https://www.gnu.org/software/libidn#libidn2",
+          "origin": "libidn2",
+          "packagingCommit": "8240e09aa2fdd8f9979b2016be082273965aff0c",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/8240e09aa2fdd8f9979b2016be082273965aff0c"
+        },
+        {
+          "name": "libpsl",
+          "version": "0.21.5-r3",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://rockdaboot.github.io/libpsl",
+          "origin": "libpsl",
+          "packagingCommit": "6bd45b53fb316dc01bda59f5feaf1e127eb64f22",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/6bd45b53fb316dc01bda59f5feaf1e127eb64f22"
+        },
+        {
+          "name": "libssl3",
+          "version": "3.5.8-r0",
+          "architecture": "x86_64",
+          "license": "Apache-2.0",
+          "upstream": "https://www.openssl.org/",
+          "origin": "openssl",
+          "packagingCommit": "2b4b2590f782b95276d31dcaaf41554b1a597a0b",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/2b4b2590f782b95276d31dcaaf41554b1a597a0b"
+        },
+        {
+          "name": "libunistring",
+          "version": "1.4.1-r0",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-or-later OR LGPL-3.0-or-later",
+          "upstream": "https://www.gnu.org/software/libunistring/",
+          "origin": "libunistring",
+          "packagingCommit": "cd5407e1341869af38d836fe83f9dbc98799f43a",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/cd5407e1341869af38d836fe83f9dbc98799f43a"
+        },
+        {
+          "name": "mailcap",
+          "version": "2.1.54-r0",
+          "architecture": "x86_64",
+          "license": "Public Domain",
+          "upstream": "https://pagure.io/mailcap",
+          "origin": "mailcap",
+          "packagingCommit": "0c8e332694755cf1b57465c56ae1f3664d341ab6",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/0c8e332694755cf1b57465c56ae1f3664d341ab6"
+        },
+        {
+          "name": "musl",
+          "version": "1.2.5-r23",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://musl.libc.org/",
+          "origin": "musl",
+          "packagingCommit": "8aef0c37b0ad23dc4137f0e4755b97a59dc698b8",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/8aef0c37b0ad23dc4137f0e4755b97a59dc698b8"
+        },
+        {
+          "name": "musl-utils",
+          "version": "1.2.5-r23",
+          "architecture": "x86_64",
+          "license": "MIT AND BSD-2-Clause AND GPL-2.0-or-later",
+          "upstream": "https://musl.libc.org/",
+          "origin": "musl",
+          "packagingCommit": "8aef0c37b0ad23dc4137f0e4755b97a59dc698b8",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/8aef0c37b0ad23dc4137f0e4755b97a59dc698b8"
+        },
+        {
+          "name": "nghttp2-libs",
+          "version": "1.69.0-r0",
+          "architecture": "x86_64",
+          "license": "MIT",
+          "upstream": "https://nghttp2.org",
+          "origin": "nghttp2",
+          "packagingCommit": "40d265063c14143f5ef8a35c216b9e6392d120a7",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/40d265063c14143f5ef8a35c216b9e6392d120a7"
+        },
+        {
+          "name": "scanelf",
+          "version": "1.3.8-r2",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://wiki.gentoo.org/wiki/Hardened/PaX_Utilities",
+          "origin": "pax-utils",
+          "packagingCommit": "3912b4fa83437852312ad3c37a00229ff59fab1c",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/3912b4fa83437852312ad3c37a00229ff59fab1c"
+        },
+        {
+          "name": "ssl_client",
+          "version": "1.37.0-r30",
+          "architecture": "x86_64",
+          "license": "GPL-2.0-only",
+          "upstream": "https://busybox.net/",
+          "origin": "busybox",
+          "packagingCommit": "1e823a60eb85606954b3a5af5f8e5bbd1ea680cf",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/1e823a60eb85606954b3a5af5f8e5bbd1ea680cf"
+        },
+        {
+          "name": "zlib",
+          "version": "1.3.2-r0",
+          "architecture": "x86_64",
+          "license": "Zlib",
+          "upstream": "https://zlib.net/",
+          "origin": "zlib",
+          "packagingCommit": "f8c94d2e1d318ab29eb4ac5f00225341c877ed65",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/f8c94d2e1d318ab29eb4ac5f00225341c877ed65"
+        },
+        {
+          "name": "zstd-libs",
+          "version": "1.5.7-r2",
+          "architecture": "x86_64",
+          "license": "BSD-3-Clause OR GPL-2.0-or-later",
+          "upstream": "https://facebook.github.io/zstd/",
+          "origin": "zstd",
+          "packagingCommit": "3c6e2ee2b16f403d53eab39c4426eb61f003c322",
+          "source": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/3c6e2ee2b16f403d53eab39c4426eb61f003c322"
+        }
+      ],
+      "files": [
+        {
+          "path": "OCI image index",
+          "material": "materials/6bdd1fc0e4ba5afa3db72025748de5d61359136621d5f130db4fb0caf524d7e4.txt"
+        },
+        {
+          "path": "/lib/apk/db/installed",
+          "material": "materials/d78c2f1644db835ef69e47c524cd8ee5c2d5c66f9cd80d892606ac8a393ee9f5.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/caddyserver/caddy/v2.11.7/LICENSE",
+          "material": "materials/cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30.txt"
+        },
+        {
+          "path": "caddy build-info",
+          "material": "materials/6421339ac3fdd75c0912b76f67f4aa0df4ee106a863f1375115012cc89544596.txt"
+        }
+      ]
+    }
+  ],
+  "unresolved": []
+}

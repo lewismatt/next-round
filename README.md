@@ -104,6 +104,24 @@ derived from it (including future CSRF tokens); opaque session-token digests rem
 unchanged. Treat rotation as a sign-in refresh for clients and restart API nodes
 together. `SETUP_TOKEN` is independent and must never be reused as the session key.
 
+### Production image and architecture pins
+
+`deploy/Dockerfile` uses the immutable multi-architecture index for
+`node:24.22.0-bookworm-slim`, correcting the initial Alpine scaffold to the
+Debian-based runtime required by specification §8. PostgreSQL and Caddy likewise
+pin multi-architecture indexes rather than amd64 child manifests. Exact digests
+and upstream attribution are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+An index selects the host architecture; it is not evidence that the application
+has been exercised on every architecture in that index.
+
+API, worker and migration commands share one production image and run as the
+unprivileged `node` user (UID/GID 1000). Build tooling and development dependencies
+stay in build stages. The runtime retains compiled application/workspace code,
+production dependencies, browser assets, reviewed migrations and license notices.
+The root `.dockerignore` excludes local environment files, Git metadata, host
+dependencies and build outputs; generate secrets only in the operator environment,
+never as image build arguments or copied application files.
+
 ### Database migrations and upgrades
 
 Compose builds `next-round-app:local` once for `migrate`, API and worker. The image

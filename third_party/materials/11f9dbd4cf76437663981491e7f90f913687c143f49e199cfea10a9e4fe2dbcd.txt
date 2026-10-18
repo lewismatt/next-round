@@ -1,0 +1,147 @@
+/*! Bundled license information:
+
+web-streams-polyfill/dist/ponyfill.es2018.js:
+  (**
+   * @license
+   * web-streams-polyfill v3.3.3
+   * Copyright 2024 Mattias Buelens, Diwank Singh Tomer and other contributors.
+   * This code is released under the MIT license.
+   * SPDX-License-Identifier: MIT
+   *)
+
+fetch-blob/index.js:
+  (*! fetch-blob. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> *)
+
+formdata-polyfill/esm.min.js:
+  (*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> *)
+
+node-domexception/index.js:
+  (*! node-domexception. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> *)
+
+gel/dist/primitives/chars.js:
+gel/dist/primitives/buffer.js:
+gel/dist/errors/index.js:
+gel/dist/primitives/lru.js:
+gel/dist/codecs/consts.js:
+gel/dist/codecs/ifaces.js:
+gel/dist/codecs/boolean.js:
+gel/dist/codecs/numbers.js:
+gel/dist/codecs/numerics.js:
+gel/dist/codecs/text.js:
+gel/dist/codecs/uuid.js:
+gel/dist/codecs/bytes.js:
+gel/dist/codecs/json.js:
+gel/dist/datatypes/datetime.js:
+gel/dist/codecs/datetime.js:
+gel/dist/datatypes/memory.js:
+gel/dist/codecs/memory.js:
+gel/dist/codecs/pgvector.js:
+gel/dist/codecs/codecs.js:
+gel/dist/codecs/tuple.js:
+gel/dist/datatypes/range.js:
+gel/dist/codecs/range.js:
+gel/dist/codecs/namedtuple.js:
+gel/dist/codecs/array.js:
+gel/dist/codecs/enum.js:
+gel/dist/codecs/object.js:
+gel/dist/codecs/set.js:
+gel/dist/codecs/record.js:
+gel/dist/codecs/sparseObject.js:
+gel/dist/codecs/registry.js:
+gel/dist/retry.js:
+gel/dist/conUtils.js:
+gel/dist/errors/map.js:
+gel/dist/errors/resolve.js:
+gel/dist/baseConn.js:
+gel/dist/scram.js:
+gel/dist/rawConn.js:
+gel/dist/index.shared.js:
+gel/dist/index.node.js:
+  (*!
+   * This source file is part of the Gel open source project.
+   *
+   * Copyright 2019-present MagicStack Inc. and the Gel authors.
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   *)
+
+gel/dist/datatypes/dateutil.js:
+  (*!
+   * Portions Copyright (c) 2019 MagicStack Inc. and the Gel authors.
+   * Portions Copyright (c) 2001-2019 Python Software Foundation.
+   * All rights reserved.
+   * Licence: PSFL https://docs.python.org/3/license.html
+   *)
+
+gel/dist/utils.js:
+gel/dist/ifaces.js:
+gel/dist/primitives/queues.js:
+gel/dist/baseClient.js:
+gel/dist/reflection/strictMap.js:
+gel/dist/reflection/index.js:
+  (*!
+   * This source file is part of the Gel open source project.
+   *
+   * Copyright 2020-present MagicStack Inc. and the Gel authors.
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   *)
+
+gel/dist/primitives/event.js:
+  (*!
+   * This source file is part of the Gel open source project.
+   *
+   * Copyright 2021-present MagicStack Inc. and the Gel authors.
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   *)
+
+gel/dist/fetchConn.js:
+  (*!
+   * This source file is part of the Gel open source project.
+   *
+   * Copyright 2022-present MagicStack Inc. and the Gel authors.
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   *)
+*/
