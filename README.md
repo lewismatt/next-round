@@ -41,7 +41,7 @@ games/
 deploy/
   docker-compose.yml   Reproducible multi-service Compose configuration
   Caddyfile            Reverse proxy configuration (HTTPS & WebSocket upgrade)
-  Dockerfile           Multi-stage container build for API and Worker
+  Dockerfile           Shared application image for migrations, API and worker
 docs/
   spec/                Master specifications and Architecture Decision Records (ADRs)
 ```
@@ -65,8 +65,8 @@ pnpm install --frozen-lockfile
 ### Typecheck and Build
 
 ```bash
-pnpm typecheck
 pnpm build
+pnpm typecheck
 ```
 
 ### Run with Docker Compose
@@ -74,6 +74,8 @@ pnpm build
 ```bash
 cp deploy/.env.example deploy/.env
 # Generate POSTGRES_PASSWORD, SESSION_SECRET and SETUP_TOKEN locally (see below).
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml build
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 ```
 
@@ -101,6 +103,118 @@ Rotating `SESSION_SECRET` invalidates cookie signatures and any application MACs
 derived from it (including future CSRF tokens); opaque session-token digests remain
 unchanged. Treat rotation as a sign-in refresh for clients and restart API nodes
 together. `SETUP_TOKEN` is independent and must never be reused as the session key.
+
+### Database migrations and upgrades
+
+Compose builds `next-round-app:local` once for `migrate`, API and worker. The image
+contains the compiled migration CLI and reviewed SQL with Drizzle metadata in
+`packages/db/migrations`. The one-shot `migrate` service waits for PostgreSQL
+health, then runs `node packages/db/dist/migrate-cli.js`. API and worker require
+both a healthy database and successful migration completion. A nonzero migration
+exit prevents their startup. This does not stop processes that were already
+running, so stop the application services before an upgrade.
+
+The pinned PostgreSQL 18 image mounts `pgdata` at `/var/lib/postgresql`, with
+major-specific data beneath it. Do not mount it at the older
+`/var/lib/postgresql/data` path. If a previous deployment populated a volume at
+that older path, preserve it and use a reviewed backup/restore or PostgreSQL
+upgrade procedure; changing the mount is not a data migration.
+
+Run these commands from the repository root for each upgrade, after taking a
+backup and retaining the previous compatible application image:
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml stop caddy api worker
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml build &&
+  docker compose --env-file deploy/.env -f deploy/docker-compose.yml rm -f migrate &&
+  docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
+```
+
+Removing only the `migrate` container intentionally reruns it on every upgrade,
+even when an earlier container exited successfully. It does not remove database
+volumes. Inspect failures with
+`docker compose --env-file deploy/.env -f deploy/docker-compose.yml logs migrate`.
+Do not bypass dependencies or start API/worker manually after a failed migration.
+
+For a local build outside Compose, export `DATABASE_DIRECT_URL` or `DATABASE_URL`
+in the shell, then run:
+
+```bash
+pnpm build
+pnpm --filter @next-round/db migrate
+```
+
+Alternatively, load the local env file explicitly:
+`node --env-file=deploy/.env packages/db/dist/migrate-cli.js`.
+The CLI prefers a nonblank `DATABASE_DIRECT_URL`, otherwise it uses `DATABASE_URL`.
+Both must name the same application database if both are set. The migration role
+needs permission to create and update the `next_round` and `pgboss` schemas.
+Use a direct connection that preserves the PostgreSQL session, not a
+transaction-pooled endpoint. Compose constructs `DATABASE_URL` from `POSTGRES_*`;
+its optional `DATABASE_DIRECT_URL` must use a hostname reachable from the
+container, such as `postgres`, rather than the host's `localhost`.
+
+The runner holds a session advisory lock while checking and applying ordered SQL
+and explicitly migrating pg-boss. Concurrent runners wait for that lock.
+`next_round.schema_migrations` records immutable versions and SQL checksums.
+Already applied SQL is checked rather than reapplied. Changed, missing or
+reordered applied migrations fail instead of silently accepting drift. Keep
+applied SQL and metadata unchanged and add a new reviewed migration for changes.
+The CLI exits nonzero on configuration, connection, checksum or migration errors.
+Do not use Drizzle schema push in production or delete ledger entries to bypass
+an error.
+
+Keep all database writers stopped during upgrades, including processes outside
+Compose. Application SQL and its ledger commit together, but the pg-boss upgrade
+is separate and may build indexes concurrently. The whole upgrade is not atomic.
+An index build failure can leave pg-boss's schema version committed with a missing
+or invalid index. The runner rejects detected pg-boss schema drift on later runs.
+Inspect the pinned pg-boss version's public `getConstructionPlans` and
+`getMigrationPlans` output and repair the affected indexes before retrying, or
+restore a compatible backup. The CLI intentionally reports generic errors without
+database credentials or raw server diagnostics.
+
+Back up PostgreSQL consistently before destructive migrations. Retain the matching
+application image, private env file and Caddy data/config with the backup.
+Copying raw files from a running PostgreSQL data directory is not a consistent
+backup method. Recovery may require restoring the database and its compatible
+application image together. Starting an older image against a newer schema is
+not a rollback, and reverse migrations are not assumed. PostgreSQL major upgrades
+remain a separate operator procedure.
+
+### Real PostgreSQL migration checks
+
+The integration command requires `TEST_DATABASE_URL` for a disposable PostgreSQL
+instance. Its role must be able to create and drop isolated test databases.
+Never point it at a production server. CI uses PostgreSQL `18.6-alpine` and
+`17-alpine`, runs the migration CLI, then runs the same integration command.
+To exercise both locally after `pnpm install --frozen-lockfile` and `pnpm build`:
+
+```bash
+(
+  set -eu
+  for version in 18.6-alpine 17-alpine; do
+    docker run --detach --rm --name next-round-migration-test \
+      -e POSTGRES_DB=next_round -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+      -p 127.0.0.1:55432:5432 "postgres:$version"
+    trap 'docker stop next-round-migration-test' EXIT
+    until docker exec next-round-migration-test pg_isready -U postgres -d next_round; do
+      sleep 1
+    done
+    export TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/next_round
+    DATABASE_DIRECT_URL="$TEST_DATABASE_URL" pnpm --filter @next-round/db migrate
+    pnpm --filter @next-round/db test:integration
+    docker stop next-round-migration-test
+    trap - EXIT
+  done
+)
+```
+
+Record the exact server versions and command results when running these checks.
+These commands are not evidence that the F0 gates passed. Migration coverage alone
+does not establish the remaining F0 runtime feasibility checks (including Argon2
+on the deployment image and pg-boss job/transaction behavior), F1 transactional
+acceptance on both PostgreSQL majors, or a demonstrated backup restore.
 
 ---
 

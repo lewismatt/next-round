@@ -24,15 +24,10 @@ WORKDIR /app
 COPY . .
 RUN pnpm build
 
-FROM base AS api
+FROM base AS app
 WORKDIR /app
 ENV NODE_ENV=production
+# Includes reviewed packages/db/migrations SQL and Drizzle metadata.
 COPY --from=builder /app ./
 EXPOSE 3000
 CMD ["node", "apps/api/dist/index.js"]
-
-FROM base AS worker
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=builder /app ./
-CMD ["node", "apps/worker/dist/index.js"]
