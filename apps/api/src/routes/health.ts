@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 
 export interface HealthCheckOptions {
@@ -116,7 +117,7 @@ export const healthRoutes: FastifyPluginAsync<HealthCheckOptions> = async (
         sdkVersion: "0.1",
         commit: process.env.GIT_COMMIT || "development",
         sourceUrl:
-          process.env.SOURCE_URL || "https://github.com/next-round/next-round",
+          process.env.SOURCE_URL || "https://github.com/lewismatt/next-round",
         buildTime: process.env.BUILD_TIME || "development",
       });
     }

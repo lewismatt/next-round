@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import fs from "node:fs";
 import path from "node:path";
 import cookie from "@fastify/cookie";
@@ -8,10 +9,11 @@ import swagger from "@fastify/swagger";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import { healthRoutes, type HealthCheckOptions } from "./routes/health.js";
+import { parseTrustedProxies, requireSessionSecret, validateSetupToken, type TrustedProxies } from "./config.js";
 
 export interface ServerOptions extends HealthCheckOptions {
   logger?: FastifyServerOptions["logger"];
-  trustProxy?: boolean;
+  trustProxy?: TrustedProxies;
   cookieSecret?: string;
   staticRoot?: string;
   rateLimitMax?: number;
@@ -25,6 +27,9 @@ export interface ServerOptions extends HealthCheckOptions {
 export async function buildServer(
   options: ServerOptions = {}
 ): Promise<FastifyInstance> {
+  const trustProxy = parseTrustedProxies(options.trustProxy);
+  const cookieSecret = requireSessionSecret(options.cookieSecret);
+  validateSetupToken();
   const loggerConfig: FastifyServerOptions["logger"] =
     options.logger ?? {
       level: process.env.LOG_LEVEL || "info",
@@ -45,8 +50,7 @@ export async function buildServer(
 
   const app = Fastify({
     logger: loggerConfig,
-    trustProxy:
-      options.trustProxy ?? (process.env.TRUST_PROXY === "true" || true),
+    trustProxy,
   });
 
   // 1. Register Helmet for security headers
@@ -56,10 +60,7 @@ export async function buildServer(
 
   // 2. Register Cookie plugin for session and CSRF management
   await app.register(cookie, {
-    secret:
-      options.cookieSecret ||
-      process.env.SESSION_SECRET ||
-      "next-round-default-development-secret-key-32-chars-min",
+    secret: cookieSecret,
   });
 
   // 3. Register Rate Limit plugin
@@ -71,7 +72,7 @@ export async function buildServer(
   // 4. Register WebSocket plugin for /api/v1/live real-time subscriptions
   await app.register(websocket, {
     options: {
-      maxPayload: 1048576, // 1 MiB per frame
+      maxPayload: 16 * 1024, // Spec §6: 16 KiB per message
     },
   });
 

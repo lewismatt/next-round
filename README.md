@@ -73,8 +73,34 @@ pnpm build
 
 ```bash
 cp deploy/.env.example deploy/.env
-docker compose -f deploy/docker-compose.yml up -d
+# Generate POSTGRES_PASSWORD, SESSION_SECRET and SETUP_TOKEN locally (see below).
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 ```
+
+Populate the three blank secrets in `deploy/.env` with independently generated
+values from `node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))'`.
+Run it separately for each secret. Keep the file private (`chmod 600 deploy/.env`)
+and out of Git. Blank secrets prevent Compose startup. The API also rejects missing
+or short `SESSION_SECRET` and `SETUP_TOKEN` values before listening. `SETUP_TOKEN`
+is the spec's canonical name; replace the old scaffold's `SETUP_SECRET` key.
+This scaffold does not yet implement admin bootstrap. F1 will consume the setup
+token and permit its removal after successful initialization.
+
+For direct local API/worker startup, load the environment explicitly (for example,
+`node --env-file=deploy/.env apps/api/dist/index.js`) and supply `DATABASE_URL`.
+Use a URL-safe generated database password such as the hex value above.
+
+The API ignores forwarded headers by default. For a custom proxy, `TRUST_PROXY`
+accepts only comma-separated IP addresses/CIDRs you control; `true`, wildcard and
+all-address ranges are rejected. Compose gives Caddy a stable private address and
+trusts only that address; its API port is not published. If `172.30.0.0/24` conflicts
+with your network, change `PROXY_SUBNET` and `CADDY_PROXY_IP` together. Caddy must
+remain the only service assigned that address. Keep direct API access private.
+
+Rotating `SESSION_SECRET` invalidates cookie signatures and any application MACs
+derived from it (including future CSRF tokens); opaque session-token digests remain
+unchanged. Treat rotation as a sign-in refresh for clients and restart API nodes
+together. `SETUP_TOKEN` is independent and must never be reused as the session key.
 
 ---
 

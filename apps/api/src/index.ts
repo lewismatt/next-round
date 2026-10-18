@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+import { initializeDummyPasswordHash } from "@next-round/platform/auth";
 import { buildServer } from "./server.js";
 
 const port = Number(process.env.API_PORT || process.env.PORT || 3000);
@@ -8,6 +10,7 @@ const host = process.env.API_HOST || process.env.HOST || "0.0.0.0";
  */
 export async function main(): Promise<void> {
   const server = await buildServer();
+  await initializeDummyPasswordHash();
 
   const shutdown = async (signal: string): Promise<void> => {
     server.log.info({ signal }, "Gracefully shutting down Next Round API server...");
