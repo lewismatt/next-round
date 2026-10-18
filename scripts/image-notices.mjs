@@ -104,9 +104,11 @@ await artifact('image-inventory.json', `${JSON.stringify({ format: 'next-round-i
 // files referenced by one of the two current inventories.
 const retained = new Set();
 function references(value) {
-  if (!value || typeof value !== 'object') return;
-  if (typeof value.material === 'string') retained.add(value.material);
-  for (const child of Object.values(value)) references(child);
+  if (typeof value === 'string' && /^materials\/[a-f0-9]{64}\.txt$/.test(value)) {
+    retained.add(value);
+  } else if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) references(child);
+  }
 }
 references({ images: records });
 references(JSON.parse(await readFile(path.join(output, 'npm-inventory.json'), 'utf8')));

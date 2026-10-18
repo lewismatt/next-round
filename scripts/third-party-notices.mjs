@@ -107,6 +107,7 @@ async function collect() {
       if (!repository && !manifest.homepage) unresolved.push({ package: key, reason: 'No upstream repository or homepage in published manifest' });
       records.push({ name, version, license: license || null, repository: repository || null, homepage: manifest.homepage || null, registry: `https://www.npmjs.com/package/${name}/v/${version}`, tarball, integrity, os: locked.os || [], cpu: locked.cpu || [], libc: locked.libc || [], manifest: await material(manifestBytes), files, hasLicenseText });
     } catch (error) {
+      if (check) throw error;
       unresolved.push({ package: key, reason: error.message });
       records.push({ name, version, tarball, integrity: locked.resolution?.integrity || null, unresolved: error.message });
     }

@@ -1,0 +1,23 @@
+{
+  "name": "@pnpm/exe.linux-s390x",
+  "version": "12.14.0",
+  "license": "MIT",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "s390x"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm"
+  },
+  "publishConfig": {
+    "executableFiles": [
+      "./pnpm"
+    ]
+  },
+  "libc": [
+    "glibc"
+  ]
+}
