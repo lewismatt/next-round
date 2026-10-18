@@ -1,0 +1,30 @@
+# Local credentials and operator state never enter the build context.
+**/.env
+**/.env.*
+**/*.env
+**/*.env.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/secrets
+**/instance
+**/.npmrc
+
+# Repository metadata, installed dependencies, and host build output.
+**/.git
+**/node_modules
+**/dist
+**/build
+**/*.tsbuildinfo
+**/.turbo
+**/.next
+**/.cache
+**/.pnpm-store
+**/.pnpm-debug.log
+**/coverage
+**/test-results
+**/playwright-report
+**/blob-report
+**/*.log
+**/.DS_Store
