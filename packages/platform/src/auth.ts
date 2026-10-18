@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import crypto from "node:crypto";
 import argon2 from "argon2";
 import QRCode from "qrcode";
@@ -14,11 +15,15 @@ export const ARGON2_OPTIONS: argon2.HashOptions & { type: 2 } = {
 };
 
 /**
- * Pre-computed Argon2id hash used to perform dummy work on unknown usernames
- * to prevent user enumeration via timing discrepancies.
+ * Cache one real hash at the same cost as registered passwords. Share the
+ * initialization promise across concurrent unknown-user requests. Login startup
+ * should warm this before accepting credentials to avoid a cold-request penalty.
  */
-const DUMMY_HASH =
-  "$argon2id$v=19$m=65536,t=3,p=1$c29tZXNhbHQ$dGVzdHBhc3N3b3Jk";
+let dummyHash: Promise<string> | undefined;
+
+export function initializeDummyPasswordHash(): Promise<string> {
+  return dummyHash ??= hashPassword(crypto.randomBytes(32).toString("hex"));
+}
 
 /**
  * Cookie and expiry constants per Master Spec §3.
@@ -118,11 +123,8 @@ export function needsPasswordRehash(hash: string): boolean {
  * to equalize response timing when a username does not exist.
  */
 export async function verifyDummyPassword(password: string): Promise<boolean> {
-  try {
-    await argon2.verify(DUMMY_HASH, password);
-  } catch {
-    // Ignore verification errors against synthetic hash
-  }
+  // Propagate hashing/verification failures instead of silently skipping work.
+  await argon2.verify(await initializeDummyPasswordHash(), password);
   return false;
 }
 

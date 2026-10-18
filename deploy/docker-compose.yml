@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-next_round}
       POSTGRES_USER: ${POSTGRES_USER:-next_round}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-next_round_local}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -30,9 +30,13 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
-      DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:-next_round_local}@postgres:5432/${POSTGRES_DB:-next_round}
-      SESSION_SECRET: ${SESSION_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
-      SETUP_SECRET: ${SETUP_SECRET:-dev_setup_token_change_in_prod}
+      DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      SESSION_SECRET: ${SESSION_SECRET:?Generate SESSION_SECRET in deploy/.env}
+      SETUP_TOKEN: ${SETUP_TOKEN:?Generate SETUP_TOKEN in deploy/.env}
+      TRUST_PROXY: ${CADDY_PROXY_IP:-172.30.0.10}
+    networks:
+      - default
+      - proxy
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,7 +49,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:-next_round_local}@postgres:5432/${POSTGRES_DB:-next_round}
+      DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +57,11 @@ services:
   caddy:
     image: caddy:2.11.7-alpine@sha256:173b26306d711395accaeba8b67afcaad2a085ccb1e6bf26010bfe8c095a5229
     restart: unless-stopped
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
+    networks:
+      proxy:
+        ipv4_address: ${CADDY_PROXY_IP:-172.30.0.10}
     ports:
       - "80:80"
       - "443:443"
@@ -62,6 +71,12 @@ services:
       - caddy_config:/config
     depends_on:
       - api
+
+networks:
+  proxy:
+    ipam:
+      config:
+        - subnet: ${PROXY_SUBNET:-172.30.0.0/24}
 
 volumes:
   pgdata:
