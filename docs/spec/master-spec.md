@@ -1,6 +1,6 @@
 # Status, authority and scope
 
-**Approved implementation baseline v1.2 — implementation has not started.** Approved 2026-10-18. Product: **Next Round**. Planned repository: `lewismatt/next-round`. License: `Apache-2.0`.
+**Approved implementation baseline v1.2 — in active implementation on `main`.** Approved 2026-10-18. Product: **Next Round**. Repository: `lewismatt/next-round`. License: `Apache-2.0`.
 
 This is the consolidated implementation specification. Matt approved the engineering baseline, G1/P2 defaults and C1–C5 module rules on 2026-10-18 (D47–D51). “MUST” defines the approved implementation contract. Guest participation does not itself exclude registered players from career credit; this replaces the earlier draft exclusion. Architecture approval D41 remains in force. SDK contract next-round-game/0.1 stays provisional through harness/crossword integration; baseline approval does not claim completed implementation or package validation.
 
@@ -807,5 +807,5 @@ Review author guide and another full game's needs on paper, ensure version/error
 
 There are no unresolved G1/P2/C1–C5 policy proposals. The six review refinements preserve those policies and build order; D53 resolves the mobile client sharing/license choice with Apache-2.0, without requiring a technology-stack change. Remaining work is implementation and verification: package/runtime compatibility, dependency lockfile/image digests, puzzle authorship/rights, scoped input feasibility, focused acceptance evidence and later SDK stabilization. Approval is not evidence that any runtime check has passed. A material requirement change is recorded with its impact before altering this baseline.
 
-Repository creation/scaffolding is the next project phase; this documentation update does not claim the repository or implementation exists.
+Repository created at `lewismatt/next-round`; F0 scaffold complete and F1 platform foundation in progress on `main`.
 
