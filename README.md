@@ -46,6 +46,23 @@ docs/
   spec/                Master specifications and Architecture Decision Records (ADRs)
 ```
 
+### Installed manifest validation
+
+`GameRegistry` validates manifest structure with the authoritative TypeBox
+`GameManifestSchema`, then checks exact SemVer versions (no build metadata),
+mode-ID uniqueness, player-count ordering, and `platformRange` against the
+running `@next-round/platform` package version. Unknown manifest/configuration
+properties are rejected; schema records retain their JSON Schema keywords.
+Standalone `validateGameManifest(input)` checks structure and cross-field rules;
+pass a platform version as its second argument to also enforce compatibility.
+
+Every `(id, version)` may be registered only once, including identical repeated
+registrations. Duplicate or incompatible registrations throw before changing
+installed entries or the default version. Publish changed code/assets under a new
+version; new versions coexist and `isDefault` selects the default on installation.
+These registry checks do not establish asset-hash, retained-history, or complete
+startup-readiness acceptance; those remain separate platform integration work.
+
 ---
 
 ## Quickstart & Local Development
