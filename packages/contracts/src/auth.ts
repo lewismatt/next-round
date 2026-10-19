@@ -9,12 +9,50 @@ if (!TypeRegistry.Has("OneOf")) {
     const s = schema as { oneOf: TSchema[] };
     let count = 0;
     for (const sub of s.oneOf) {
-      if (Value.Check(sub, value)) {
+      if (Value.Errors(sub, value).First() === undefined) {
         count++;
         if (count > 1) return false;
       }
     }
     return count === 1;
+  });
+}
+
+if (!TypeRegistry.Has("PrefixItems")) {
+  TypeRegistry.Set("PrefixItems", (schema: unknown, value: unknown) => {
+    if (!Array.isArray(value)) return false;
+    const s = schema as {
+      prefixItems: TSchema[];
+      additionalItems?: boolean | TSchema;
+      minItems?: number;
+      maxItems?: number;
+      uniqueItems?: boolean;
+    };
+    if (typeof s.minItems === "number" && value.length < s.minItems) return false;
+    if (typeof s.maxItems === "number" && value.length > s.maxItems) return false;
+    if (s.uniqueItems === true) {
+      for (let i = 0; i < value.length; i++) {
+        for (let j = i + 1; j < value.length; j++) {
+          if (Value.Equal(value[i], value[j])) return false;
+        }
+      }
+    }
+    for (let i = 0; i < value.length; i++) {
+      if (i < s.prefixItems.length) {
+        if (Value.Errors(s.prefixItems[i], value[i]).First() !== undefined) {
+          return false;
+        }
+      } else {
+        if (s.additionalItems === false) {
+          return false;
+        } else if (typeof s.additionalItems === "object" && s.additionalItems !== null) {
+          if (Value.Errors(s.additionalItems, value[i]).First() !== undefined) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
   });
 }
 const SUPPORTED_PRIMITIVE_TYPES: Record<string, true> = Object.assign(Object.create(null), {
@@ -55,6 +93,7 @@ const ALL_SUPPORTED_SCHEMA_KEYS: Record<string, true> = Object.assign(Object.cre
   minProperties: true,
   maxProperties: true,
   items: true,
+  additionalItems: true,
   minItems: true,
   maxItems: true,
   uniqueItems: true,
@@ -77,19 +116,19 @@ function compileType(schema: Record<string, unknown>, type: string): TSchema {
     case "boolean":
       return Type.Boolean();
     case "integer": {
-      if ("minimum" in schema && typeof schema.minimum !== "number") {
+      if (Object.hasOwn(schema, "minimum") && typeof schema.minimum !== "number") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minimum is invalid.");
       }
-      if ("maximum" in schema && typeof schema.maximum !== "number") {
+      if (Object.hasOwn(schema, "maximum") && typeof schema.maximum !== "number") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maximum is invalid.");
       }
-      if ("exclusiveMinimum" in schema && typeof schema.exclusiveMinimum !== "number") {
+      if (Object.hasOwn(schema, "exclusiveMinimum") && typeof schema.exclusiveMinimum !== "number") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema exclusiveMinimum is invalid.");
       }
-      if ("exclusiveMaximum" in schema && typeof schema.exclusiveMaximum !== "number") {
+      if (Object.hasOwn(schema, "exclusiveMaximum") && typeof schema.exclusiveMaximum !== "number") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema exclusiveMaximum is invalid.");
       }
-      if ("multipleOf" in schema && (typeof schema.multipleOf !== "number" || schema.multipleOf <= 0)) {
+      if (Object.hasOwn(schema, "multipleOf") && (typeof schema.multipleOf !== "number" || schema.multipleOf <= 0)) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema multipleOf is invalid.");
       }
       return Type.Integer({
@@ -101,19 +140,19 @@ function compileType(schema: Record<string, unknown>, type: string): TSchema {
       });
     }
     case "number": {
-      if ("minimum" in schema && typeof schema.minimum !== "number") {
+      if (Object.hasOwn(schema, "minimum") && typeof schema.minimum !== "number") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minimum is invalid.");
       }
-      if ("maximum" in schema && typeof schema.maximum !== "number") {
+      if (Object.hasOwn(schema, "maximum") && typeof schema.maximum !== "number") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maximum is invalid.");
       }
-      if ("exclusiveMinimum" in schema && typeof schema.exclusiveMinimum !== "number") {
+      if (Object.hasOwn(schema, "exclusiveMinimum") && typeof schema.exclusiveMinimum !== "number") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema exclusiveMinimum is invalid.");
       }
-      if ("exclusiveMaximum" in schema && typeof schema.exclusiveMaximum !== "number") {
+      if (Object.hasOwn(schema, "exclusiveMaximum") && typeof schema.exclusiveMaximum !== "number") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema exclusiveMaximum is invalid.");
       }
-      if ("multipleOf" in schema && (typeof schema.multipleOf !== "number" || schema.multipleOf <= 0)) {
+      if (Object.hasOwn(schema, "multipleOf") && (typeof schema.multipleOf !== "number" || schema.multipleOf <= 0)) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema multipleOf is invalid.");
       }
       return Type.Number({
@@ -125,16 +164,16 @@ function compileType(schema: Record<string, unknown>, type: string): TSchema {
       });
     }
     case "string": {
-      if ("minLength" in schema && (typeof schema.minLength !== "number" || schema.minLength < 0)) {
+      if (Object.hasOwn(schema, "minLength") && (typeof schema.minLength !== "number" || schema.minLength < 0 || !Number.isInteger(schema.minLength))) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minLength is invalid.");
       }
-      if ("maxLength" in schema && (typeof schema.maxLength !== "number" || schema.maxLength < 0)) {
+      if (Object.hasOwn(schema, "maxLength") && (typeof schema.maxLength !== "number" || schema.maxLength < 0 || !Number.isInteger(schema.maxLength))) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maxLength is invalid.");
       }
-      if ("pattern" in schema && typeof schema.pattern !== "string") {
+      if (Object.hasOwn(schema, "pattern") && typeof schema.pattern !== "string") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema pattern is invalid.");
       }
-      if ("format" in schema && typeof schema.format !== "string") {
+      if (Object.hasOwn(schema, "format") && typeof schema.format !== "string") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema format is invalid.");
       }
       return Type.String({
@@ -145,13 +184,13 @@ function compileType(schema: Record<string, unknown>, type: string): TSchema {
       });
     }
     case "array": {
-      if ("minItems" in schema && (typeof schema.minItems !== "number" || schema.minItems < 0)) {
+      if (Object.hasOwn(schema, "minItems") && (typeof schema.minItems !== "number" || schema.minItems < 0 || !Number.isInteger(schema.minItems))) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minItems is invalid.");
       }
-      if ("maxItems" in schema && (typeof schema.maxItems !== "number" || schema.maxItems < 0)) {
+      if (Object.hasOwn(schema, "maxItems") && (typeof schema.maxItems !== "number" || schema.maxItems < 0 || !Number.isInteger(schema.maxItems))) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maxItems is invalid.");
       }
-      if ("uniqueItems" in schema && typeof schema.uniqueItems !== "boolean") {
+      if (Object.hasOwn(schema, "uniqueItems") && typeof schema.uniqueItems !== "boolean") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema uniqueItems is invalid.");
       }
       const arrayOptions = {
@@ -160,26 +199,46 @@ function compileType(schema: Record<string, unknown>, type: string): TSchema {
         ...(typeof schema.uniqueItems === "boolean" ? { uniqueItems: schema.uniqueItems } : {}),
       };
       if (Array.isArray(schema.items)) {
-        return Type.Tuple(schema.items.map((item) => compileJsonSchema(item)), arrayOptions);
+        let additionalItems: boolean | TSchema | undefined;
+        if (typeof schema.additionalItems === "boolean") {
+          additionalItems = schema.additionalItems;
+        } else if (
+          typeof schema.additionalItems === "object" &&
+          schema.additionalItems !== null
+        ) {
+          additionalItems = compileJsonSchema(schema.additionalItems);
+        } else if (Object.hasOwn(schema, "additionalItems") && schema.additionalItems !== undefined) {
+          throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema additionalItems is invalid.");
+        }
+        return Type.Unsafe({
+          [Kind]: "PrefixItems",
+          prefixItems: schema.items.map((item) => compileJsonSchema(item)),
+          ...(additionalItems !== undefined ? { additionalItems } : {}),
+          ...arrayOptions,
+        });
       }
-      if ("items" in schema && schema.items !== undefined && typeof schema.items !== "object" && typeof schema.items !== "boolean") {
+      if (Object.hasOwn(schema, "items") && schema.items !== undefined && typeof schema.items !== "object" && typeof schema.items !== "boolean") {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema items is invalid.");
       }
       return Type.Array(compileJsonSchema(schema.items ?? {}), arrayOptions);
     }
     case "object": {
-      if ("properties" in schema && (typeof schema.properties !== "object" || schema.properties === null || Array.isArray(schema.properties))) {
+      if (Object.hasOwn(schema, "properties") && (typeof schema.properties !== "object" || schema.properties === null || Array.isArray(schema.properties))) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema properties is invalid.");
       }
-      if ("required" in schema) {
-        if (!Array.isArray(schema.required) || schema.required.some((name) => typeof name !== "string")) {
+      if (Object.hasOwn(schema, "required")) {
+        if (
+          !Array.isArray(schema.required) ||
+          schema.required.some((name) => typeof name !== "string") ||
+          new Set(schema.required).size !== schema.required.length
+        ) {
           throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema required is invalid.");
         }
       }
-      if ("minProperties" in schema && (typeof schema.minProperties !== "number" || schema.minProperties < 0)) {
+      if (Object.hasOwn(schema, "minProperties") && (typeof schema.minProperties !== "number" || schema.minProperties < 0 || !Number.isInteger(schema.minProperties))) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minProperties is invalid.");
       }
-      if ("maxProperties" in schema && (typeof schema.maxProperties !== "number" || schema.maxProperties < 0)) {
+      if (Object.hasOwn(schema, "maxProperties") && (typeof schema.maxProperties !== "number" || schema.maxProperties < 0 || !Number.isInteger(schema.maxProperties))) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maxProperties is invalid.");
       }
 
@@ -195,15 +254,10 @@ function compileType(schema: Record<string, unknown>, type: string): TSchema {
           : [],
       );
 
-      const properties: Record<string, TSchema> = {};
+      const properties: Record<string, TSchema> = Object.create(null);
       for (const [name, propertySchema] of Object.entries(rawProperties)) {
         const property = compileJsonSchema(propertySchema);
         properties[name] = required.has(name) ? property : Type.Optional(property);
-      }
-      for (const name of required) {
-        if (!(name in properties)) {
-          properties[name] = Type.Unknown();
-        }
       }
 
       let additionalProperties: boolean | TSchema | undefined;
@@ -214,15 +268,19 @@ function compileType(schema: Record<string, unknown>, type: string): TSchema {
         schema.additionalProperties !== null
       ) {
         additionalProperties = compileJsonSchema(schema.additionalProperties);
-      } else if ("additionalProperties" in schema && schema.additionalProperties !== undefined) {
+      } else if (Object.hasOwn(schema, "additionalProperties") && schema.additionalProperties !== undefined) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema additionalProperties is invalid.");
       }
 
-      return Type.Object(properties, {
+      const compiled = Type.Object(properties, {
         ...(additionalProperties !== undefined ? { additionalProperties } : {}),
         ...(typeof schema.minProperties === "number" ? { minProperties: schema.minProperties } : {}),
         ...(typeof schema.maxProperties === "number" ? { maxProperties: schema.maxProperties } : {}),
       });
+      if (Array.isArray(schema.required)) {
+        compiled.required = schema.required.slice();
+      }
+      return compiled;
     }
     default:
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
@@ -253,9 +311,29 @@ export function compileJsonSchema(input: unknown): TSchema {
     }
   }
 
+  // Blocker 5: Validate 'type' upfront regardless of composition
+  if (Object.hasOwn(schema, "type")) {
+    if (Array.isArray(schema.type)) {
+      if (schema.type.length === 0) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
+      }
+      for (const t of schema.type) {
+        if (typeof t !== "string" || !Object.hasOwn(SUPPORTED_PRIMITIVE_TYPES, t)) {
+          throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
+        }
+      }
+    } else if (typeof schema.type === "string") {
+      if (!Object.hasOwn(SUPPORTED_PRIMITIVE_TYPES, schema.type)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
+      }
+    } else {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
+    }
+  }
+
   const parts: TSchema[] = [];
 
-  if ("const" in schema) {
+  if (Object.hasOwn(schema, "const")) {
     const value = schema.const;
     if (
       value !== null &&
@@ -268,7 +346,7 @@ export function compileJsonSchema(input: unknown): TSchema {
     parts.push(value === null ? Type.Null() : Type.Literal(value));
   }
 
-  if ("enum" in schema) {
+  if (Object.hasOwn(schema, "enum")) {
     if (!Array.isArray(schema.enum)) {
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema enum is invalid.");
     }
@@ -294,7 +372,7 @@ export function compileJsonSchema(input: unknown): TSchema {
     }
   }
 
-  if ("allOf" in schema) {
+  if (Object.hasOwn(schema, "allOf")) {
     if (!Array.isArray(schema.allOf)) {
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema allOf is invalid.");
     }
@@ -302,7 +380,7 @@ export function compileJsonSchema(input: unknown): TSchema {
     parts.push(members.length === 0 ? Type.Any() : Type.Intersect(members));
   }
 
-  if ("anyOf" in schema) {
+  if (Object.hasOwn(schema, "anyOf")) {
     if (!Array.isArray(schema.anyOf)) {
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema anyOf is invalid.");
     }
@@ -314,7 +392,7 @@ export function compileJsonSchema(input: unknown): TSchema {
     );
   }
 
-  if ("oneOf" in schema) {
+  if (Object.hasOwn(schema, "oneOf")) {
     if (!Array.isArray(schema.oneOf)) {
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema oneOf is invalid.");
     }
@@ -326,57 +404,87 @@ export function compileJsonSchema(input: unknown): TSchema {
     );
   }
 
-  if ("type" in schema) {
+  const hasType = Object.hasOwn(schema, "type");
+  if (hasType) {
     if (Array.isArray(schema.type)) {
-      if (schema.type.length === 0) {
-        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
-      }
-      for (const t of schema.type) {
-        if (typeof t !== "string" || !Object.hasOwn(SUPPORTED_PRIMITIVE_TYPES, t)) {
-          throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
-        }
-      }
       parts.push(
         Type.Union(schema.type.map((type) => compileType(schema, type))),
       );
     } else if (typeof schema.type === "string") {
-      if (!Object.hasOwn(SUPPORTED_PRIMITIVE_TYPES, schema.type)) {
-        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
-      }
       parts.push(compileType(schema, schema.type));
-    } else {
-      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
     }
-  } else if (
-    "properties" in schema ||
-    "required" in schema ||
-    "additionalProperties" in schema ||
-    "minProperties" in schema ||
-    "maxProperties" in schema
-  ) {
-    parts.push(compileType(schema, "object"));
-  } else if (
-    "items" in schema ||
-    "minItems" in schema ||
-    "maxItems" in schema ||
-    "uniqueItems" in schema
-  ) {
-    parts.push(compileType(schema, "array"));
-  } else if (
-    "minimum" in schema ||
-    "maximum" in schema ||
-    "exclusiveMinimum" in schema ||
-    "exclusiveMaximum" in schema ||
-    "multipleOf" in schema
-  ) {
-    parts.push(compileType(schema, "number"));
-  } else if (
-    "minLength" in schema ||
-    "maxLength" in schema ||
-    "pattern" in schema ||
-    "format" in schema
-  ) {
-    parts.push(compileType(schema, "string"));
+  }
+
+  const hasObjectKeywords =
+    Object.hasOwn(schema, "properties") ||
+    Object.hasOwn(schema, "required") ||
+    Object.hasOwn(schema, "additionalProperties") ||
+    Object.hasOwn(schema, "minProperties") ||
+    Object.hasOwn(schema, "maxProperties");
+
+  const hasArrayKeywords =
+    Object.hasOwn(schema, "items") ||
+    Object.hasOwn(schema, "additionalItems") ||
+    Object.hasOwn(schema, "minItems") ||
+    Object.hasOwn(schema, "maxItems") ||
+    Object.hasOwn(schema, "uniqueItems");
+
+  const hasNumericKeywords =
+    Object.hasOwn(schema, "minimum") ||
+    Object.hasOwn(schema, "maximum") ||
+    Object.hasOwn(schema, "exclusiveMinimum") ||
+    Object.hasOwn(schema, "exclusiveMaximum") ||
+    Object.hasOwn(schema, "multipleOf");
+
+  const hasStringKeywords =
+    Object.hasOwn(schema, "minLength") ||
+    Object.hasOwn(schema, "maxLength") ||
+    Object.hasOwn(schema, "pattern") ||
+    Object.hasOwn(schema, "format");
+
+  if (!hasType) {
+    if (hasObjectKeywords) {
+      parts.push(compileType(schema, "object"));
+    }
+    if (hasArrayKeywords) {
+      const arr = compileType(schema, "array");
+      parts.push(
+        Type.Union([
+          arr,
+          Type.Number(),
+          Type.String(),
+          Type.Boolean(),
+          Type.Object({}, { additionalProperties: true }),
+          Type.Null(),
+        ]),
+      );
+    }
+    if (hasNumericKeywords) {
+      const num = compileType(schema, "number");
+      parts.push(
+        Type.Union([
+          num,
+          Type.String(),
+          Type.Boolean(),
+          Type.Array(Type.Any()),
+          Type.Object({}, { additionalProperties: true }),
+          Type.Null(),
+        ]),
+      );
+    }
+    if (hasStringKeywords) {
+      const str = compileType(schema, "string");
+      parts.push(
+        Type.Union([
+          str,
+          Type.Number(),
+          Type.Boolean(),
+          Type.Array(Type.Any()),
+          Type.Object({}, { additionalProperties: true }),
+          Type.Null(),
+        ]),
+      );
+    }
   }
 
   let compiled: TSchema;
@@ -484,10 +592,12 @@ export interface Permissions {
  * paths only; submitted values (passwords, tokens) are never echoed.
  */
 export function parseRequestBody<T extends TSchema>(schema: T, body: unknown): Static<T> {
-  if (Value.Check(schema, body)) {
+  const iterator = Value.Errors(schema, body);
+  const first = iterator.First();
+  if (!first) {
     return body;
   }
-  const fields = [...new Set(Array.from(Value.Errors(schema, body), (error) => error.path || "/"))];
+  const fields = [...new Set([first.path || "/", ...Array.from(iterator, (error) => error.path || "/")])];
   throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Request body is invalid.", {
     details: { fields },
   });
