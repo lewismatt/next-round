@@ -51,7 +51,7 @@ export interface Transition<S extends Json = Json> {
   state: S;
   phase: "lobby" | "active" | "finished";
   hostMemberId: string | null;
-  deadlines: Deadline[]; // complete replacement set; [] cancels all
+  deadlines: Deadline[]; // desired active set; same key/generation keeps stored dueAt; [] cancels all
   needsActionFrom: string[]; // member IDs; not necessarily a single turn
   facts: Array<{ principalId: string; key: string; value: Json }>;
   final: FinalResult | null;
