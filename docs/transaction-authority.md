@@ -11,7 +11,8 @@ and serialization failures retry at most three attempts with the same command.
 checks. Revocation, auth-epoch mismatch, database-clock expiry, disabled accounts,
 guest match scope and administrator role are checked against current rows. Account
 disable locks the actor, target and administrator candidates together before
-account/session/invitation writes; logout uses the same principal-first order.
+account/session/invitation writes; logout and CSRF rotation use the same
+principal-first order. Idle refresh cannot extend an already expired session.
 Future permission/reset/token/lifecycle writers must follow this order too.
 
 Catalog and schema routes require authentication. Catalog/schema probes require

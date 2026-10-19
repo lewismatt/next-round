@@ -306,6 +306,8 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
         await waitForLock("ORDER BY id FOR UPDATE");
         await barrier.query("COMMIT");
         expect(await pending).toMatchObject({ code: change === "disable" ? "ACCOUNT_DISABLED" : "SESSION_EXPIRED" });
+        await expect(new AuthService(databasePool, undefined).rotateCsrf(session))
+          .rejects.toMatchObject({ code: change === "disable" ? "ACCOUNT_DISABLED" : "SESSION_EXPIRED" });
         const stored = await databasePool.query("SELECT revision::integer AS revision FROM next_round.matches WHERE id = $1", [matchId]);
         expect(stored.rows[0].revision).toBe(3);
         const receipts = await databasePool.query("SELECT 1 FROM next_round.command_receipts");

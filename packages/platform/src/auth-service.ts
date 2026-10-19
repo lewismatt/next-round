@@ -347,6 +347,8 @@ export class AuthService {
                 idle_expires_at = LEAST(now() + interval '7 days', absolute_expires_at)
           WHERE id = $1
             AND revoked_at IS NULL
+            AND idle_expires_at > clock_timestamp()
+            AND absolute_expires_at > clock_timestamp()
             AND last_seen_at <= now() - interval '5 minutes'
           RETURNING idle_expires_at`,
         [row.session_id],
@@ -370,13 +372,22 @@ export class AuthService {
     }
   }
 
-  async rotateCsrf(sessionId: string): Promise<string> {
+  async rotateCsrf(session: AuthenticatedSession): Promise<string> {
     const { rawToken, csrfHash } = generateCsrfToken();
-    await this.pool.query(
-      "UPDATE next_round.sessions SET csrf_hash = $1 WHERE id = $2 AND revoked_at IS NULL",
-      [csrfHash, sessionId],
-    );
-    return rawToken;
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await lockPrincipals(client, [session.principal.id]);
+      await recheckSession(client, session);
+      await client.query("UPDATE next_round.sessions SET csrf_hash = $1 WHERE id = $2", [csrfHash, session.id]);
+      await client.query("COMMIT");
+      return rawToken;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async logout(session: AuthenticatedSession): Promise<void> {
