@@ -8,6 +8,7 @@ import type { DatabasePool } from "@next-round/db";
 import {
   AuthService,
   defaultGameRegistry,
+  MatchService,
   type GameRegistry,
 } from "@next-round/platform";
 import cookie from "@fastify/cookie";
@@ -23,6 +24,7 @@ import type { TrustedProxies } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
 import { gameAssetRoutes, gameManifestRoutes } from "./routes/games.js";
+import { matchRoutes } from "./routes/matches.js";
 import type { HealthCheckOptions } from "./routes/health.js";
 
 export interface ServerOptions extends HealthCheckOptions {
@@ -51,6 +53,8 @@ export async function buildServer(
   const origin = requireAppOrigin(options.origin);
   const databasePool = options.databasePool ?? createDatabasePool();
   const gameRegistry = options.gameRegistry ?? defaultGameRegistry;
+  const authService = new AuthService(databasePool, setupToken);
+  const matchService = new MatchService(databasePool, gameRegistry);
   const ownsDatabasePool = options.databasePool === undefined;
   const loggerConfig: FastifyServerOptions["logger"] =
     options.logger ?? {
@@ -175,7 +179,13 @@ export async function buildServer(
 
   await app.register(authRoutes, {
     prefix: "/api/v1",
-    authService: new AuthService(databasePool, setupToken),
+    authService,
+    origin,
+  });
+  await app.register(matchRoutes, {
+    prefix: "/api/v1",
+    authService,
+    matchService,
     origin,
   });
 

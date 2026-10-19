@@ -2,3 +2,4 @@
 export * from "./auth.js";
 export * from "./auth-service.js";
 export * from "./registry.js";
+export * from "./match-service.js";

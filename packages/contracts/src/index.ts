@@ -4,3 +4,4 @@ export * from "./errors.js";
 export * from "./models.js";
 export * from "./api.js";
 export * from "./auth.js";
+export * from "./matches.js";
