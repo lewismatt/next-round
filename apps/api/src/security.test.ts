@@ -133,3 +133,28 @@ it("GH-1 L-2: closes an oversized WebSocket message with 1009", async () => {
     socket.close();
   }
 });
+
+it("keeps unhandled driver and reducer errors out of logs and responses", async () => {
+  const app = await server();
+  const privateValue = "private-reducer-state-and-guess";
+  const logged = vi.fn();
+  app.get("/test/private-error", async (request) => {
+    request.log.error = logged;
+    throw Object.assign(new Error(privateValue, { cause: new Error(privateValue) }), {
+      detail: `Failing row contains ${privateValue}`,
+      query: privateValue,
+    });
+  });
+
+  const response = await app.inject("/test/private-error");
+  expect(response.statusCode).toBe(500);
+  expect(response.json().error).toMatchObject({
+    code: "INTERNAL_ERROR",
+    requestId: expect.any(String),
+  });
+  expect(response.body).not.toContain(privateValue);
+  expect(logged).toHaveBeenCalledExactlyOnceWith(
+    { code: "INTERNAL_ERROR" },
+    "Unhandled API request error",
+  );
+});

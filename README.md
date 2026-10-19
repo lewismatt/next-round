@@ -7,6 +7,19 @@ Next Round is a self-hosted, open-source platform for turn-based games with frie
 - **Repository:** `lewismatt/next-round`
 - **Specification:** [docs/spec/master-spec.md](docs/spec/master-spec.md) (Master Specification v1.2)
 
+## Current implementation
+
+This is a development preview. Bootstrap/session APIs, manifest validation,
+private match snapshots, actions and retry receipts are implemented. Match
+create/join/start/leave routes, production live invalidation, worker effects,
+result projections and the playable shell are still being built. The harness
+example below describes its target integration and cannot yet run end to end
+against the production API. F1-01–05 have merged subsets, not full acceptance.
+
+See the [review and remaining acceptance work](docs/reviews/2026-10-19.md).
+The [work tracker](https://app.notion.com/p/3fd972a22c7581eca2f7fe7fb46d593b)
+owns current claims, priorities and verification evidence.
+
 ---
 
 ## Architecture & Technology Stack
@@ -43,7 +56,9 @@ deploy/
   Caddyfile            Reverse proxy configuration (HTTPS & WebSocket upgrade)
   Dockerfile           Shared application image for migrations, API and worker
 docs/
-  spec/                Master specifications and Architecture Decision Records (ADRs)
+  spec/                Approved master specification
+  adr/                 Architecture Decision Records
+  reviews/             Dated findings and acceptance gaps
 ```
 
 ### Installed manifest validation
@@ -82,7 +97,7 @@ snapshot without an explicit listener or a second join; invalidations and reconn
 refresh it until access is revoked.
 
 The API currently implements instance setup, session authentication, game manifest
-validation, match lifecycle mutations, caller-private views, and command idempotency
+validation, match actions, caller-private views, and command idempotency
 receipts. Production `/api/v1/live` WebSocket invalidation and worker deadline
 services remain prerequisites for full platform acceptance.
 
@@ -209,10 +224,11 @@ trusts only that address; its API port is not published. If `172.30.0.0/24` conf
 with your network, change `PROXY_SUBNET` and `CADDY_PROXY_IP` together. Caddy must
 remain the only service assigned that address. Keep direct API access private.
 
-Rotating `SESSION_SECRET` invalidates cookie signatures and any application MACs
-derived from it (including future CSRF tokens); opaque session-token digests remain
-unchanged. Treat rotation as a sign-in refresh for clients and restart API nodes
-together. `SETUP_TOKEN` is independent and must never be reused as the session key.
+`SESSION_SECRET` configures the cookie plugin, but current session cookies are
+unsigned opaque tokens and CSRF tokens have independent digests. Rotating this
+secret does not revoke existing sessions. Revoke session rows to end access;
+do not rely on a secret rotation as a sign-out mechanism. `SETUP_TOKEN` is
+independent and must never be reused as the session key.
 
 ### Production image and architecture pins
 
