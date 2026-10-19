@@ -146,3 +146,63 @@ jobs:
           assert.equal(await argon2.verify(hash, `${password}-wrong`), false, "verify accepted a wrong password");
           console.log("Argon2id hash and verify succeeded inside the deployment image.");
           NODE
+
+  caddy-websocket-upgrade:
+    name: Caddy WebSocket upgrade
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.0"
+
+      - name: Start fixture upstream on the host
+        run: |
+          node scripts/ci/caddy-ws-fixture.mjs > "$RUNNER_TEMP/fixture.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            grep -q "listening on 3000" "$RUNNER_TEMP/fixture.log" && exit 0
+            sleep 1
+          done
+          echo "Fixture upstream did not start" >&2
+          cat "$RUNNER_TEMP/fixture.log" >&2
+          exit 1
+
+      - name: Start pinned Caddy with the repository Caddyfile
+        run: |
+          # Reuse the exact image reference from compose so CI cannot drift from production.
+          image=$(grep -oE 'caddy:[0-9][^ ]*@sha256:[0-9a-f]{64}' deploy/docker-compose.yml | sort -u)
+          if [ "$(printf '%s\n' "$image" | wc -l)" -ne 1 ]; then
+            echo "Expected exactly one pinned caddy image in deploy/docker-compose.yml, got: $image" >&2
+            exit 1
+          fi
+          echo "Using $image"
+          # CADDY_DOMAIN=http://localhost keeps the production Caddyfile unchanged while
+          # disabling automatic HTTPS. `api` resolves to the runner host, where the fixture listens on 3000.
+          docker run -d --name caddy-ci \
+            --add-host api:host-gateway \
+            -e CADDY_DOMAIN=http://localhost \
+            -p 8080:80 \
+            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            "$image"
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:8080/api/__ci/health && exit 0
+            sleep 1
+          done
+          echo "Caddy did not proxy /api/* to api:3000" >&2
+          exit 1
+
+      - name: Complete one WebSocket upgrade through Caddy
+        run: node scripts/ci/caddy-ws-client.mjs ws://localhost:8080/api/__ci/ws
+
+      - name: Show Caddy and fixture logs on failure
+        if: failure()
+        run: |
+          docker logs caddy-ci || true
+          cat "$RUNNER_TEMP/fixture.log" || true
+
+      - name: Stop Caddy
+        if: always()
+        run: docker rm -f caddy-ci || true
