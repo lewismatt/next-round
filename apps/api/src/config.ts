@@ -39,10 +39,36 @@ export function requireSessionSecret(value = process.env.SESSION_SECRET): string
   return value;
 }
 
-// The scaffold requires provisioning configuration at startup. F1 will allow
-// removing this token once database-backed bootstrap is complete.
-export function validateSetupToken(value = process.env.SETUP_TOKEN): void {
-  if (!value || value.trim() !== value || value.length < 64) {
-    throw new Error("SETUP_TOKEN is required (at least 64 characters, generated locally)");
+/** Validate an optional operator bootstrap credential before serving setup. */
+export function validateSetupToken(value = process.env.SETUP_TOKEN): string | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (value.trim() !== value || value.length < 64) {
+    throw new Error("SETUP_TOKEN must be at least 64 characters and generated locally");
   }
+  return value;
+}
+
+/** Require one exact browser origin for mutation and WebSocket checks. */
+export function requireAppOrigin(value = process.env.APP_ORIGIN): string {
+  if (!value) {
+    throw new Error("APP_ORIGIN is required");
+  }
+  let origin: URL;
+  try {
+    origin = new URL(value);
+  } catch {
+    throw new Error("APP_ORIGIN must be an absolute HTTP or HTTPS origin");
+  }
+  const localHttp =
+    origin.protocol === "http:" &&
+    (origin.hostname === "localhost" || origin.hostname === "127.0.0.1" || origin.hostname === "::1");
+  if (
+    (origin.protocol !== "https:" && !localHttp) ||
+    origin.origin !== value ||
+    origin.username ||
+    origin.password
+  ) {
+    throw new Error("APP_ORIGIN must be one exact HTTPS origin (HTTP is allowed only on localhost)");
+  }
+  return origin.origin;
 }
