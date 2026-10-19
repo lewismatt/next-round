@@ -182,6 +182,11 @@ export class WorkerRunner {
   private async registerHandlers(): Promise<void> {
     if (!this.boss) return;
 
+    // pg-boss 12 requires a queue to exist before work() can subscribe to it.
+    // createQueue is idempotent, so restarts and multiple workers are safe.
+    await this.boss.createQueue("match-deadline");
+    await this.boss.createQueue("outbox-delivery");
+
     // Match deadline wakeup handler
     await this.boss.work("match-deadline", async (jobOrJobs: unknown) => {
       const jobs = Array.isArray(jobOrJobs) ? jobOrJobs : [jobOrJobs];
