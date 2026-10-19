@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import pg from "pg";
 import { PgBoss } from "pg-boss";
 

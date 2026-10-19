@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 declare module "semver" {
   export function valid(version: string | null | undefined): string | null;
   export function satisfies(version: string, range: string): boolean;
