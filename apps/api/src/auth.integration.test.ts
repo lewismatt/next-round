@@ -73,6 +73,7 @@ describe.skipIf(!testDatabaseUrl)("F1-01 bootstrap and registered sessions", () 
     staticRoot = await mkdtemp(path.join(tmpdir(), "next-round-auth-"));
     app = await buildServer({
       logger: false,
+      cookieSecret: randomBytes(32).toString("hex"),
       staticRoot,
       databasePool,
       setupToken,

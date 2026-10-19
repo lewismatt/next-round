@@ -73,12 +73,14 @@ export async function buildServer(
     if (error instanceof ApiError) {
       return reply.status(error.statusCode).send(error.toResponse(request.id));
     }
-    if (
+    const statusCode =
       typeof error === "object" &&
       error !== null &&
       "statusCode" in error &&
-      error.statusCode === 429
-    ) {
+      typeof error.statusCode === "number"
+        ? error.statusCode
+        : undefined;
+    if (statusCode === 429) {
       const rateLimitError = new ApiError(ERROR_CODES.RATE_LIMITED, "Too many requests.");
       return reply
         .status(rateLimitError.statusCode)
