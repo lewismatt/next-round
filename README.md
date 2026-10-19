@@ -71,6 +71,10 @@ documented HTTP endpoint, and uses the returned cookie and CSRF token. Account
 seeding belongs in an isolated test service supplied as `provisionRegistered`;
 the harness has no public signup or invented sessions. `addSession` attaches an
 already authenticated device; devices sharing a principal remain separate clients.
+Guest clients start with their redeemed match active, including sessions attached
+through `addSession`. `connectWs()` subscribes and loads that match's authorized
+snapshot without an explicit listener or a second join; invalidations and reconnects
+refresh it until access is revoked.
 
 The current API serves health routes only. Authentication, match transactions,
 authorized snapshots and `/api/v1/live` are prerequisites for platform acceptance.

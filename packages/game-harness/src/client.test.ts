@@ -13,7 +13,7 @@ import {
 } from "@next-round/contracts";
 import type { MatchSnapshot } from "@next-round/game-client";
 import { HarnessCommandError, HarnessHttpError, HttpSimulatedClient } from "./client.js";
-import { HarnessEnvironment, HarnessFaultInjector, type SimulatedSession } from "./index.js";
+import { HarnessEnvironment, HarnessFaultInjector, setupMultiplayerCounterScenario, type SimulatedSession } from "./index.js";
 
 const NOW = "2026-10-18T12:00:00.000Z";
 const MATCH = "00000000-0000-4000-8000-000000000001";
@@ -160,7 +160,8 @@ async function fixture(
 ) {
   const alice = session("alice");
   const bob = session("bob");
-  const identities = [alice, bob];
+  const guest: SimulatedSession = { ...session("guest"), kind: "guest", username: null, guestMatchId: CREATED_MATCH };
+  const identities = [alice, bob, guest];
   const app = fastify({ logger: false });
   const sockets = new Map<WebSocket, string>();
   const requests: RecordedRequest[] = [];
@@ -184,7 +185,7 @@ async function fixture(
 
   app.addHook("onRequest", async (request, reply) => {
     if (!request.url.startsWith("/api/v1/")) return;
-    if (request.url === "/api/v1/auth/login" && request.headers.origin === origin) return;
+    if (["/api/v1/auth/login", "/api/v1/guest-invitations/redeem"].includes(request.url) && request.headers.origin === origin) return;
     const identity = identities.find((candidate) => candidate.cookie === request.headers.cookie);
     if (!identity || request.headers.origin !== origin) {
       return reply.code(401).send({ error: { code: "AUTH_REQUIRED", message: `secret ${alice.cookie} ${alice.csrfToken}` } });
@@ -207,7 +208,7 @@ async function fixture(
   app.post("/api/v1/auth/login", async (request, reply) => {
     logins.push(request.body);
     const identity = {
-      ...alice,
+      ...(objectBody(request.body).username === "bob" ? bob : alice),
       cookie: `__Host-next-round-session=private-login-cookie-${logins.length}`,
     };
     identities.push(identity);
@@ -220,6 +221,17 @@ async function fixture(
         displayName: identity.displayName, username: identity.username,
       },
       ...(authReply === "missing_csrf" ? {} : { csrfToken: identity.csrfToken }),
+      expiresAt: "2026-11-18T12:00:00.000Z",
+    }, serverNow: NOW };
+  });
+
+  app.post("/api/v1/guest-invitations/redeem", async (request, reply) => {
+    const body = objectBody(request.body);
+    if (body.token !== "private-invitation") return reply.code(403).send({ error: { code: "FORBIDDEN" } });
+    reply.header("set-cookie", `${guest.cookie}; Path=/; HttpOnly; SameSite=Lax`);
+    return { data: {
+      principal: { id: guest.principalId, kind: guest.kind, displayName: guest.displayName, username: null },
+      csrfToken: guest.csrfToken, matchId: guest.guestMatchId,
       expiresAt: "2026-11-18T12:00:00.000Z",
     }, serverNow: NOW };
   });
@@ -372,6 +384,42 @@ describe("HttpSimulatedClient real HTTP and WebSocket boundary", () => {
     expect(first).not.toBe(second);
     expect(await first.getSnapshot(MATCH)).toEqual(snapshot(MATCH, f.alice.principalId, 4));
     expect(await second.getSnapshot(MATCH)).toEqual(snapshot(MATCH, f.alice.principalId, 4));
+  });
+
+  it("subscribes a redeemed scenario guest without a second join or snapshot listener", async () => {
+    const f = await fixture();
+    const env = new HarnessEnvironment({
+      baseUrl: f.origin,
+      provisionRegistered: async ({ username }) => ({ username, password: "private-password" }),
+    });
+    try {
+      const { guest, matchId } = await setupMultiplayerCounterScenario(env);
+      await guest.connectWs();
+      expect(guest.receivedSnapshots).toEqual([snapshot(matchId, guest.session.principalId, 0)]);
+      expect(f.subscriptions.filter(({ principalId }) => principalId === guest.session.principalId))
+        .toEqual([{ principalId: guest.session.principalId, frame: {
+          type: "subscribe", requestId: expect.any(String), scope: { kind: "match", id: matchId },
+        } }]);
+      expect(f.requests.filter(({ route }) => route.endsWith("/join")).map(({ principalId }) => principalId))
+        .toEqual([f.bob.principalId]);
+
+      f.revisions.set(matchId, 2);
+      f.send(guest.session.principalId, { type: "invalidate", scope: { kind: "match", id: matchId }, revision: 2 });
+      await until(() => guest.receivedSnapshots.at(-1)?.revision === 2);
+      expect(guest.receivedSnapshots.at(-1)).toEqual(snapshot(matchId, guest.session.principalId, 2));
+      f.revisions.set(matchId, 3);
+      await guest.reconnectWs();
+      expect(guest.receivedSnapshots.at(-1)).toEqual(snapshot(matchId, guest.session.principalId, 3));
+
+      f.send(guest.session.principalId, { type: "access_revoked", scope: { kind: "match", id: matchId } });
+      await until(() => guest.receivedSnapshots.length === 0);
+      const subscriptions = f.subscriptions.length;
+      await guest.reconnectWs();
+      expect(f.subscriptions).toHaveLength(subscriptions);
+      expect(guest.receivedSnapshots).toHaveLength(0);
+    } finally {
+      env.reset();
+    }
   });
 
   it.each(["missing_cookie", "missing_csrf"] as const)("refuses to create a client from a login response with %s", async (mode) => {

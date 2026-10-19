@@ -160,6 +160,10 @@ export class HttpSimulatedClient implements SimulatedClient {
   constructor(readonly session: SimulatedSession, options: HttpClientOptions) {
     this.options = { ...options, baseUrl: validateBaseUrl(options.baseUrl).origin };
     timeoutMs(options);
+    if (session.guestMatchId) {
+      this.connectionState.activeMatchId = session.guestMatchId;
+      this.scope(session.guestMatchId);
+    }
   }
 
   get receivedSnapshots(): readonly MatchSnapshot[] { return this.snapshots; }
