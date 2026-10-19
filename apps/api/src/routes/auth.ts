@@ -27,7 +27,7 @@ function serverNow(): string {
   return new Date().toISOString();
 }
 
-function requireJsonMutation(request: FastifyRequest, origin: string): void {
+export function requireJsonMutation(request: FastifyRequest, origin: string): void {
   if (request.headers.origin !== origin) {
     throw new ApiError(ERROR_CODES.FORBIDDEN, "Request origin is invalid.");
   }
@@ -77,7 +77,7 @@ function clearAuthCookies(reply: FastifyReply, origin: string): void {
   reply.clearCookie(settings.csrfName, { path: "/", secure: settings.secure });
 }
 
-async function requireSession(
+export async function requireSession(
   request: FastifyRequest,
   service: AuthService,
   requireCsrf: boolean,

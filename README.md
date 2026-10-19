@@ -315,8 +315,9 @@ remain a separate operator procedure.
 
 The integration command requires `TEST_DATABASE_URL` for a disposable PostgreSQL
 instance. Its role must be able to create and drop isolated test databases.
-Never point it at a production server. CI uses PostgreSQL `18.6-alpine` and
-`17-alpine`, runs the migration CLI, then runs the same integration command.
+Never point it at a production server. The API integration suite checks bootstrap,
+sessions, private match views, outsider denial, raw-state route absence and
+finished-result projection. CI runs it on PostgreSQL `18.6-alpine` and `17-alpine`.
 To exercise both locally after `pnpm install --frozen-lockfile` and `pnpm build`:
 
 ```bash
