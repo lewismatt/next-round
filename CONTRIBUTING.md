@@ -49,6 +49,12 @@ project ownership or the preserved upstream terms.
 - **Runtime & Tools**: Node.js 24 LTS, pnpm 12.14+, TypeScript 7+.
 - **Database**: PostgreSQL (tested against 18.6 and 17.x). Use Drizzle ORM for schema definitions and reviewed SQL migrations.
 - **Dependencies**: Use exact package pins and committed lockfiles. Floating `latest` dependencies are prohibited in releases.
+- **Lint and format**: `pnpm lint` checks JavaScript tooling (`.js`, `.mjs`,
+  `.cjs`) with ESLint 9 flat configuration and zero warnings. TypeScript/TSX
+  remains checked by `pnpm typecheck`; this is not a TypeScript lint gate.
+  Generated output and preserved `third_party` materials are excluded.
+  Prettier uses `.prettierrc.json`; format only files you change to avoid
+  unrelated repository-wide churn.
 - **Testing**:
   - Pure validators and reducers are verified with deterministic unit tests (`vitest`).
   - Transactional lifecycle paths, concurrency, and recovery are verified against real PostgreSQL instances, not mocks.
@@ -61,6 +67,7 @@ project ownership or the preserved upstream terms.
 3. Ensure all tests, typechecks, and builds pass cleanly:
    ```bash
    pnpm install --frozen-lockfile
+   pnpm lint
    pnpm typecheck
    pnpm build
    pnpm test

@@ -30,6 +30,9 @@ jobs:
       - name: Verify source license headers
         run: pnpm check:spdx
 
+      - name: Lint JavaScript tooling
+        run: pnpm lint
+
       - name: Build packages and applications
         run: pnpm build
 
