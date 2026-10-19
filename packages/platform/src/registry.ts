@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+import { createRequire } from "node:module";
 import {
   SDK_IDENTIFIER,
   validateGameManifest,
@@ -5,6 +7,9 @@ import {
   type ManifestValidationResult,
 } from "@next-round/contracts";
 import type { GameServer } from "@next-round/game-sdk";
+
+const require = createRequire(import.meta.url);
+const platformVersion: string = require("../package.json").version;
 
 export { SDK_IDENTIFIER, type GameManifest };
 
@@ -39,15 +44,10 @@ export class GameRegistry {
    * Throws an Error with detailed validation messages if invalid.
    */
   public validate(manifest: unknown): GameManifest {
-    const result: ManifestValidationResult = validateGameManifest(manifest);
+    const result: ManifestValidationResult = validateGameManifest(manifest, platformVersion);
     if (!result.ok) {
       throw new Error(
         `Manifest validation failed for SDK contract ${SDK_IDENTIFIER}:\n${result.errors.join("\n")}`
-      );
-    }
-    if (result.value.sdk !== SDK_IDENTIFIER) {
-      throw new Error(
-        `Unsupported SDK contract "${result.value.sdk}". Expected exact contract "${SDK_IDENTIFIER}".`
       );
     }
     return result.value;
@@ -63,6 +63,9 @@ export class GameRegistry {
   ): GameManifest {
     const manifest = this.validate(manifestInput);
     let mod = this.modules.get(manifest.id);
+    if (mod?.versions.has(manifest.version)) {
+      throw new Error(`Module ${manifest.id}@${manifest.version} is already installed.`);
+    }
 
     if (!mod) {
       mod = {
