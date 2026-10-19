@@ -12,7 +12,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PgBoss } from "pg-boss";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrateDatabase } from "./migrate.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -236,6 +237,56 @@ describe.skipIf(!testDatabaseUrl)(
       ).toHaveLength(1);
       await migrateDatabase({ connectionString });
       expect(await ledger()).toEqual(applied);
+    }, 60_000);
+
+    it("retries a failed pg-boss job after the migrated schema is installed", async () => {
+      await migrateDatabase({ connectionString });
+      const queue = "m9-retry";
+      const boss = new PgBoss({
+        connectionString,
+        schema: "pgboss",
+        max: 3,
+        migrate: false,
+        schedule: false,
+        supervise: false,
+      });
+      boss.on("error", () => undefined);
+      const attempts: Array<{ id: string; retryCount: number }> = [];
+      try {
+        await boss.start();
+        await boss.createQueue(queue);
+        const id = await boss.send(
+          queue,
+          { purpose: "m9-retry" },
+          { retryLimit: 1, retryDelay: 0 },
+        );
+        expect(id).toEqual(expect.any(String));
+        await boss.work<{ purpose: string }>(
+          queue,
+          { pollingIntervalSeconds: 0.5 },
+          async ([job]) => {
+            attempts.push({ id: job.id, retryCount: job.retryCount });
+            if (attempts.length === 1) throw new Error("first attempt fails");
+          },
+        );
+
+        await vi.waitFor(
+          async () => {
+            const [job] = await boss.findJobs(queue, { id: id! });
+            expect(job?.state).toBe("completed");
+          },
+          { timeout: 30_000, interval: 250 },
+        );
+        // The same job id ran twice; pg-boss counted the second claim as a retry.
+        expect(attempts).toEqual([
+          { id, retryCount: 0 },
+          { id, retryCount: 1 },
+        ]);
+        const [job] = await boss.findJobs(queue, { id: id! });
+        expect(job).toMatchObject({ id, retryCount: 1, retryLimit: 1 });
+      } finally {
+        await boss.stop({ graceful: true, timeout: 10_000 });
+      }
     }, 60_000);
 
     it("serializes concurrent runners behind the session lock and applies pending SQL once", async () => {
