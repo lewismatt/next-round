@@ -176,6 +176,22 @@ describe("compileJsonSchema and parseJsonSchemaValue (F1-SCHEMA)", () => {
       expect(() => compileJsonSchema({ patternProperties: {} })).toThrow(ApiError);
     });
 
+    it("rejects prototype-polluting and inherited object keys such as __proto__ and constructor", () => {
+      const protoSchema = JSON.parse('{"__proto__": {"type": "string"}}');
+      expect(() => compileJsonSchema(protoSchema)).toThrow(ApiError);
+      try {
+        compileJsonSchema(protoSchema);
+      } catch (error) {
+        expect((error as ApiError).code).toBe(ERROR_CODES.INVALID_REQUEST);
+      }
+
+      const ctorSchema = JSON.parse('{"constructor": {"type": "string"}}');
+      expect(() => compileJsonSchema(ctorSchema)).toThrow(ApiError);
+
+      const toStringSchema = JSON.parse('{"toString": true}');
+      expect(() => compileJsonSchema(toStringSchema)).toThrow(ApiError);
+    });
+
     it("rejects non-object schema inputs", () => {
       expect(() => compileJsonSchema(null)).toThrow(ApiError);
       expect(() => compileJsonSchema("string")).toThrow(ApiError);

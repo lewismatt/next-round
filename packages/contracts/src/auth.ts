@@ -17,7 +17,7 @@ if (!TypeRegistry.Has("OneOf")) {
     return count === 1;
   });
 }
-const SUPPORTED_PRIMITIVE_TYPES: Record<string, true> = {
+const SUPPORTED_PRIMITIVE_TYPES: Record<string, true> = Object.assign(Object.create(null), {
   null: true,
   boolean: true,
   integer: true,
@@ -25,18 +25,18 @@ const SUPPORTED_PRIMITIVE_TYPES: Record<string, true> = {
   string: true,
   array: true,
   object: true,
-};
+});
 
-const METADATA_KEYS: Record<string, true> = {
+const METADATA_KEYS: Record<string, true> = Object.assign(Object.create(null), {
   $schema: true,
   $id: true,
   title: true,
   description: true,
   default: true,
   examples: true,
-};
+});
 
-const ALL_SUPPORTED_SCHEMA_KEYS: Record<string, true> = {
+const ALL_SUPPORTED_SCHEMA_KEYS: Record<string, true> = Object.assign(Object.create(null), {
   $schema: true,
   $id: true,
   title: true,
@@ -67,7 +67,7 @@ const ALL_SUPPORTED_SCHEMA_KEYS: Record<string, true> = {
   maxLength: true,
   pattern: true,
   format: true,
-};
+});
 const compiledGameSchemas = new WeakMap<object, TSchema>();
 
 function compileType(schema: Record<string, unknown>, type: string): TSchema {
@@ -248,7 +248,7 @@ export function compileJsonSchema(input: unknown): TSchema {
   const schema = input as Record<string, unknown>;
 
   for (const key of Object.keys(schema)) {
-    if (!ALL_SUPPORTED_SCHEMA_KEYS[key]) {
+    if (!Object.hasOwn(ALL_SUPPORTED_SCHEMA_KEYS, key)) {
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, `Game schema keyword '${key}' is unsupported.`);
     }
   }
@@ -332,7 +332,7 @@ export function compileJsonSchema(input: unknown): TSchema {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
       }
       for (const t of schema.type) {
-        if (typeof t !== "string" || !SUPPORTED_PRIMITIVE_TYPES[t]) {
+        if (typeof t !== "string" || !Object.hasOwn(SUPPORTED_PRIMITIVE_TYPES, t)) {
           throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
         }
       }
@@ -340,10 +340,12 @@ export function compileJsonSchema(input: unknown): TSchema {
         Type.Union(schema.type.map((type) => compileType(schema, type))),
       );
     } else if (typeof schema.type === "string") {
-      if (!SUPPORTED_PRIMITIVE_TYPES[schema.type]) {
+      if (!Object.hasOwn(SUPPORTED_PRIMITIVE_TYPES, schema.type)) {
         throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
       }
       parts.push(compileType(schema, schema.type));
+    } else {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
     }
   } else if (
     "properties" in schema ||
@@ -379,7 +381,7 @@ export function compileJsonSchema(input: unknown): TSchema {
 
   let compiled: TSchema;
   if (parts.length === 0) {
-    if (Object.keys(schema).every((k) => METADATA_KEYS[k])) {
+    if (Object.keys(schema).every((k) => Object.hasOwn(METADATA_KEYS, k))) {
       compiled = Type.Any();
     } else {
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema is unsupported or invalid.");
