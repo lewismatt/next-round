@@ -55,6 +55,7 @@ describe("compiled API boot", () => {
     // Test-process-only values; they satisfy the production fail-fast checks.
     vi.stubEnv("SESSION_SECRET", randomBytes(32).toString("hex"));
     vi.stubEnv("SETUP_TOKEN", randomBytes(32).toString("hex"));
+    vi.stubEnv("APP_ORIGIN", "http://localhost:3000");
     vi.stubEnv("TRUST_PROXY", "");
   });
 

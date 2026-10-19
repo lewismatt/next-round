@@ -73,6 +73,12 @@ export async function buildServer(
     if (error instanceof ApiError) {
       return reply.status(error.statusCode).send(error.toResponse(request.id));
     }
+    if (error.statusCode === 429) {
+      const rateLimitError = new ApiError(ERROR_CODES.RATE_LIMITED, "Too many requests.");
+      return reply
+        .status(rateLimitError.statusCode)
+        .send(rateLimitError.toResponse(request.id));
+    }
     request.log.error({ err: error }, "Unhandled API request error");
     const apiError = new ApiError(ERROR_CODES.INTERNAL_ERROR, "An internal error occurred.");
     return reply.status(apiError.statusCode).send(apiError.toResponse(request.id));
