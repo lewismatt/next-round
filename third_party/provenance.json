@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "path": "packages/ui/src/components/button.tsx",
+      "license": "MIT",
+      "source": "https://github.com/shadcn-ui/ui",
+      "attribution": "third_party/shadcn-LICENSE.txt"
+    },
+    {
+      "path": "packages/ui/src/lib/utils.ts",
+      "license": "MIT",
+      "source": "https://github.com/shadcn-ui/ui",
+      "attribution": "third_party/shadcn-LICENSE.txt"
+    },
+    {
+      "path": "packages/ui/src/styles/globals.css",
+      "license": "MIT",
+      "source": "https://github.com/shadcn-ui/ui",
+      "attribution": "third_party/shadcn-LICENSE.txt"
+    }
+  ]
+}

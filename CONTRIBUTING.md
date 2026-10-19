@@ -14,9 +14,29 @@ The check covers TS/TSX/JS/JSX/MJS/CJS/CSS, excluding preserved third-party mate
 
 Copied third-party sources retain their original licenses and attribution.
 The existing shadcn component, utility and preset stylesheet use MIT headers;
-their license is preserved in `third_party/shadcn-LICENSE.txt`. Review and
-document provenance before extending the check's explicit upstream file list.
+their license is preserved in `third_party/shadcn-LICENSE.txt`.
 Do not add Apache headers to upstream code or puzzle content by default.
+
+Copied sources are registered in the provenance manifest
+[`third_party/provenance.json`](third_party/provenance.json), not in the
+checker. Every other source must carry the Apache-2.0 header. To add a copied
+component, change only these three things:
+
+1. Add the source file with its upstream license header on the first line
+   (`// SPDX-License-Identifier: MIT`, or the `/* ... */` form for CSS), then a
+   short "Derived from ..." comment pointing at the preserved license.
+2. Preserve the upstream license and copyright text under `third_party/` and
+   mention it in `THIRD_PARTY_NOTICES.md`.
+3. Append an entry to `entries` in the manifest with exactly these fields:
+   `path` (repo-relative, POSIX), `license` (a single SPDX identifier matching
+   the header), `source` (https URL of the upstream project) and `attribution`
+   (repo-relative path of the preserved license file from step 2, which must be
+   tracked).
+
+`pnpm check:spdx` reads and validates the manifest. It fails on a malformed
+manifest, a duplicate `path`, an entry whose attribution file is missing, an
+entry for an untracked or uncovered file, and a non-Apache-2.0 header that has
+no manifest entry. Do not edit `scripts/check-spdx.mjs` to register a source.
 
 Use syntax-appropriate SPDX comments for other new project source formats.
 Existing reviewed SQL migrations are immutable and checksum-verified: do not
