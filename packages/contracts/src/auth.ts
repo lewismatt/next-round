@@ -2,7 +2,160 @@
 import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { ApiError, ERROR_CODES } from "./errors.js";
+import type { Json } from "./manifest.js";
 
+
+const compiledGameSchemas = new WeakMap<object, TSchema>();
+
+function compileJsonSchema(input: unknown): TSchema {
+  if (input === true) {
+    return Type.Any();
+  }
+  if (input === false) {
+    return Type.Never();
+  }
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema is invalid.");
+  }
+
+  const cached = compiledGameSchemas.get(input);
+  if (cached) {
+    return cached;
+  }
+
+  const schema = input as Record<string, unknown>;
+  let compiled: TSchema;
+  if ("const" in schema) {
+    const value = schema.const;
+    if (
+      value !== null &&
+      typeof value !== "string" &&
+      typeof value !== "number" &&
+      typeof value !== "boolean"
+    ) {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema const is invalid.");
+    }
+    compiled = value === null ? Type.Null() : Type.Literal(value);
+  } else if (Array.isArray(schema.enum)) {
+    const values = schema.enum;
+    compiled = values.length === 0
+      ? Type.Never()
+      : Type.Union(values.map((value) => {
+        if (
+          value !== null &&
+          typeof value !== "string" &&
+          typeof value !== "number" &&
+          typeof value !== "boolean"
+        ) {
+          throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema enum is invalid.");
+        }
+        return value === null ? Type.Null() : Type.Literal(value);
+      }));
+  } else if (Array.isArray(schema.anyOf) || Array.isArray(schema.oneOf)) {
+    const alternatives = (schema.anyOf ?? schema.oneOf) as unknown[];
+    compiled = alternatives.length === 0
+      ? Type.Never()
+      : Type.Union(alternatives.map((alternative) => compileJsonSchema(alternative)));
+  } else if (Array.isArray(schema.allOf)) {
+    const members = schema.allOf.map((member) => compileJsonSchema(member));
+    compiled = members.length === 0 ? Type.Any() : Type.Intersect(members);
+  } else if (Array.isArray(schema.type)) {
+    compiled = Type.Union(
+      schema.type.map((type) => compileJsonSchema({ ...schema, type })),
+    );
+  } else {
+    switch (schema.type) {
+      case "null":
+        compiled = Type.Null();
+        break;
+      case "boolean":
+        compiled = Type.Boolean();
+        break;
+      case "integer":
+        compiled = Type.Integer({
+          ...(typeof schema.minimum === "number" ? { minimum: schema.minimum } : {}),
+          ...(typeof schema.maximum === "number" ? { maximum: schema.maximum } : {}),
+          ...(typeof schema.exclusiveMinimum === "number"
+            ? { exclusiveMinimum: schema.exclusiveMinimum }
+            : {}),
+          ...(typeof schema.exclusiveMaximum === "number"
+            ? { exclusiveMaximum: schema.exclusiveMaximum }
+            : {}),
+          ...(typeof schema.multipleOf === "number" ? { multipleOf: schema.multipleOf } : {}),
+        });
+        break;
+      case "number":
+        compiled = Type.Number({
+          ...(typeof schema.minimum === "number" ? { minimum: schema.minimum } : {}),
+          ...(typeof schema.maximum === "number" ? { maximum: schema.maximum } : {}),
+          ...(typeof schema.exclusiveMinimum === "number"
+            ? { exclusiveMinimum: schema.exclusiveMinimum }
+            : {}),
+          ...(typeof schema.exclusiveMaximum === "number"
+            ? { exclusiveMaximum: schema.exclusiveMaximum }
+            : {}),
+          ...(typeof schema.multipleOf === "number" ? { multipleOf: schema.multipleOf } : {}),
+        });
+        break;
+      case "string":
+        compiled = Type.String({
+          ...(typeof schema.minLength === "number" ? { minLength: schema.minLength } : {}),
+          ...(typeof schema.maxLength === "number" ? { maxLength: schema.maxLength } : {}),
+          ...(typeof schema.pattern === "string" ? { pattern: schema.pattern } : {}),
+        });
+        break;
+      case "array":
+        compiled = Type.Array(compileJsonSchema(schema.items ?? {}), {
+          ...(typeof schema.minItems === "number" ? { minItems: schema.minItems } : {}),
+          ...(typeof schema.maxItems === "number" ? { maxItems: schema.maxItems } : {}),
+          ...(typeof schema.uniqueItems === "boolean" ? { uniqueItems: schema.uniqueItems } : {}),
+        });
+        break;
+      case "object": {
+        const rawProperties =
+          typeof schema.properties === "object" &&
+          schema.properties !== null &&
+          !Array.isArray(schema.properties)
+            ? schema.properties as Record<string, unknown>
+            : {};
+        const required = new Set(
+          Array.isArray(schema.required)
+            ? schema.required.filter((name): name is string => typeof name === "string")
+            : [],
+        );
+        const properties: Record<string, TSchema> = {};
+        for (const [name, propertySchema] of Object.entries(rawProperties)) {
+          const property = compileJsonSchema(propertySchema);
+          properties[name] = required.has(name) ? property : Type.Optional(property);
+        }
+        let additionalProperties: boolean | TSchema | undefined;
+        if (typeof schema.additionalProperties === "boolean") {
+          additionalProperties = schema.additionalProperties;
+        } else if (
+          typeof schema.additionalProperties === "object" &&
+          schema.additionalProperties !== null
+        ) {
+          additionalProperties = compileJsonSchema(schema.additionalProperties);
+        }
+        compiled = Type.Object(properties, {
+          ...(additionalProperties !== undefined ? { additionalProperties } : {}),
+          ...(typeof schema.minProperties === "number"
+            ? { minProperties: schema.minProperties }
+            : {}),
+          ...(typeof schema.maxProperties === "number"
+            ? { maxProperties: schema.maxProperties }
+            : {}),
+        });
+        break;
+      }
+      default:
+        compiled = Type.Any();
+    }
+  }
+
+  compiledGameSchemas.set(input, compiled);
+  return compiled;
+}
 const UUID_PATTERN = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
 
 export const UuidSchema = Type.String({ pattern: UUID_PATTERN });
@@ -99,4 +252,11 @@ export function parseRequestBody<T extends TSchema>(schema: T, body: unknown): S
   throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Request body is invalid.", {
     details: { fields },
   });
+}
+
+/**
+ * Validates a request value against a game-provided JSON Schema.
+ */
+export function parseJsonSchemaValue(schema: unknown, value: unknown): Json {
+  return parseRequestBody(compileJsonSchema(schema), value) as Json;
 }

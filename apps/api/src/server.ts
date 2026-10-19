@@ -5,7 +5,11 @@ import path from "node:path";
 import { ApiError, ERROR_CODES } from "@next-round/contracts";
 import { createDatabasePool } from "@next-round/db";
 import type { DatabasePool } from "@next-round/db";
-import { AuthService } from "@next-round/platform";
+import {
+  AuthService,
+  defaultGameRegistry,
+  type GameRegistry,
+} from "@next-round/platform";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -18,6 +22,7 @@ import { parseTrustedProxies, requireAppOrigin, requireSessionSecret, validateSe
 import type { TrustedProxies } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
+import { gameAssetRoutes, gameManifestRoutes } from "./routes/games.js";
 import type { HealthCheckOptions } from "./routes/health.js";
 
 export interface ServerOptions extends HealthCheckOptions {
@@ -30,6 +35,7 @@ export interface ServerOptions extends HealthCheckOptions {
   databasePool?: DatabasePool;
   setupToken?: string;
   origin?: string;
+  gameRegistry?: GameRegistry;
 }
 
 /**
@@ -44,6 +50,7 @@ export async function buildServer(
   const setupToken = validateSetupToken(options.setupToken);
   const origin = requireAppOrigin(options.origin);
   const databasePool = options.databasePool ?? createDatabasePool();
+  const gameRegistry = options.gameRegistry ?? defaultGameRegistry;
   const ownsDatabasePool = options.databasePool === undefined;
   const loggerConfig: FastifyServerOptions["logger"] =
     options.logger ?? {
@@ -130,6 +137,9 @@ export async function buildServer(
     root: staticRoot,
     prefix: "/static/",
   });
+  await app.register(gameAssetRoutes, {
+    registry: gameRegistry,
+  });
 
   // 6. Register OpenAPI / Swagger for API documentation and contract export
   await app.register(swagger, {
@@ -157,6 +167,10 @@ export async function buildServer(
     prefix: "/api/v1",
     checkDb: options.checkDb,
     checkRegistry: options.checkRegistry,
+  });
+  await app.register(gameManifestRoutes, {
+    prefix: "/api/v1",
+    registry: gameRegistry,
   });
 
   await app.register(authRoutes, {

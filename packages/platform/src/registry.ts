@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import fs from "node:fs";
+import path from "node:path";
 import { createRequire } from "node:module";
 import {
   SDK_IDENTIFIER,
@@ -21,6 +23,7 @@ export interface RegisteredGameVersion {
   server?: GameServer<any, any>;
   serverHash?: string;
   clientHash?: string;
+  clientAssets: ReadonlyMap<string, string>;
 }
 
 /**
@@ -30,6 +33,69 @@ export interface RegisteredGameModule {
   id: string;
   defaultVersion: string;
   versions: Map<string, RegisteredGameVersion>;
+}
+
+export interface RegisterGameOptions {
+  clientRoot: string;
+  serverHash?: string;
+  clientHash?: string;
+  isDefault?: boolean;
+}
+
+function normalizeClientAssetPath(assetPath: string): string {
+  if (assetPath.includes("\\") || path.posix.isAbsolute(assetPath)) {
+    throw new Error(`Client asset path '${assetPath}' must be relative.`);
+  }
+  const normalized = path.posix.normalize(assetPath);
+  const relative = normalized.startsWith("./") ? normalized.slice(2) : normalized;
+  if (!relative || relative === ".." || relative.startsWith("../")) {
+    throw new Error(`Client asset path '${assetPath}' leaves the client asset root.`);
+  }
+  return relative;
+}
+
+function loadClientAssets(
+  manifest: GameManifest,
+  clientRoot: string,
+): ReadonlyMap<string, string> {
+  let root: string;
+  try {
+    root = fs.realpathSync(clientRoot);
+  } catch {
+    throw new Error(
+      `Client asset root for ${manifest.id}@${manifest.version} does not exist: ${clientRoot}`,
+    );
+  }
+
+  const assets = new Map<string, string>();
+  for (const declaredPath of [manifest.client.entry, ...manifest.client.css]) {
+    const publicPath = normalizeClientAssetPath(declaredPath);
+    let filePath: string;
+    try {
+      filePath = fs.realpathSync(path.resolve(root, publicPath));
+    } catch {
+      throw new Error(
+        `Client asset '${declaredPath}' for ${manifest.id}@${manifest.version} does not exist.`,
+      );
+    }
+    const relativePath = path.relative(root, filePath);
+    if (
+      relativePath === ".." ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    ) {
+      throw new Error(
+        `Client asset '${declaredPath}' for ${manifest.id}@${manifest.version} leaves the client asset root.`,
+      );
+    }
+    if (!fs.statSync(filePath).isFile()) {
+      throw new Error(
+        `Client asset '${declaredPath}' for ${manifest.id}@${manifest.version} is not a file.`,
+      );
+    }
+    assets.set(publicPath, filePath);
+  }
+  return assets;
 }
 
 /**
@@ -58,14 +124,16 @@ export class GameRegistry {
    */
   public register(
     manifestInput: unknown,
-    server?: GameServer<any, any>,
-    options?: { serverHash?: string; clientHash?: string; isDefault?: boolean }
+    server: GameServer<any, any> | undefined,
+    options: RegisterGameOptions,
   ): GameManifest {
     const manifest = this.validate(manifestInput);
     let mod = this.modules.get(manifest.id);
     if (mod?.versions.has(manifest.version)) {
       throw new Error(`Module ${manifest.id}@${manifest.version} is already installed.`);
     }
+
+    const clientAssets = loadClientAssets(manifest, options.clientRoot);
 
     if (!mod) {
       mod = {
@@ -83,8 +151,9 @@ export class GameRegistry {
     mod.versions.set(manifest.version, {
       manifest,
       server,
-      serverHash: options?.serverHash,
-      clientHash: options?.clientHash,
+      serverHash: options.serverHash,
+      clientHash: options.clientHash,
+      clientAssets,
     });
 
     return manifest;
@@ -120,6 +189,23 @@ export class GameRegistry {
     version?: string
   ): GameServer<any, any> | undefined {
     return this.getVersion(id, version)?.server;
+  }
+
+  /**
+   * Resolves a declared browser asset for an installed module version.
+   */
+  public getClientAsset(
+    id: string,
+    version: string,
+    assetPath: string,
+  ): string | undefined {
+    let normalized: string;
+    try {
+      normalized = normalizeClientAssetPath(assetPath);
+    } catch {
+      return undefined;
+    }
+    return this.getVersion(id, version)?.clientAssets.get(normalized);
   }
 
   /**
