@@ -3,7 +3,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import { createRequire } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
 import type WebSocket from "ws";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LIVE_SUBPROTOCOL,
   type ClientLiveFrame,
@@ -174,6 +174,13 @@ async function fixture(
   const holds = new Map<string, { arrived: ReturnType<typeof deferred<void>>; release: ReturnType<typeof deferred<void>> }>();
   let origin = "";
   let subscriptionHold: { arrived: ReturnType<typeof deferred<void>>; release: ReturnType<typeof deferred<void>> } | undefined;
+  interface ActionHold {
+    needed: number;
+    count: number;
+    arrived: { promise: Promise<void>; resolve: (value: void) => void };
+    release: { promise: Promise<void>; resolve: (value: void) => void };
+  }
+  let actionHold: ActionHold | undefined;
   const key = (principalId: string, matchId: string) => `${principalId}:${matchId}`;
 
   cleanup.push(async () => {
@@ -300,6 +307,11 @@ async function fixture(
       const concrete = route.replace(":id", request.params.id ?? "");
       record("POST", concrete, request.headers.cookie, request.headers.origin,
         request.headers["x-csrf-token"], request.body);
+      if (actionHold && concrete.endsWith("/actions")) {
+        actionHold.count += 1;
+        if (actionHold.count >= actionHold.needed) actionHold.arrived.resolve();
+        await actionHold.release.promise;
+      }
       const body = objectBody(request.body);
       const scripted = scripts.get(concrete)?.shift();
       if (scripted?.delayMs) await delay(scripted.delayMs);
@@ -339,6 +351,17 @@ async function fixture(
     holdNextGet(principalId: string, matchId: string) {
       const hold = { arrived: deferred<void>(), release: deferred<void>() };
       holds.set(key(principalId, matchId), hold);
+      releases.add(() => hold.release.resolve());
+      return hold;
+    },
+    holdActions(needed: number) {
+      const hold: ActionHold = {
+        needed,
+        count: 0,
+        arrived: deferred<void>(),
+        release: deferred<void>(),
+      };
+      actionHold = hold;
       releases.add(() => hold.release.resolve());
       return hold;
     },
@@ -493,6 +516,80 @@ describe("HttpSimulatedClient real HTTP and WebSocket boundary", () => {
     expect(surfaced).not.toContain("privateState");
     expect(f.requests.filter((request) => request.route.endsWith("/actions"))).toHaveLength(1);
     expect(gets(f)).toHaveLength(0);
+  });
+
+  it("does not automatically resend a rejected intent after two sessions act at one revision", async () => {
+    const f = await fixture();
+    const env = new HarnessEnvironment({ baseUrl: f.origin });
+    try {
+      const input = { username: "alice", displayName: "Alice", password: "private-password" };
+      const first = await env.createRegisteredClient(input);
+      const second = await env.createRegisteredClient(input);
+      expect(first.session.principalId).toBe(second.session.principalId);
+      expect(first.session.cookie).not.toBe(second.session.cookie);
+      const expectedRevision = 4;
+      const firstCommand = "10000000-0000-4000-8000-000000000011";
+      const secondCommand = "10000000-0000-4000-8000-000000000012";
+      const firstAction = {
+        type: "note", payload: { text: "device-one-intent" }, commandId: firstCommand, expectedRevision,
+      };
+      const secondAction = {
+        type: "note", payload: { text: "device-two-intent" }, commandId: secondCommand, expectedRevision,
+      };
+      f.scripts.set(`/matches/${MATCH}/actions`, [
+        {},
+        { status: 409, code: "STALE_REVISION" },
+      ]);
+      const hold = f.holdActions(2);
+      const pending = Promise.allSettled([
+        first.act(MATCH, firstAction),
+        second.act(MATCH, secondAction),
+      ]);
+      await hold.arrived.promise;
+      const inflight = f.requests.filter((request) => request.route === `/matches/${MATCH}/actions`);
+      expect(inflight).toHaveLength(2);
+      expect(inflight.map((request) => request.body.expectedRevision)).toEqual([
+        expectedRevision, expectedRevision,
+      ]);
+      expect(inflight.map((request) => request.cookie).sort()).toEqual([
+        first.session.cookie, second.session.cookie,
+      ].sort());
+      hold.release.resolve();
+      const settled = await pending;
+      const loserIndex = settled.findIndex((result) => result.status === "rejected");
+      const winnerIndex = settled.findIndex((result) => result.status === "fulfilled");
+      expect(loserIndex).toBeGreaterThanOrEqual(0);
+      expect(winnerIndex).toBeGreaterThanOrEqual(0);
+      expect(loserIndex).not.toBe(winnerIndex);
+      const failure = settled[loserIndex]?.status === "rejected" ? settled[loserIndex].reason : undefined;
+      expect(failure).toBeInstanceOf(HarnessHttpError);
+      expect(failure).toMatchObject({ status: 409, code: "STALE_REVISION" });
+      const surfaced = `${String(failure)} ${JSON.stringify(failure)}`;
+      expect(surfaced).not.toContain("device-one-intent");
+      expect(surfaced).not.toContain("device-two-intent");
+      expect(surfaced).not.toContain(first.session.cookie);
+      expect(surfaced).not.toContain(second.session.cookie);
+      expect(surfaced).not.toContain(f.bob.cookie);
+      const loser = loserIndex === 0 ? first : second;
+      const loserCommand = loserIndex === 0 ? firstCommand : secondCommand;
+      const actions = () => f.requests.filter((request) => request.route === `/matches/${MATCH}/actions`);
+      vi.useFakeTimers();
+      try {
+        await vi.runAllTimersAsync();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(actions()).toHaveLength(2);
+      expect(actions().filter((request) => request.body.commandId === loserCommand)).toHaveLength(1);
+      expect(gets(f)).toHaveLength(0);
+      f.revisions.set(MATCH, expectedRevision + 1);
+      expect((await loser.getSnapshot(MATCH)).revision).toBe(expectedRevision + 1);
+      expect(actions()).toHaveLength(2);
+      expect(gets(f)).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+      env.reset();
+    }
   });
 
   it("rejects missing authentication and nonexistent routes rather than manufacturing snapshots", async () => {

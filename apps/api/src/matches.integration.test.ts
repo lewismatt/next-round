@@ -100,6 +100,24 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     };
   }
 
+  async function seedDevice(principalId: string): Promise<SessionFixture> {
+    const sessionId = randomUUID();
+    const sessionToken = generateOpaqueSessionToken();
+    const csrfToken = generateCsrfToken();
+    await databasePool.query(
+      `INSERT INTO next_round.sessions
+         (id, principal_id, token_hash, csrf_hash, auth_epoch, idle_expires_at, absolute_expires_at)
+       VALUES ($1, $2, $3, $4, 0, now() + interval '1 day', now() + interval '1 day')`,
+      [sessionId, principalId, sessionToken.tokenHash, csrfToken.csrfHash],
+    );
+    return {
+      principalId,
+      cookie: `${SESSION_DEV_COOKIE_NAME}=${sessionToken.rawToken}`,
+      csrf: csrfToken.rawToken,
+    };
+  }
+
+
   beforeEach(async () => {
     databaseName = `next_round_views_${randomUUID().replaceAll("-", "")}`;
     adminPool = createDatabasePool({ connectionString: testDatabaseUrl, max: 1 });
@@ -611,5 +629,172 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     expect(revoked.statusCode).toBe(404);
     expectNoPrivateValues(revoked.body);
     expect(await persisted()).toEqual(committed);
+  }, 120_000);
+
+  it("overlaps two sessions at one revision and commits exactly one transition", async () => {
+    const device = await seedDevice(memberA.principalId);
+    expect(device.principalId).toBe(memberA.principalId);
+    expect(device.cookie).not.toBe(memberA.cookie);
+    const expectedRevision = 3;
+    const firstCommand = randomUUID();
+    const secondCommand = randomUUID();
+    const action = (commandId: string) => ({
+      commandId,
+      expectedRevision,
+      type: "add",
+      payload: { amount: 1 },
+    });
+    const races = [
+      { session: memberA, commandId: firstCommand },
+      { session: device, commandId: secondCommand },
+    ];
+    let settled = 0;
+    const barrier = await databasePool.connect();
+    let released = false;
+    try {
+      await barrier.query("BEGIN");
+      const barrierPid = await barrier.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      // The barrier only forces both requests into the action path's row lock.
+      // Serialization still comes from that FOR UPDATE, not from this connection.
+      await barrier.query("SELECT id FROM next_round.matches WHERE id = $1 FOR UPDATE", [matchId]);
+      const pending = races.map((race) => app.inject({
+        method: "POST",
+        url: `/api/v1/matches/${matchId}/actions`,
+        headers: headers(race.session, true),
+        payload: action(race.commandId),
+      }).then((response) => {
+        settled += 1;
+        return { ...race, response };
+      }));
+      const deadline = Date.now() + 10_000;
+      let waiting = 0;
+      while (Date.now() < deadline) {
+        const observed = await databasePool.query<{ waiting: number }>(
+          `SELECT count(*)::integer AS waiting
+             FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND pid <> pg_backend_pid()
+              AND pid <> $1
+              AND state = 'active'
+              AND wait_event_type = 'Lock'
+              AND query LIKE '%FOR UPDATE OF m, viewer%'`,
+          [barrierPid.rows[0].pid],
+        );
+        waiting = observed.rows[0].waiting;
+        if (waiting === 2 && settled === 0) break;
+        // Yield so the waiting backends can appear. Fake timers cannot advance a
+        // PostgreSQL lock, and a fixed sleep would not observe the waiters.
+        await new Promise<void>((resolve) => {
+          setImmediate(resolve);
+        });
+      }
+      if (waiting !== 2 || settled !== 0) {
+        const activity = await databasePool.query(
+          `SELECT pid, state, wait_event_type, wait_event, left(query, 180) AS query
+             FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND pid <> pg_backend_pid()`,
+        );
+        await barrier.query("COMMIT");
+        released = true;
+        await Promise.allSettled(pending);
+        throw new Error(
+          `F1-05 overlap was not observed (waiting=${waiting}, settled=${settled}): ${JSON.stringify(activity.rows)}`,
+        );
+      }
+      await barrier.query("COMMIT");
+      released = true;
+      const results = await Promise.all(pending);
+      const accepted = results.filter((result) => result.response.statusCode === 200);
+      const rejected = results.filter((result) => result.response.statusCode === 409);
+      expect(accepted).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      const winner = accepted[0];
+      const loser = rejected[0];
+      expect(winner.response.headers["cache-control"]).toBe("no-store");
+      expect(winner.response.json().data).toEqual({
+        commandId: winner.commandId,
+        matchId,
+        committedRevision: 4,
+        replayed: false,
+        outcome: "accepted",
+      });
+      expect(loser.response.statusCode).toBe(409);
+      expect(loser.response.json().error).toMatchObject({
+        code: "STALE_REVISION",
+        message: "Refresh this match before acting.",
+        details: { currentRevision: 4 },
+      });
+      expect(Object.keys(loser.response.json().error.details as Record<string, unknown>)).toEqual([
+        "currentRevision",
+      ]);
+      expectNoPrivateValues(winner.response.body);
+      expectNoPrivateValues(loser.response.body);
+
+      const stored = await databasePool.query<{
+        revision: number;
+        count: number;
+        score: number;
+        otherScore: number;
+        note: string;
+        actor: string | null;
+        events: number;
+        receipts: number;
+        winnerReceipts: number;
+        loserReceipts: number;
+      }>(
+        `SELECT m.revision::integer AS revision,
+                (m.state->>'count')::integer AS count,
+                (m.state->'scores'->>$2)::integer AS score,
+                (m.state->'scores'->>$3)::integer AS "otherScore",
+                m.state->'notes'->>$2 AS note,
+                (SELECT min(e.actor_id::text) FROM next_round.match_events e
+                  WHERE e.match_id = m.id) AS actor,
+                (SELECT count(*)::integer FROM next_round.match_events e
+                  WHERE e.match_id = m.id) AS events,
+                (SELECT count(*)::integer FROM next_round.command_receipts r
+                  WHERE r.match_id = m.id) AS receipts,
+                (SELECT count(*)::integer FROM next_round.command_receipts r
+                  WHERE r.match_id = m.id AND r.command_id = $4) AS "winnerReceipts",
+                (SELECT count(*)::integer FROM next_round.command_receipts r
+                  WHERE r.match_id = m.id AND r.command_id = $5) AS "loserReceipts"
+           FROM next_round.matches m
+          WHERE m.id = $1`,
+        [matchId, memberAId, memberBId, winner.commandId, loser.commandId],
+      );
+      expect(stored.rows[0]).toEqual({
+        revision: 4,
+        count: 3,
+        score: 2,
+        otherScore: 1,
+        note: noteA,
+        actor: memberA.principalId,
+        events: 1,
+        receipts: 1,
+        winnerReceipts: 1,
+        loserReceipts: 0,
+      });
+
+      const refreshed = await app.inject({
+        method: "GET",
+        url: `/api/v1/matches/${matchId}`,
+        headers: headers(loser.session),
+      });
+      expect(refreshed.statusCode).toBe(200);
+      expect(refreshed.headers["cache-control"]).toBe("no-store");
+      expect(refreshed.json().data.revision).toBe(4);
+      expect(refreshed.json().data.game).toMatchObject({
+        count: 3,
+        myScore: 2,
+        myNote: noteA,
+        myMarker: markerA,
+        currentActorMemberId: memberBId,
+      });
+      expect(refreshed.body).not.toContain(markerB);
+      expect(refreshed.body).not.toContain(noteB);
+    } finally {
+      if (!released) await barrier.query("ROLLBACK");
+      barrier.release();
+    }
   }, 120_000);
 });
