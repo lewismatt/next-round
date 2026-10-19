@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { Routes, Route, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@next-round/ui";

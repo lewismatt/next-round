@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Derived from shadcn/ui; see third_party/shadcn-LICENSE.txt.
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";

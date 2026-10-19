@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import { JsonSchema, type Json } from "./manifest.js";
 

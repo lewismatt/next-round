@@ -2,6 +2,16 @@
 
 Next Round's project-owned code is licensed under Apache-2.0. Third-party software retains its own terms. This inventory records published package metadata and preserves upstream attribution files; it is not a legal certification or a statement that all dependencies are permissively licensed.
 
+## Copied shadcn source
+
+`packages/ui/src/components/button.tsx`, `packages/ui/src/lib/utils.ts` and
+`packages/ui/src/styles/globals.css` derive from shadcn/ui and the selected
+preset. They retain MIT SPDX identifiers and upstream attribution, separately
+from Apache-2.0 project-owned code. The full upstream license and copyright
+notice are preserved in [third_party/shadcn-LICENSE.txt](third_party/shadcn-LICENSE.txt).
+Source: [shadcn/ui LICENSE.md](https://github.com/shadcn-ui/ui/blob/main/LICENSE.md)
+(license blob SHA `fad4d887a681dd49233e5ed01ee2c7a1513089a0`; fetched from upstream main).
+
 ## Locked npm packages
 
 [`third_party/npm-inventory.json`](third_party/npm-inventory.json) is the inventory of every package entry in every document of `pnpm-lock.yaml`. It includes runtime and development dependencies, peer-resolution snapshots, optional dependencies, and packages for operating systems, CPUs and C libraries other than the build host's. The package-manager dependency graph is included. Workspace links refer to project-owned packages and are retained in the graph rather than presented as third-party registry packages.

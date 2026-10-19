@@ -6,6 +6,24 @@ Next Round is an open-source, self-hosted turn-based games platform licensed und
 
 All contributions are submitted under the terms of the Apache-2.0 license. By submitting a pull request, you certify that you have the right to submit the work and agree to license it under Apache-2.0.
 
+Start new project-owned TypeScript/JavaScript files (including tests, declarations
+and configuration) with `// SPDX-License-Identifier: Apache-2.0`; use
+`/* SPDX-License-Identifier: Apache-2.0 */` for CSS. Keep a script's shebang
+first. Run `pnpm check:spdx` after staging new files; CI checks tracked sources.
+The check covers TS/TSX/JS/JSX/MJS/CJS/CSS, excluding preserved third-party materials.
+
+Copied third-party sources retain their original licenses and attribution.
+The existing shadcn component, utility and preset stylesheet use MIT headers;
+their license is preserved in `third_party/shadcn-LICENSE.txt`. Review and
+document provenance before extending the check's explicit upstream file list.
+Do not add Apache headers to upstream code or puzzle content by default.
+
+Use syntax-appropriate SPDX comments for other new project source formats.
+Existing reviewed SQL migrations are immutable and checksum-verified: do not
+rewrite them just to add a header. JSON, lockfiles and generated output are
+outside the source-header check; their applicable license still follows
+project ownership or the preserved upstream terms.
+
 ## Architectural Boundaries
 
 1. **Platform owns infrastructure**:

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import pg from "pg";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema.js";

@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
+      - name: Verify source license headers
+        run: pnpm check:spdx
+
       - name: Build packages and applications
         run: pnpm build
 
