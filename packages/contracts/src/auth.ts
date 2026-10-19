@@ -1,13 +1,235 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Type, type Static, type TSchema } from "@sinclair/typebox";
+import { Kind, TypeRegistry, Type, type Static, type TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { ApiError, ERROR_CODES } from "./errors.js";
 import type { Json } from "./manifest.js";
 
+if (!TypeRegistry.Has("OneOf")) {
+  TypeRegistry.Set("OneOf", (schema: unknown, value: unknown) => {
+    const s = schema as { oneOf: TSchema[] };
+    let count = 0;
+    for (const sub of s.oneOf) {
+      if (Value.Check(sub, value)) {
+        count++;
+        if (count > 1) return false;
+      }
+    }
+    return count === 1;
+  });
+}
+const SUPPORTED_PRIMITIVE_TYPES: Record<string, true> = {
+  null: true,
+  boolean: true,
+  integer: true,
+  number: true,
+  string: true,
+  array: true,
+  object: true,
+};
 
+const METADATA_KEYS: Record<string, true> = {
+  $schema: true,
+  $id: true,
+  title: true,
+  description: true,
+  default: true,
+  examples: true,
+};
+
+const ALL_SUPPORTED_SCHEMA_KEYS: Record<string, true> = {
+  $schema: true,
+  $id: true,
+  title: true,
+  description: true,
+  default: true,
+  examples: true,
+  const: true,
+  enum: true,
+  oneOf: true,
+  anyOf: true,
+  allOf: true,
+  type: true,
+  properties: true,
+  required: true,
+  additionalProperties: true,
+  minProperties: true,
+  maxProperties: true,
+  items: true,
+  minItems: true,
+  maxItems: true,
+  uniqueItems: true,
+  minimum: true,
+  maximum: true,
+  exclusiveMinimum: true,
+  exclusiveMaximum: true,
+  multipleOf: true,
+  minLength: true,
+  maxLength: true,
+  pattern: true,
+  format: true,
+};
 const compiledGameSchemas = new WeakMap<object, TSchema>();
 
-function compileJsonSchema(input: unknown): TSchema {
+function compileType(schema: Record<string, unknown>, type: string): TSchema {
+  switch (type) {
+    case "null":
+      return Type.Null();
+    case "boolean":
+      return Type.Boolean();
+    case "integer": {
+      if ("minimum" in schema && typeof schema.minimum !== "number") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minimum is invalid.");
+      }
+      if ("maximum" in schema && typeof schema.maximum !== "number") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maximum is invalid.");
+      }
+      if ("exclusiveMinimum" in schema && typeof schema.exclusiveMinimum !== "number") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema exclusiveMinimum is invalid.");
+      }
+      if ("exclusiveMaximum" in schema && typeof schema.exclusiveMaximum !== "number") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema exclusiveMaximum is invalid.");
+      }
+      if ("multipleOf" in schema && (typeof schema.multipleOf !== "number" || schema.multipleOf <= 0)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema multipleOf is invalid.");
+      }
+      return Type.Integer({
+        ...(typeof schema.minimum === "number" ? { minimum: schema.minimum } : {}),
+        ...(typeof schema.maximum === "number" ? { maximum: schema.maximum } : {}),
+        ...(typeof schema.exclusiveMinimum === "number" ? { exclusiveMinimum: schema.exclusiveMinimum } : {}),
+        ...(typeof schema.exclusiveMaximum === "number" ? { exclusiveMaximum: schema.exclusiveMaximum } : {}),
+        ...(typeof schema.multipleOf === "number" ? { multipleOf: schema.multipleOf } : {}),
+      });
+    }
+    case "number": {
+      if ("minimum" in schema && typeof schema.minimum !== "number") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minimum is invalid.");
+      }
+      if ("maximum" in schema && typeof schema.maximum !== "number") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maximum is invalid.");
+      }
+      if ("exclusiveMinimum" in schema && typeof schema.exclusiveMinimum !== "number") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema exclusiveMinimum is invalid.");
+      }
+      if ("exclusiveMaximum" in schema && typeof schema.exclusiveMaximum !== "number") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema exclusiveMaximum is invalid.");
+      }
+      if ("multipleOf" in schema && (typeof schema.multipleOf !== "number" || schema.multipleOf <= 0)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema multipleOf is invalid.");
+      }
+      return Type.Number({
+        ...(typeof schema.minimum === "number" ? { minimum: schema.minimum } : {}),
+        ...(typeof schema.maximum === "number" ? { maximum: schema.maximum } : {}),
+        ...(typeof schema.exclusiveMinimum === "number" ? { exclusiveMinimum: schema.exclusiveMinimum } : {}),
+        ...(typeof schema.exclusiveMaximum === "number" ? { exclusiveMaximum: schema.exclusiveMaximum } : {}),
+        ...(typeof schema.multipleOf === "number" ? { multipleOf: schema.multipleOf } : {}),
+      });
+    }
+    case "string": {
+      if ("minLength" in schema && (typeof schema.minLength !== "number" || schema.minLength < 0)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minLength is invalid.");
+      }
+      if ("maxLength" in schema && (typeof schema.maxLength !== "number" || schema.maxLength < 0)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maxLength is invalid.");
+      }
+      if ("pattern" in schema && typeof schema.pattern !== "string") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema pattern is invalid.");
+      }
+      if ("format" in schema && typeof schema.format !== "string") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema format is invalid.");
+      }
+      return Type.String({
+        ...(typeof schema.minLength === "number" ? { minLength: schema.minLength } : {}),
+        ...(typeof schema.maxLength === "number" ? { maxLength: schema.maxLength } : {}),
+        ...(typeof schema.pattern === "string" ? { pattern: schema.pattern } : {}),
+        ...(typeof schema.format === "string" ? { format: schema.format } : {}),
+      });
+    }
+    case "array": {
+      if ("minItems" in schema && (typeof schema.minItems !== "number" || schema.minItems < 0)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minItems is invalid.");
+      }
+      if ("maxItems" in schema && (typeof schema.maxItems !== "number" || schema.maxItems < 0)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maxItems is invalid.");
+      }
+      if ("uniqueItems" in schema && typeof schema.uniqueItems !== "boolean") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema uniqueItems is invalid.");
+      }
+      const arrayOptions = {
+        ...(typeof schema.minItems === "number" ? { minItems: schema.minItems } : {}),
+        ...(typeof schema.maxItems === "number" ? { maxItems: schema.maxItems } : {}),
+        ...(typeof schema.uniqueItems === "boolean" ? { uniqueItems: schema.uniqueItems } : {}),
+      };
+      if (Array.isArray(schema.items)) {
+        return Type.Tuple(schema.items.map((item) => compileJsonSchema(item)), arrayOptions);
+      }
+      if ("items" in schema && schema.items !== undefined && typeof schema.items !== "object" && typeof schema.items !== "boolean") {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema items is invalid.");
+      }
+      return Type.Array(compileJsonSchema(schema.items ?? {}), arrayOptions);
+    }
+    case "object": {
+      if ("properties" in schema && (typeof schema.properties !== "object" || schema.properties === null || Array.isArray(schema.properties))) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema properties is invalid.");
+      }
+      if ("required" in schema) {
+        if (!Array.isArray(schema.required) || schema.required.some((name) => typeof name !== "string")) {
+          throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema required is invalid.");
+        }
+      }
+      if ("minProperties" in schema && (typeof schema.minProperties !== "number" || schema.minProperties < 0)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema minProperties is invalid.");
+      }
+      if ("maxProperties" in schema && (typeof schema.maxProperties !== "number" || schema.maxProperties < 0)) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema maxProperties is invalid.");
+      }
+
+      const rawProperties =
+        typeof schema.properties === "object" &&
+        schema.properties !== null &&
+        !Array.isArray(schema.properties)
+          ? (schema.properties as Record<string, unknown>)
+          : {};
+      const required = new Set(
+        Array.isArray(schema.required)
+          ? schema.required.filter((name): name is string => typeof name === "string")
+          : [],
+      );
+
+      const properties: Record<string, TSchema> = {};
+      for (const [name, propertySchema] of Object.entries(rawProperties)) {
+        const property = compileJsonSchema(propertySchema);
+        properties[name] = required.has(name) ? property : Type.Optional(property);
+      }
+      for (const name of required) {
+        if (!(name in properties)) {
+          properties[name] = Type.Unknown();
+        }
+      }
+
+      let additionalProperties: boolean | TSchema | undefined;
+      if (typeof schema.additionalProperties === "boolean") {
+        additionalProperties = schema.additionalProperties;
+      } else if (
+        typeof schema.additionalProperties === "object" &&
+        schema.additionalProperties !== null
+      ) {
+        additionalProperties = compileJsonSchema(schema.additionalProperties);
+      } else if ("additionalProperties" in schema && schema.additionalProperties !== undefined) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema additionalProperties is invalid.");
+      }
+
+      return Type.Object(properties, {
+        ...(additionalProperties !== undefined ? { additionalProperties } : {}),
+        ...(typeof schema.minProperties === "number" ? { minProperties: schema.minProperties } : {}),
+        ...(typeof schema.maxProperties === "number" ? { maxProperties: schema.maxProperties } : {}),
+      });
+    }
+    default:
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
+  }
+}
+
+export function compileJsonSchema(input: unknown): TSchema {
   if (input === true) {
     return Type.Any();
   }
@@ -24,7 +246,15 @@ function compileJsonSchema(input: unknown): TSchema {
   }
 
   const schema = input as Record<string, unknown>;
-  let compiled: TSchema;
+
+  for (const key of Object.keys(schema)) {
+    if (!ALL_SUPPORTED_SCHEMA_KEYS[key]) {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, `Game schema keyword '${key}' is unsupported.`);
+    }
+  }
+
+  const parts: TSchema[] = [];
+
   if ("const" in schema) {
     const value = schema.const;
     if (
@@ -35,122 +265,129 @@ function compileJsonSchema(input: unknown): TSchema {
     ) {
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema const is invalid.");
     }
-    compiled = value === null ? Type.Null() : Type.Literal(value);
-  } else if (Array.isArray(schema.enum)) {
-    const values = schema.enum;
-    compiled = values.length === 0
-      ? Type.Never()
-      : Type.Union(values.map((value) => {
-        if (
-          value !== null &&
-          typeof value !== "string" &&
-          typeof value !== "number" &&
-          typeof value !== "boolean"
-        ) {
-          throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema enum is invalid.");
-        }
-        return value === null ? Type.Null() : Type.Literal(value);
-      }));
-  } else if (Array.isArray(schema.anyOf) || Array.isArray(schema.oneOf)) {
-    const alternatives = (schema.anyOf ?? schema.oneOf) as unknown[];
-    compiled = alternatives.length === 0
-      ? Type.Never()
-      : Type.Union(alternatives.map((alternative) => compileJsonSchema(alternative)));
-  } else if (Array.isArray(schema.allOf)) {
-    const members = schema.allOf.map((member) => compileJsonSchema(member));
-    compiled = members.length === 0 ? Type.Any() : Type.Intersect(members);
-  } else if (Array.isArray(schema.type)) {
-    compiled = Type.Union(
-      schema.type.map((type) => compileJsonSchema({ ...schema, type })),
-    );
-  } else {
-    switch (schema.type) {
-      case "null":
-        compiled = Type.Null();
-        break;
-      case "boolean":
-        compiled = Type.Boolean();
-        break;
-      case "integer":
-        compiled = Type.Integer({
-          ...(typeof schema.minimum === "number" ? { minimum: schema.minimum } : {}),
-          ...(typeof schema.maximum === "number" ? { maximum: schema.maximum } : {}),
-          ...(typeof schema.exclusiveMinimum === "number"
-            ? { exclusiveMinimum: schema.exclusiveMinimum }
-            : {}),
-          ...(typeof schema.exclusiveMaximum === "number"
-            ? { exclusiveMaximum: schema.exclusiveMaximum }
-            : {}),
-          ...(typeof schema.multipleOf === "number" ? { multipleOf: schema.multipleOf } : {}),
-        });
-        break;
-      case "number":
-        compiled = Type.Number({
-          ...(typeof schema.minimum === "number" ? { minimum: schema.minimum } : {}),
-          ...(typeof schema.maximum === "number" ? { maximum: schema.maximum } : {}),
-          ...(typeof schema.exclusiveMinimum === "number"
-            ? { exclusiveMinimum: schema.exclusiveMinimum }
-            : {}),
-          ...(typeof schema.exclusiveMaximum === "number"
-            ? { exclusiveMaximum: schema.exclusiveMaximum }
-            : {}),
-          ...(typeof schema.multipleOf === "number" ? { multipleOf: schema.multipleOf } : {}),
-        });
-        break;
-      case "string":
-        compiled = Type.String({
-          ...(typeof schema.minLength === "number" ? { minLength: schema.minLength } : {}),
-          ...(typeof schema.maxLength === "number" ? { maxLength: schema.maxLength } : {}),
-          ...(typeof schema.pattern === "string" ? { pattern: schema.pattern } : {}),
-        });
-        break;
-      case "array":
-        compiled = Type.Array(compileJsonSchema(schema.items ?? {}), {
-          ...(typeof schema.minItems === "number" ? { minItems: schema.minItems } : {}),
-          ...(typeof schema.maxItems === "number" ? { maxItems: schema.maxItems } : {}),
-          ...(typeof schema.uniqueItems === "boolean" ? { uniqueItems: schema.uniqueItems } : {}),
-        });
-        break;
-      case "object": {
-        const rawProperties =
-          typeof schema.properties === "object" &&
-          schema.properties !== null &&
-          !Array.isArray(schema.properties)
-            ? schema.properties as Record<string, unknown>
-            : {};
-        const required = new Set(
-          Array.isArray(schema.required)
-            ? schema.required.filter((name): name is string => typeof name === "string")
-            : [],
-        );
-        const properties: Record<string, TSchema> = {};
-        for (const [name, propertySchema] of Object.entries(rawProperties)) {
-          const property = compileJsonSchema(propertySchema);
-          properties[name] = required.has(name) ? property : Type.Optional(property);
-        }
-        let additionalProperties: boolean | TSchema | undefined;
-        if (typeof schema.additionalProperties === "boolean") {
-          additionalProperties = schema.additionalProperties;
-        } else if (
-          typeof schema.additionalProperties === "object" &&
-          schema.additionalProperties !== null
-        ) {
-          additionalProperties = compileJsonSchema(schema.additionalProperties);
-        }
-        compiled = Type.Object(properties, {
-          ...(additionalProperties !== undefined ? { additionalProperties } : {}),
-          ...(typeof schema.minProperties === "number"
-            ? { minProperties: schema.minProperties }
-            : {}),
-          ...(typeof schema.maxProperties === "number"
-            ? { maxProperties: schema.maxProperties }
-            : {}),
-        });
-        break;
-      }
-      default:
-        compiled = Type.Any();
+    parts.push(value === null ? Type.Null() : Type.Literal(value));
+  }
+
+  if ("enum" in schema) {
+    if (!Array.isArray(schema.enum)) {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema enum is invalid.");
     }
+    const values = schema.enum;
+    if (values.length === 0) {
+      parts.push(Type.Never());
+    } else {
+      parts.push(
+        Type.Union(
+          values.map((value) => {
+            if (
+              value !== null &&
+              typeof value !== "string" &&
+              typeof value !== "number" &&
+              typeof value !== "boolean"
+            ) {
+              throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema enum is invalid.");
+            }
+            return value === null ? Type.Null() : Type.Literal(value);
+          }),
+        ),
+      );
+    }
+  }
+
+  if ("allOf" in schema) {
+    if (!Array.isArray(schema.allOf)) {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema allOf is invalid.");
+    }
+    const members = schema.allOf.map((member) => compileJsonSchema(member));
+    parts.push(members.length === 0 ? Type.Any() : Type.Intersect(members));
+  }
+
+  if ("anyOf" in schema) {
+    if (!Array.isArray(schema.anyOf)) {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema anyOf is invalid.");
+    }
+    const alternatives = schema.anyOf;
+    parts.push(
+      alternatives.length === 0
+        ? Type.Never()
+        : Type.Union(alternatives.map((alt) => compileJsonSchema(alt))),
+    );
+  }
+
+  if ("oneOf" in schema) {
+    if (!Array.isArray(schema.oneOf)) {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema oneOf is invalid.");
+    }
+    const alternatives = schema.oneOf;
+    parts.push(
+      alternatives.length === 0
+        ? Type.Never()
+        : Type.Unsafe({ [Kind]: "OneOf", oneOf: alternatives.map((alt) => compileJsonSchema(alt)) }),
+    );
+  }
+
+  if ("type" in schema) {
+    if (Array.isArray(schema.type)) {
+      if (schema.type.length === 0) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
+      }
+      for (const t of schema.type) {
+        if (typeof t !== "string" || !SUPPORTED_PRIMITIVE_TYPES[t]) {
+          throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
+        }
+      }
+      parts.push(
+        Type.Union(schema.type.map((type) => compileType(schema, type))),
+      );
+    } else if (typeof schema.type === "string") {
+      if (!SUPPORTED_PRIMITIVE_TYPES[schema.type]) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema type is unsupported or invalid.");
+      }
+      parts.push(compileType(schema, schema.type));
+    }
+  } else if (
+    "properties" in schema ||
+    "required" in schema ||
+    "additionalProperties" in schema ||
+    "minProperties" in schema ||
+    "maxProperties" in schema
+  ) {
+    parts.push(compileType(schema, "object"));
+  } else if (
+    "items" in schema ||
+    "minItems" in schema ||
+    "maxItems" in schema ||
+    "uniqueItems" in schema
+  ) {
+    parts.push(compileType(schema, "array"));
+  } else if (
+    "minimum" in schema ||
+    "maximum" in schema ||
+    "exclusiveMinimum" in schema ||
+    "exclusiveMaximum" in schema ||
+    "multipleOf" in schema
+  ) {
+    parts.push(compileType(schema, "number"));
+  } else if (
+    "minLength" in schema ||
+    "maxLength" in schema ||
+    "pattern" in schema ||
+    "format" in schema
+  ) {
+    parts.push(compileType(schema, "string"));
+  }
+
+  let compiled: TSchema;
+  if (parts.length === 0) {
+    if (Object.keys(schema).every((k) => METADATA_KEYS[k])) {
+      compiled = Type.Any();
+    } else {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Game schema is unsupported or invalid.");
+    }
+  } else if (parts.length === 1) {
+    compiled = parts[0];
+  } else {
+    compiled = Type.Intersect(parts);
   }
 
   compiledGameSchemas.set(input, compiled);
