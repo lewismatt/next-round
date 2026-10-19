@@ -57,11 +57,16 @@ Standalone `validateGameManifest(input)` checks structure and cross-field rules;
 pass a platform version as its second argument to also enforce compatibility.
 
 Every `(id, version)` may be registered only once, including identical repeated
-registrations. Duplicate or incompatible registrations throw before changing
-installed entries or the default version. Publish changed code/assets under a new
-version; new versions coexist and `isDefault` selects the default on installation.
-These registry checks do not establish asset-hash, retained-history, or complete
-startup-readiness acceptance; those remain separate platform integration work.
+registrations. Registration checks every declared client entry and CSS file
+inside the supplied asset root before changing the registry. Duplicate,
+incompatible, or incomplete registrations cannot appear in `GET /api/v1/games`,
+`GET /api/v1/games/:gameId`, or the immutable
+`/games/{id}/{version}/{asset}` routes. New versions coexist, and `isDefault`
+selects the default on installation.
+
+The API boundary validates settings and action payloads against the selected
+manifest schema. Unknown fields are rejected when the schema sets
+`additionalProperties: false`, before match or reducer code runs.
 
 ### HTTP/WS game harness
 

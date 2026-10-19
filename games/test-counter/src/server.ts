@@ -48,6 +48,17 @@ export type CounterView = {
   [key: string]: Json;
 };
 
+const SERVER_FIXTURE_SECRET = "next-round-test-counter-server-fixture-secret-v1";
+
+function privateMarker(memberId: string): string {
+  let hash = 2166136261;
+  const input = `${SERVER_FIXTURE_SECRET}:${memberId}`;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `P-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
 
 function computeDeadline(nowIso: string, seconds: number | null, generation: number) {
   if (seconds === null || seconds <= 0) return [];
@@ -188,7 +199,7 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
       if (!rejoin && scores[memberId] === undefined) {
         scores[memberId] = 0;
         notes[memberId] = "";
-        markers[memberId] = `P${turnOrder.length}`;
+        markers[memberId] = privateMarker(memberId);
       }
 
       const currentActorMemberId =
