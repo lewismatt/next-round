@@ -1,31 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Routes, Route, Link } from "react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@next-round/ui";
 
-function usePlatformStatus() {
-  return useQuery({
-    queryKey: ["platform-status"],
-    queryFn: () => ({ status: "ready", version: "0.1.0" }),
-  });
-}
-
 function HomePage() {
-  const { data } = usePlatformStatus();
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-4">
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center gap-4">
       <h1 className="text-4xl font-bold font-heading tracking-tight">Next Round</h1>
       <p className="text-muted-foreground text-sm font-mono max-w-md">
-        Turn-based web game platform with deterministic rules, verifiable history, and local authoring.
+        A place to play turn-based games together.
       </p>
-      {data && (
-        <span className="inline-flex items-center rounded-md bg-secondary px-2.5 py-0.5 text-xs font-mono text-secondary-foreground">
-          Platform: {data.status} (v{data.version})
-        </span>
-      )}
+      <p className="text-muted-foreground text-sm max-w-md">
+        Development preview. Sign-in and games are not available yet.
+      </p>
       <div className="flex gap-3 pt-2">
-        <Button variant="default">Get Started</Button>
         <Button variant="outline" asChild>
           <Link to="/about">About</Link>
         </Button>
@@ -36,10 +23,12 @@ function HomePage() {
 
 function AboutPage() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-4">
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center gap-4">
       <h1 className="text-3xl font-bold font-heading">About Next Round</h1>
       <p className="text-muted-foreground text-sm max-w-md">
-        Modular platform foundation built with React 19, Vite 8, Tailwind v4, and Radix UI.
+        Next Round is a self-hosted platform for turn-based games. This early
+        preview includes these information pages; accounts and playable games
+        are still in development.
       </p>
       <Button variant="outline" asChild>
         <Link to="/">Back to Home</Link>
