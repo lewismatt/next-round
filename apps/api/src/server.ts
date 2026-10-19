@@ -97,7 +97,10 @@ export async function buildServer(
         .status(rateLimitError.statusCode)
         .send(rateLimitError.toResponse(request.id));
     }
-    request.log.error({ err: error }, "Unhandled API request error");
+    // Driver error details and reducer messages can contain private input/state.
+    // The request logger already supplies the correlation ID; never serialize
+    // arbitrary errors (including their message, stack, detail or cause).
+    request.log.error({ code: ERROR_CODES.INTERNAL_ERROR }, "Unhandled API request error");
     const apiError = new ApiError(ERROR_CODES.INTERNAL_ERROR, "An internal error occurred.");
     return reply.status(apiError.statusCode).send(apiError.toResponse(request.id));
   });

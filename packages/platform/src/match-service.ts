@@ -322,6 +322,9 @@ export class MatchService {
     principalId: string,
     input: MatchActionInput,
   ): Promise<CommandReceipt> {
+    // PostgreSQL UUIDs are case-insensitive and returned in lowercase. Use the
+    // same representation for receipt comparisons and response identities.
+    matchId = matchId.toLowerCase();
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");

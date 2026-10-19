@@ -590,6 +590,18 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     expectNoPrivateValues(replay.body);
     expect(await persisted()).toEqual(committed);
 
+    for (const requestMatchId of [matchId, matchId.toUpperCase()]) {
+      const caseReplay = await app.inject({
+        method: "POST",
+        url: `/api/v1/matches/${requestMatchId}/actions`,
+        headers: headers(memberA, true),
+        payload: { ...scoreBody, commandId: commandId.toUpperCase() },
+      });
+      expect(caseReplay.statusCode).toBe(200);
+      expect(caseReplay.json().data).toEqual({ ...receipt, replayed: true });
+      expect(await persisted()).toEqual(committed);
+    }
+
     const conflict = await app.inject({
       method: "POST",
       url: `/api/v1/matches/${matchId}/actions`,

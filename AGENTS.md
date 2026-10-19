@@ -18,6 +18,7 @@ Every session MUST execute this 4-step loop:
    - Verify local git branch, commit HEAD, and remote repository status (`lewismatt/next-round`). Never rely solely on chat memory or historical summaries.
 
 2. **Pick and claim the next logical chunk:**
+   - Honor the user's requested scope. For a review or maintenance request, claim a bounded review/maintenance chunk instead of starting a queued feature.
    - Take the earliest `Ready` dependency-satisfied chunk in the queue.
    - **BEFORE EDITING CODE**, update Page 08 to claim the chunk: set status to `In progress`, record agent ID, UTC claimed-at timestamp, working branch, and intended deliverable.
    - Re-fetch Page 08 to ensure no conflicting claims exist.
@@ -35,6 +36,7 @@ Every session MUST execute this 4-step loop:
    - Update Page 08 before concluding the turn/session.
    - Record exact exit evidence (commands run, tested commit SHA, database versions, pass/fail results).
    - If acceptance criteria are met and integrated, set chunk to `Done` and promote eligible dependent chunks to `Ready`. If incomplete or blocked, record exact status (`In progress` or `Blocked` with concrete unblock conditions).
+   - A merged acceptance subset is not a passed acceptance row. Retain unchecked sentences and missing prerequisite services explicitly; use `Review` for a ready change awaiting integration.
    - Append a structured session handoff entry using the template in Page 08.
 
 ## Inviolable Architectural Invariants
