@@ -138,7 +138,7 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (fastify,
       authService.verifyCsrf(session, rawCsrfToken);
     } catch (error) {
       if (!(error instanceof ApiError) || error.code !== ERROR_CODES.FORBIDDEN) throw error;
-      rawCsrfToken = await authService.rotateCsrf(session.id);
+      rawCsrfToken = await authService.rotateCsrf(session);
     }
     const rawSessionToken =
       request.cookies[SESSION_COOKIE_NAME] ?? request.cookies[SESSION_DEV_COOKIE_NAME];
@@ -162,7 +162,7 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (fastify,
     requireJsonMutation(request, origin);
     parseRequestBody(LogoutRequestSchema, request.body);
     const session = await requireSession(request, authService, true);
-    await authService.logout(session.id);
+    await authService.logout(session);
     clearAuthCookies(reply, origin);
     return reply.status(204).send();
   });

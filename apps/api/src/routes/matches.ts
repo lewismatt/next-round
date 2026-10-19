@@ -56,7 +56,7 @@ export const matchRoutes: FastifyPluginAsync<MatchRoutesOptions> = async (
     const payload = validatedAction.payload as Json;
     const receipt = await options.matchService.act(
       matchIdFrom(request.params),
-      session.principal.id,
+      session,
       {
         commandId: validatedAction.commandId,
         expectedRevision: validatedAction.expectedRevision,

@@ -2,6 +2,7 @@
 import { ApiError, ERROR_CODES } from "@next-round/contracts";
 import type { Permissions, PolicyV1, PrincipalView } from "@next-round/contracts";
 import type { DatabasePool } from "@next-round/db";
+import { lockPrincipals, recheckSession } from "./transaction-authority.js";
 import {
   generateCsrfToken,
   generateOpaqueSessionToken,
@@ -346,6 +347,8 @@ export class AuthService {
                 idle_expires_at = LEAST(now() + interval '7 days', absolute_expires_at)
           WHERE id = $1
             AND revoked_at IS NULL
+            AND idle_expires_at > clock_timestamp()
+            AND absolute_expires_at > clock_timestamp()
             AND last_seen_at <= now() - interval '5 minutes'
           RETURNING idle_expires_at`,
         [row.session_id],
@@ -369,20 +372,64 @@ export class AuthService {
     }
   }
 
-  async rotateCsrf(sessionId: string): Promise<string> {
+  async rotateCsrf(session: AuthenticatedSession): Promise<string> {
     const { rawToken, csrfHash } = generateCsrfToken();
-    await this.pool.query(
-      "UPDATE next_round.sessions SET csrf_hash = $1 WHERE id = $2 AND revoked_at IS NULL",
-      [csrfHash, sessionId],
-    );
-    return rawToken;
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await lockPrincipals(client, [session.principal.id]);
+      await recheckSession(client, session);
+      await client.query("UPDATE next_round.sessions SET csrf_hash = $1 WHERE id = $2", [csrfHash, session.id]);
+      await client.query("COMMIT");
+      return rawToken;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
-  async logout(sessionId: string): Promise<void> {
-    await this.pool.query(
-      "UPDATE next_round.sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL",
-      [sessionId],
-    );
+  async logout(session: AuthenticatedSession): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await lockPrincipals(client, [session.principal.id]);
+      await recheckSession(client, session);
+      await client.query("UPDATE next_round.sessions SET revoked_at = now() WHERE id = $1", [session.id]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async authorizeGame(session: AuthenticatedSession, gameId?: string, version?: string): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await lockPrincipals(client, [session.principal.id]);
+      const current = await recheckSession(client, session);
+      if (current.kind === "guest") {
+        const pinned = await client.query(
+          `SELECT 1 FROM next_round.matches m
+             JOIN next_round.match_members mm ON mm.match_id = m.id
+             JOIN next_round.principals p ON p.id = mm.principal_id
+            WHERE p.id = $1 AND m.id = p.guest_match_id AND mm.status = 'active'
+              AND m.module_id = $2 AND m.module_version = $3`,
+          [session.principal.id, gameId ?? null, version ?? null],
+        );
+        if (pinned.rowCount !== 1) throw new ApiError(ERROR_CODES.FORBIDDEN, "Access is not permitted.");
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async setUserDisabled(actor: AuthenticatedSession, principalId: string, disabled: boolean): Promise<PrincipalView> {
@@ -393,6 +440,11 @@ export class AuthService {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const adminCandidates = await client.query<{ principal_id: string }>(
+        "SELECT principal_id FROM next_round.accounts WHERE role = 'admin'",
+      );
+      await lockPrincipals(client, [actor.principal.id, principalId, ...adminCandidates.rows.map((row) => row.principal_id)]);
+      await recheckSession(client, actor, { registered: true, admin: true });
       const enabledAdmins = await client.query<{ principal_id: string }>(
         `SELECT a.principal_id
            FROM next_round.accounts a

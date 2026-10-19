@@ -6,7 +6,7 @@ import path from "node:path";
 import { createDatabasePool } from "@next-round/db";
 import type { DatabasePool } from "@next-round/db";
 import { migrateDatabase } from "@next-round/db/migrate";
-import { GameRegistry } from "@next-round/platform";
+import { AuthService, GameRegistry, MatchService } from "@next-round/platform";
 import {
   generateCsrfToken,
   generateOpaqueSessionToken,
@@ -70,6 +70,7 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
   let memberA: SessionFixture;
   let memberB: SessionFixture;
   let outsider: SessionFixture;
+  let registry: GameRegistry;
 
   async function seedSession(displayName: string, username: string): Promise<SessionFixture> {
     const principalId = randomUUID();
@@ -140,7 +141,7 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     );
     const manifestModule = await import(manifestUrl.href);
     const serverModule = await import(serverUrl.href);
-    const registry = new GameRegistry();
+    registry = new GameRegistry();
     registry.register(manifestModule.manifest, serverModule.server, {
       clientRoot: staticRoot,
     });
@@ -257,6 +258,146 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     }
     await rm(staticRoot, { recursive: true, force: true });
   }, 60_000);
+
+  async function authenticated(fixture: SessionFixture) {
+    return new AuthService(databasePool, undefined).authenticate(fixture.cookie.split("=", 2)[1]);
+  }
+
+  async function waitForLock(fragment: string): Promise<void> {
+    const until = Date.now() + 10_000;
+    while (Date.now() < until) {
+      const result = await databasePool.query(
+        `SELECT 1 FROM pg_stat_activity WHERE datname = current_database()
+          AND pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query LIKE $1`,
+        [`%${fragment}%`],
+      );
+      if (result.rowCount) return;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    throw new Error(`Expected database lock wait: ${fragment}`);
+  }
+
+  it.each(["disable", "reset", "expiry", "logout"])(
+    "rejects a preauthenticated action after %s wins the principal lock",
+    async (change) => {
+      const session = await authenticated(memberA);
+      const service = new MatchService(databasePool, registry);
+      const barrier = await databasePool.connect();
+      let pending: Promise<unknown> | undefined;
+      try {
+        await barrier.query("BEGIN");
+        await barrier.query("SELECT id FROM next_round.principals WHERE id = $1 FOR UPDATE", [memberA.principalId]);
+        if (change === "disable") {
+          await barrier.query("UPDATE next_round.principals SET disabled_at = now() WHERE id = $1", [memberA.principalId]);
+        } else if (change === "reset") {
+          await barrier.query("UPDATE next_round.principals SET auth_epoch = auth_epoch + 1 WHERE id = $1", [memberA.principalId]);
+        } else {
+          await barrier.query(
+            change === "expiry"
+              ? "UPDATE next_round.sessions SET idle_expires_at = now() - interval '1 second' WHERE id = $1"
+              : "UPDATE next_round.sessions SET revoked_at = now() WHERE id = $1",
+            [session.id],
+          );
+        }
+        // Attach rejection handling before releasing the transaction barrier.
+        pending = service.act(matchId, session, {
+          commandId: randomUUID(), expectedRevision: 3, type: "add", payload: { amount: 1 },
+        }).then(() => "unexpected acceptance", (error: unknown) => error);
+        await waitForLock("ORDER BY id FOR UPDATE");
+        await barrier.query("COMMIT");
+        expect(await pending).toMatchObject({ code: change === "disable" ? "ACCOUNT_DISABLED" : "SESSION_EXPIRED" });
+        await expect(new AuthService(databasePool, undefined).rotateCsrf(session))
+          .rejects.toMatchObject({ code: change === "disable" ? "ACCOUNT_DISABLED" : "SESSION_EXPIRED" });
+        const stored = await databasePool.query("SELECT revision::integer AS revision FROM next_round.matches WHERE id = $1", [matchId]);
+        expect(stored.rows[0].revision).toBe(3);
+        const receipts = await databasePool.query("SELECT 1 FROM next_round.command_receipts");
+        expect(receipts.rowCount).toBe(0);
+        const response = await app.inject({ url: `/api/v1/matches/${matchId}`, headers: headers(memberA) });
+        expect(response.statusCode).toBeGreaterThanOrEqual(400);
+      } finally {
+        await barrier.query("ROLLBACK");
+        barrier.release();
+        await pending;
+      }
+    }, 120_000,
+  );
+
+  it.each(["disable", "reset"])("lets an action that owns the principal lock finish before %s", async (change) => {
+    await databasePool.query("UPDATE next_round.accounts SET role = 'admin' WHERE principal_id = $1", [memberB.principalId]);
+    const auth = new AuthService(databasePool, undefined);
+    const session = await authenticated(memberA);
+    const admin = await authenticated(memberB);
+    const barrier = await databasePool.connect();
+    const commandId = randomUUID();
+    let action: Promise<unknown> | undefined;
+    let disable: Promise<unknown> | undefined;
+    try {
+      await barrier.query("BEGIN");
+      await barrier.query("SELECT id FROM next_round.matches WHERE id = $1 FOR UPDATE", [matchId]);
+      action = new MatchService(databasePool, registry).act(matchId, session, {
+        commandId, expectedRevision: 3, type: "add", payload: { amount: 1 },
+      }).then((value) => value, (error: unknown) => error);
+      await waitForLock("FOR UPDATE OF m, viewer");
+      // Reset routes are a later H1 deliverable. Exercise the required auth-epoch
+      // writer protocol on a real connection, without claiming a reset endpoint.
+      const reset = async () => {
+        const client = await databasePool.connect();
+        try {
+          await client.query("BEGIN");
+          await client.query("SELECT id FROM next_round.principals WHERE id = $1 ORDER BY id FOR UPDATE", [memberA.principalId]);
+          await client.query("UPDATE next_round.principals SET auth_epoch = auth_epoch + 1 WHERE id = $1", [memberA.principalId]);
+          await client.query("COMMIT");
+          return { id: memberA.principalId };
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        } finally {
+          client.release();
+        }
+      };
+      disable = (change === "disable" ? auth.setUserDisabled(admin, memberA.principalId, true) : reset())
+        .then((value) => value, (error: unknown) => error);
+      await waitForLock("ORDER BY id FOR UPDATE");
+      await barrier.query("COMMIT");
+      expect(await action).toMatchObject({ committedRevision: 4 });
+      expect(await disable).toMatchObject({ id: memberA.principalId });
+      await expect(new MatchService(databasePool, registry).act(matchId, session, {
+        commandId, expectedRevision: 3, type: "add", payload: { amount: 1 },
+      })).rejects.toMatchObject({ code: "SESSION_EXPIRED" });
+    } finally {
+      await barrier.query("ROLLBACK");
+      barrier.release();
+      await Promise.allSettled([action, disable]);
+    }
+  }, 120_000);
+
+  it("rechecks administrator permission rather than trusting a preauthenticated session", async () => {
+    await databasePool.query("UPDATE next_round.accounts SET role = 'admin' WHERE principal_id = $1", [memberB.principalId]);
+    const admin = await authenticated(memberB);
+    await databasePool.query("UPDATE next_round.accounts SET role = 'member' WHERE principal_id = $1", [memberB.principalId]);
+    await expect(new AuthService(databasePool, undefined).setUserDisabled(admin, memberA.principalId, true))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("requires registration for catalog/schema routes and confines guests to their pinned manifest", async () => {
+    expect((await app.inject("/api/v1/games")).statusCode).toBe(401);
+    expect((await app.inject({ url: "/api/v1/games", headers: headers(memberA) })).statusCode).toBe(200);
+    // Convert the fixture identity without changing its session or membership.
+    await databasePool.query("DELETE FROM next_round.accounts WHERE principal_id = $1", [memberA.principalId]);
+    await databasePool.query("UPDATE next_round.principals SET kind = 'guest', guest_match_id = $2 WHERE id = $1", [memberA.principalId, matchId]);
+    for (const url of ["/api/v1/games", "/api/v1/games/test-counter", "/api/v1/games/test-counter?version=0.2.0", "/api/v1/games/another-game?version=0.1.0"]) {
+      expect((await app.inject({ url, headers: headers(memberA) })).statusCode).toBe(403);
+    }
+    const pinned = await app.inject({ url: "/api/v1/games/test-counter?version=0.1.0", headers: headers(memberA) });
+    expect(pinned.statusCode).toBe(200);
+    expect(pinned.headers["cache-control"]).toBe("no-store");
+    for (const route of ["settings", "actions"]) {
+      const response = await app.inject({ method: "POST", url: `/api/v1/games/test-counter/${route}`, headers: headers(memberA, true), payload: {} });
+      expect(response.statusCode).toBe(403);
+    }
+    await databasePool.query("UPDATE next_round.match_members SET status = 'left', departed_at = now() WHERE id = $1", [memberAId]);
+    expect((await app.inject({ url: "/api/v1/games/test-counter?version=0.1.0", headers: headers(memberA) })).statusCode).toBe(403);
+  });
 
   it("serves private reducer views, denies outsiders and raw state, and projects finished results", async () => {
     const snapshotA = await app.inject({
@@ -689,7 +830,8 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
               AND pid <> $1
               AND state = 'active'
               AND wait_event_type = 'Lock'
-              AND query LIKE '%FOR UPDATE OF m, viewer%'`,
+              AND (query LIKE '%FOR UPDATE OF m, viewer%'
+                OR query LIKE '%ORDER BY id FOR UPDATE%')`,
           [barrierPid.rows[0].pid],
         );
         waiting = observed.rows[0].waiting;

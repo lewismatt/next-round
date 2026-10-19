@@ -178,6 +178,8 @@ export async function buildServer(
   await app.register(gameManifestRoutes, {
     prefix: "/api/v1",
     registry: gameRegistry,
+    authService,
+    origin,
   });
 
   await app.register(authRoutes, {

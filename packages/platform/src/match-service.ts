@@ -12,6 +12,8 @@ import {
 import type { DatabasePool } from "@next-round/db";
 import type { RuleContext } from "@next-round/game-sdk";
 import type { GameRegistry, RegisteredGameVersion } from "./registry.js";
+import type { AuthenticatedSession } from "./auth-service.js";
+import { lockPrincipals, recheckSession } from "./transaction-authority.js";
 
 type MatchPhase = "lobby" | "active" | "finished";
 
@@ -319,15 +321,39 @@ export class MatchService {
 
   async act(
     matchId: string,
-    principalId: string,
+    session: AuthenticatedSession,
     input: MatchActionInput,
   ): Promise<CommandReceipt> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.actOnce(matchId, session, input);
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code !== "40001" && code !== "40P01") throw error;
+        if (attempt === 2) throw new ApiError(ERROR_CODES.SERVICE_UNAVAILABLE, "Please retry this command.");
+        await new Promise((resolve) => setTimeout(resolve, 10 + Math.random() * 30));
+      }
+    }
+  }
+
+  private async actOnce(
+    matchId: string,
+    session: AuthenticatedSession,
+    input: MatchActionInput,
+  ): Promise<CommandReceipt> {
+    const principalId = session.principal.id;
     // PostgreSQL UUIDs are case-insensitive and returned in lowercase. Use the
     // same representation for receipt comparisons and response identities.
     matchId = matchId.toLowerCase();
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const candidates = await client.query<{ principal_id: string }>(
+        "SELECT principal_id FROM next_round.match_members WHERE match_id = $1",
+        [matchId],
+      );
+      const principalIds = [principalId, ...candidates.rows.map((row) => row.principal_id)];
+      await lockPrincipals(client, principalIds);
       const matchResult = await client.query<ActionMatchRow>(
         `SELECT m.id, m.module_id, m.module_version, m.state_version, m.mode, m.phase,
                 m.revision::integer AS revision, m.state, m.settings, m.host_member_id,
@@ -342,7 +368,18 @@ export class MatchService {
         [matchId, principalId],
       );
       const match = matchResult.rows[0];
+      // Session and guest scope must be current even for a receipt replay.
+      await recheckSession(client, session, { matchId });
       if (!match) throw notFound();
+      const currentMembers = await client.query<{ principal_id: string }>(
+        "SELECT principal_id FROM next_round.match_members WHERE match_id = $1",
+        [matchId],
+      );
+      if (currentMembers.rows.some((row) => !principalIds.includes(row.principal_id))) {
+        // A join committed between discovery and the match lock. Restart without
+        // acquiring a new principal out of order while holding the match lock.
+        throw Object.assign(new Error("Retry membership discovery"), { code: "40001" });
+      }
       // An identical retry is already stale against the revision this command committed.
       const requestHash = hashMatchAction(matchId, input);
       const existingReceipt = await client.query<CommandReceiptRow>(
