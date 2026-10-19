@@ -1,24 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import type {
-  CommandReceipt,
-  Deadline,
-  Json,
-  Member,
-  RuleError,
-} from "@next-round/contracts";
-import type {
-  FinalResult,
-  GameEvent,
-  GameServer,
-  RuleContext,
-  Transition,
-} from "@next-round/game-sdk";
-import type {
-  ActInput,
-  GameBridge,
-  GameClient,
-  MatchSnapshot,
-} from "@next-round/game-client";
+import type { CommandReceipt, Json } from "@next-round/contracts";
+import type { MatchSnapshot } from "@next-round/game-client";
+import { HttpSimulatedClient } from "./client.js";
+import { authenticateGuest, authenticateRegistered } from "./sessions.js";
+export { HttpSimulatedClient, HarnessHttpError, HarnessCommandError } from "./client.js";
+export type { HttpClientOptions } from "./client.js";
+
 
 // ============================================================================
 // 1. Clock Control Interface and Implementations (Master Spec §10 F2)
@@ -128,9 +115,7 @@ export type FaultType =
   | "post_commit_failure"
   | "suppress_notify_wakeup"
   | "listener_disconnect"
-  | "network_delay"
-  | "drop_ws_connection"
-  | "worker_job_retry";
+  | "network_delay";
 
 export interface FaultRule {
   id: string;
@@ -152,10 +137,20 @@ export interface FaultInjector {
   clearAllFaults(): void;
   getActiveFaults(): readonly FaultRule[];
   shouldFault(type: FaultType, context?: Record<string, unknown>): boolean;
+  consume(type: FaultType, context?: Record<string, unknown>): FaultRule | undefined;
+}
+
+export interface ServerFaultControls {
+  /** Install a suppression rule in the actual test server; return its cleanup. */
+  suppressNotifyWakeup(channel: string, count: number): () => void;
+  disconnectListener(apiProcessId: string): void;
 }
 
 export class HarnessFaultInjector implements FaultInjector {
   private readonly rules = new Map<string, FaultRule>();
+  private readonly cleanups = new Map<string, () => void>();
+
+  constructor(private readonly serverControls?: ServerFaultControls) {}
 
   injectPostCommitFailure(matchId: string, count: number = 1): string {
     const id = `fault_post_commit_${crypto.randomUUID()}`;
@@ -170,6 +165,10 @@ export class HarnessFaultInjector implements FaultInjector {
   }
 
   suppressNotifyWakeup(channel: string, count: number = 1): string {
+    if (!this.serverControls) {
+      throw new Error("Notify faults require actual test-server fault controls.");
+    }
+    const cleanup = this.serverControls.suppressNotifyWakeup(channel, count);
     const id = `fault_notify_${crypto.randomUUID()}`;
     this.rules.set(id, {
       id,
@@ -178,18 +177,15 @@ export class HarnessFaultInjector implements FaultInjector {
       remainingCount: count,
       active: true,
     });
+    this.cleanups.set(id, cleanup);
     return id;
   }
 
   simulateListenerDisconnect(apiProcessId: string = "default"): void {
-    const id = `fault_disconnect_${crypto.randomUUID()}`;
-    this.rules.set(id, {
-      id,
-      type: "listener_disconnect",
-      apiProcessId,
-      remainingCount: 1,
-      active: true,
-    });
+    if (!this.serverControls) {
+      throw new Error("Listener faults require actual test-server fault controls.");
+    }
+    this.serverControls.disconnectListener(apiProcessId);
   }
 
   delayRoute(route: string, delayMs: number): string {
@@ -205,10 +201,14 @@ export class HarnessFaultInjector implements FaultInjector {
   }
 
   clearFault(id: string): boolean {
+    this.cleanups.get(id)?.();
+    this.cleanups.delete(id);
     return this.rules.delete(id);
   }
 
   clearAllFaults(): void {
+    for (const cleanup of this.cleanups.values()) cleanup();
+    this.cleanups.clear();
     this.rules.clear();
   }
 
@@ -217,17 +217,15 @@ export class HarnessFaultInjector implements FaultInjector {
   }
 
   shouldFault(type: FaultType, context?: Record<string, unknown>): boolean {
-    for (const [id, rule] of this.rules.entries()) {
+    return this.consume(type, context) !== undefined;
+  }
+
+  consume(type: FaultType, context?: Record<string, unknown>): FaultRule | undefined {
+    for (const [id, rule] of this.rules) {
       if (!rule.active || rule.type !== type) continue;
-
-      if (rule.matchId && context?.matchId && rule.matchId !== context.matchId) {
-        continue;
-      }
-
-      if (rule.channel && context?.channel && rule.channel !== context.channel) {
-        continue;
-      }
-
+      if (rule.matchId !== undefined && rule.matchId !== context?.matchId) continue;
+      if (rule.channel !== undefined && rule.channel !== context?.channel) continue;
+      if (rule.apiProcessId !== undefined && rule.apiProcessId !== context?.apiProcessId) continue;
       if (rule.remainingCount !== undefined) {
         rule.remainingCount -= 1;
         if (rule.remainingCount <= 0) {
@@ -235,10 +233,9 @@ export class HarnessFaultInjector implements FaultInjector {
           this.rules.delete(id);
         }
       }
-
-      return true;
+      return rule;
     }
-    return false;
+    return undefined;
   }
 }
 
@@ -252,7 +249,8 @@ export interface SimulatedSession {
   displayName: string;
   username: string | null;
   guestMatchId: string | null;
-  sessionToken: string;
+  /** Complete session Cookie header, supplied by the real authentication response. */
+  cookie: string;
   csrfToken: string;
 }
 
@@ -266,6 +264,7 @@ export interface SimulatedClient {
   readonly connectionState: ClientConnectionState;
   readonly receivedSnapshots: readonly MatchSnapshot[];
   readonly receivedReceipts: readonly CommandReceipt[];
+  readonly receivedErrors: readonly Error[];
 
   connectWs(): Promise<void>;
   disconnectWs(): void;
@@ -275,11 +274,12 @@ export interface SimulatedClient {
     moduleId: string,
     mode: string,
     settings?: Json,
-    visibility?: "invite" | "instance"
-  ): Promise<{ matchId: string }>;
+    visibility?: "invite" | "instance",
+    commandId?: string
+  ): Promise<{ matchId: string; commandId: string }>;
 
-  joinMatch(matchId: string): Promise<void>;
-  startMatch(matchId: string): Promise<void>;
+  joinMatch(matchId: string, expectedRevision: number, linkToken?: string, commandId?: string): Promise<CommandReceipt>;
+  startMatch(matchId: string, expectedRevision: number, commandId?: string): Promise<CommandReceipt>;
   act(
     matchId: string,
     action: {
@@ -292,260 +292,104 @@ export interface SimulatedClient {
 
   replayCommand(
     matchId: string,
-    receipt: CommandReceipt,
-    action: { type: string; payload: Json }
+    action: { type: string; payload: Json; commandId: string; expectedRevision: number }
   ): Promise<CommandReceipt>;
 
-  leaveMatch(matchId: string): Promise<void>;
+  leaveMatch(matchId: string, expectedRevision: number, commandId?: string): Promise<CommandReceipt>;
   getSnapshot(matchId: string): Promise<MatchSnapshot>;
+  createGuestInvitation(matchId: string, commandId?: string): Promise<{ token: string; commandId: string }>;
   onSnapshot(matchId: string, listener: (snapshot: MatchSnapshot) => void): () => void;
 }
 
-export class InMemorySimulatedClient implements SimulatedClient {
-  readonly session: SimulatedSession;
-  readonly connectionState: ClientConnectionState = {
-    wsConnected: false,
-    activeMatchId: null,
-  };
-
-  private readonly _receivedSnapshots: MatchSnapshot[] = [];
-  private readonly _receivedReceipts: CommandReceipt[] = [];
-  private readonly snapshotListeners = new Map<string, Set<(snapshot: MatchSnapshot) => void>>();
-
-  constructor(session: SimulatedSession) {
-    this.session = session;
-  }
-
-  get receivedSnapshots(): readonly MatchSnapshot[] {
-    return this._receivedSnapshots;
-  }
-
-  get receivedReceipts(): readonly CommandReceipt[] {
-    return this._receivedReceipts;
-  }
-
-  async connectWs(): Promise<void> {
-    this.connectionState.wsConnected = true;
-  }
-
-  disconnectWs(): void {
-    this.connectionState.wsConnected = false;
-  }
-
-  async reconnectWs(): Promise<void> {
-    this.disconnectWs();
-    await this.connectWs();
-  }
-
-  async createMatch(
-    _moduleId: string,
-    _mode: string,
-    _settings?: Json,
-    _visibility: "invite" | "instance" = "invite"
-  ): Promise<{ matchId: string }> {
-    const matchId = crypto.randomUUID();
-    this.connectionState.activeMatchId = matchId;
-    return { matchId };
-  }
-
-  async joinMatch(matchId: string): Promise<void> {
-    this.connectionState.activeMatchId = matchId;
-  }
-
-  async startMatch(_matchId: string): Promise<void> {
-    // In-memory simulated transition
-  }
-
-  async act(
-    matchId: string,
-    action: {
-      type: string;
-      payload: Json;
-      commandId?: string;
-      expectedRevision: number;
-    }
-  ): Promise<CommandReceipt> {
-    const commandId = action.commandId ?? crypto.randomUUID();
-    const receipt: CommandReceipt = {
-      commandId,
-      matchId,
-      committedRevision: action.expectedRevision + 1,
-      replayed: false,
-      outcome: "accepted",
-    };
-    this._receivedReceipts.push(receipt);
-    return receipt;
-  }
-
-  async replayCommand(
-    matchId: string,
-    receipt: CommandReceipt,
-    _action: { type: string; payload: Json }
-  ): Promise<CommandReceipt> {
-    const replayedReceipt: CommandReceipt = {
-      ...receipt,
-      matchId,
-      replayed: true,
-      outcome: "accepted",
-    };
-    this._receivedReceipts.push(replayedReceipt);
-    return replayedReceipt;
-  }
-
-  async leaveMatch(matchId: string): Promise<void> {
-    if (this.connectionState.activeMatchId === matchId) {
-      this.connectionState.activeMatchId = null;
-    }
-  }
-
-  async getSnapshot(matchId: string): Promise<MatchSnapshot> {
-    const defaultSnapshot: MatchSnapshot = {
-      id: matchId,
-      moduleId: "test-counter",
-      moduleVersion: "0.1.0",
-      revision: 1,
-      phase: "active",
-      mode: "group",
-      settings: { target: 10, turnSeconds: null },
-      hostMemberId: this.session.principalId,
-      members: [
-        {
-          id: this.session.principalId,
-          principalId: this.session.principalId,
-          kind: this.session.kind,
-          displayName: this.session.displayName,
-          status: "active",
-          joinOrdinal: 1,
-          disabled: false,
-          accessEpoch: 0,
-        },
-      ],
-      deadlines: [],
-      serverNow: new Date().toISOString(),
-      capabilities: {
-        canStart: false,
-        canLeave: true,
-        canInvite: true,
-        canFinish: true,
-        canChat: true,
-        canAct: true,
-      },
-      game: {
-        count: 0,
-        target: 10,
-        turnSeconds: null,
-        scores: { [this.session.principalId]: 0 },
-        turnOrder: [this.session.principalId],
-        currentActorMemberId: this.session.principalId,
-        myMarker: "P1",
-        myNote: "",
-        myScore: 0,
-      },
-    };
-    this._receivedSnapshots.push(defaultSnapshot);
-    return defaultSnapshot;
-  }
-
-  onSnapshot(matchId: string, listener: (snapshot: MatchSnapshot) => void): () => void {
-    let listeners = this.snapshotListeners.get(matchId);
-    if (!listeners) {
-      listeners = new Set();
-      this.snapshotListeners.set(matchId, listeners);
-    }
-    listeners.add(listener);
-    return () => {
-      listeners?.delete(listener);
-    };
-  }
-
-  deliverSnapshot(matchId: string, snapshot: MatchSnapshot): void {
-    this._receivedSnapshots.push(snapshot);
-    const listeners = this.snapshotListeners.get(matchId);
-    if (listeners) {
-      for (const listener of listeners) {
-        listener(snapshot);
-      }
-    }
-  }
-}
 
 // ============================================================================
 // 4. Harness Environment (Master Spec §10 F2)
 // ============================================================================
 
+export interface RegisteredClientInput {
+  username: string;
+  displayName: string;
+  role?: "admin" | "member";
+  password?: string;
+}
+
 export interface HarnessConfig {
+  baseUrl: string;
   initialTime?: string;
   useSystemClock?: boolean;
+  timeoutMs?: number;
+  onError?: (error: Error) => void;
+  /** Seed an account through an isolated test service, then authenticate over HTTP. */
+  provisionRegistered?: (input: RegisteredClientInput) => Promise<{
+    username: string;
+    password: string;
+  }>;
+  serverFaults?: ServerFaultControls;
 }
 
 export class HarnessEnvironment {
   readonly clock: ClockControl;
-  readonly faults: FaultInjector;
-  private readonly clients = new Map<string, SimulatedClient>();
+  readonly faults: HarnessFaultInjector;
+  private readonly clients = new Set<SimulatedClient>();
 
-  constructor(config: HarnessConfig = {}) {
+  constructor(private readonly config: HarnessConfig) {
     this.clock = config.useSystemClock
       ? new SystemClock()
       : new SimulatedClock(config.initialTime);
-    this.faults = new HarnessFaultInjector();
+    this.faults = new HarnessFaultInjector(config.serverFaults);
   }
 
-  async createRegisteredClient(params: {
-    username: string;
-    displayName: string;
-    role?: "admin" | "member";
-    password?: string;
-  }): Promise<SimulatedClient> {
-    const principalId = crypto.randomUUID();
-    const session: SimulatedSession = {
-      principalId,
-      kind: "registered",
-      displayName: params.displayName,
-      username: params.username,
-      guestMatchId: null,
-      sessionToken: `sess_reg_${crypto.randomUUID()}`,
-      csrfToken: `csrf_${crypto.randomUUID()}`,
-    };
-
-    const client = new InMemorySimulatedClient(session);
-    this.clients.set(principalId, client);
-    return client;
+  async createRegisteredClient(params: RegisteredClientInput): Promise<SimulatedClient> {
+    const credentials = this.config.provisionRegistered
+      ? await this.config.provisionRegistered(params)
+      : params;
+    if (!credentials.password) {
+      throw new Error("Supply account credentials or an isolated account-provisioning service.");
+    }
+    const session = await authenticateRegistered(this.config, {
+      username: credentials.username,
+      password: credentials.password,
+    });
+    return this.addSession(session);
   }
 
   async createGuestClient(params: {
     displayName: string;
-    matchId: string;
+    token: string;
   }): Promise<SimulatedClient> {
-    const principalId = crypto.randomUUID();
-    const session: SimulatedSession = {
-      principalId,
-      kind: "guest",
-      displayName: params.displayName,
-      username: null,
-      guestMatchId: params.matchId,
-      sessionToken: `sess_guest_${crypto.randomUUID()}`,
-      csrfToken: `csrf_${crypto.randomUUID()}`,
-    };
+    return this.addSession(await authenticateGuest(this.config, params));
+  }
 
-    const client = new InMemorySimulatedClient(session);
-    this.clients.set(principalId, client);
+  /** Attach another real device/session without merging clients by principal ID. */
+  addSession(session: SimulatedSession): SimulatedClient {
+    const client = new HttpSimulatedClient(session, {
+      ...this.config,
+      faults: this.faults,
+    });
+    this.clients.add(client);
     return client;
   }
 
-  getClient(principalId: string): SimulatedClient | undefined {
-    return this.clients.get(principalId);
+  getClients(principalId: string): readonly SimulatedClient[] {
+    return Array.from(this.clients).filter((client) => client.session.principalId === principalId);
+  }
+
+  /** Select one device explicitly, or reject an ambiguous principal lookup. */
+  getClient(principalId: string, cookie?: string): SimulatedClient | undefined {
+    const candidates = this.getClients(principalId).filter((client) =>
+      cookie === undefined || client.session.cookie === cookie);
+    if (candidates.length > 1) throw new Error("Multiple harness devices match; select a session explicitly.");
+    return candidates[0];
   }
 
   getAllClients(): readonly SimulatedClient[] {
-    return Array.from(this.clients.values());
+    return Array.from(this.clients);
   }
 
   reset(): void {
     this.clock.reset();
     this.faults.clearAllFaults();
-    for (const client of this.clients.values()) {
-      client.disconnectWs();
-    }
+    for (const client of this.clients) client.disconnectWs();
     this.clients.clear();
   }
 }
@@ -585,17 +429,16 @@ export async function setupMultiplayerCounterScenario(
     "test-counter",
     "group",
     settings as Json,
-    "invite"
+    "instance"
   );
 
-  await peer.joinMatch(matchId);
+  await peer.joinMatch(matchId, (await creator.getSnapshot(matchId)).revision);
 
+  const invitation = await creator.createGuestInvitation(matchId);
   const guest = await env.createGuestClient({
     displayName: "GuestCharlie",
-    matchId,
+    token: invitation.token,
   });
-
-  await guest.joinMatch(matchId);
 
   return {
     creator,

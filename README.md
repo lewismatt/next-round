@@ -63,6 +63,94 @@ version; new versions coexist and `isDefault` selects the default on installatio
 These registry checks do not establish asset-hash, retained-history, or complete
 startup-readiness acceptance; those remain separate platform integration work.
 
+### HTTP/WS game harness
+
+`@next-round/game-harness` is a Node-only API client. It authenticates registered
+accounts through `/api/v1/auth/login`, redeems guest invitations through the
+documented HTTP endpoint, and uses the returned cookie and CSRF token. Account
+seeding belongs in an isolated test service supplied as `provisionRegistered`;
+the harness has no public signup or invented sessions. `addSession` attaches an
+already authenticated device; devices sharing a principal remain separate clients.
+Guest clients start with their redeemed match active, including sessions attached
+through `addSession`. `connectWs()` subscribes and loads that match's authorized
+snapshot without an explicit listener or a second join; invalidations and reconnects
+refresh it until access is revoked.
+
+The current API serves health routes only. Authentication, match transactions,
+authorized snapshots and `/api/v1/live` are prerequisites for platform acceptance.
+Missing routes fail instead of producing local receipts or snapshots. The harness
+network tests use a test-only protocol server, not a replacement platform or
+evidence of PostgreSQL/F1 acceptance.
+
+After building, a service fixture can use the compiled client against its API:
+
+```typescript
+import { HarnessEnvironment } from "./packages/game-harness/dist/index.js";
+
+const env = new HarnessEnvironment({ baseUrl: "http://localhost:3000" });
+try {
+  const host = await env.createRegisteredClient({
+    username: "harness_host",
+    displayName: "Harness host",
+    password: process.env.HARNESS_PASSWORD, // Existing fixture account; never committed.
+  });
+  const { matchId } = await host.createMatch(
+    "test-counter", "solo", { target: 2, turnSeconds: null }
+  );
+  await host.startMatch(matchId, (await host.getSnapshot(matchId)).revision);
+  await host.connectWs();
+  const original = {
+    commandId: crypto.randomUUID(),
+    expectedRevision: (await host.getSnapshot(matchId)).revision,
+    type: "add",
+    payload: { amount: 1 },
+  };
+  await host.act(matchId, original);
+  await host.replayCommand(matchId, original);
+} finally {
+  env.reset();
+}
+```
+
+Match mutations require explicit expected revisions. Replay sends the original
+command ID, revision and payload; stale intentions are never retried automatically.
+All match mutation helpers accept an optional `commandId` (the final argument;
+`act` takes it in its action object). Store one ID and the original arguments per
+intent. Creation/invitation helpers return it alongside their result; join/start/
+leave return the command receipt. If a response is lost or the transport fails,
+`HarnessCommandError` exposes `commandId`, an available `matchId`, and a safe
+`reason`, without retaining the payload or session credentials. Reinvoke the same
+helper with that ID and unchanged arguments; no helper retries automatically.
+For creation, a parsed lost response also supplies the new match ID. If no
+response arrived, that ID is unknown; replay the creation command ID to recover it.
+
+Use `env.getClients(principalId)` for all devices, or
+`env.getClient(principalId, cookie)` to select a session. A principal-only lookup
+throws when multiple devices match instead of silently selecting the first.
+
+WS carries invalidation only. Acknowledged subscriptions and explicit reconnects
+fetch authorized HTTP snapshots; revocation clears cached private views and rejects
+late reads. HTTP 401 and ACCOUNT_DISABLED revoke every cached scope and stop
+further sends; match-specific 403/404 revoke only that match. Revisionless wakeups
+still trigger a read, including wakeups during an in-flight request. Lagging
+snapshots retry with bounded exponential backoff (25–250 ms) within the configured
+timeout; only advancing revisions are published to observers. Call `onSnapshot` to observe a scope, and inspect `receivedErrors` or
+supply `onError` for asynchronous failures. Disconnect/reconnect is explicit so a
+fixture controls when recovery happens.
+
+`injectPostCommitFailure(matchId)` discards a successful HTTP response in the
+client, allowing a response-loss retry scenario. It does not inject a database
+failure or prove commit atomicity. `delayRoute` delays the matching HTTP route.
+Notify suppression and listener disconnect require `serverFaults` callbacks wired
+to real isolated test services; without them those methods throw. Clock controls
+are local injectable services, never production endpoints. Neither reset nor
+disconnect deletes server data or sends a leave command.
+
+The Node transport pins `ws@8.22.0` (already used by the API plugin) and
+`@types/ws@8.18.1`. It needs cookie/Origin upgrade headers that the browser
+WebSocket constructor does not expose. Browser code still uses native WebSockets
+and must not import this package.
+
 ---
 
 ## Quickstart & Local Development

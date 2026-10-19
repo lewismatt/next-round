@@ -17,9 +17,10 @@
   "dependencies": {
     "@next-round/contracts": "workspace:*",
     "@next-round/game-client": "workspace:*",
-    "@next-round/game-sdk": "workspace:*"
+    "ws": "8.22.0"
   },
   "devDependencies": {
+    "@types/ws": "8.18.1",
     "typescript": "7.0.2"
   }
 }
