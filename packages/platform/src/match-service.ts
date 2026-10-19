@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   ApiError,
   ERROR_CODES,
   parseJsonSchemaValue,
+  type CommandReceipt,
   type FinalResult,
   type Json,
   type Member,
@@ -95,6 +96,46 @@ function moduleUnavailable(): ApiError {
 
 function moduleFailure(): ApiError {
   return new ApiError(ERROR_CODES.MODULE_FAILURE, "The game module could not process this match.");
+}
+
+const MATCH_ACTION_SCOPE = "match.action";
+const MATCH_ACTION_ROUTE = "POST /api/v1/matches/:id/actions";
+
+interface CommandReceiptRow {
+  request_hash: Buffer | Uint8Array | string;
+  match_id: string | null;
+  committed_revision: number | null;
+  safe_receipt: Json;
+}
+
+function canonicalJson(value: Json): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  const keys = Object.keys(value).sort();
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+}
+
+/** Route, normalized command fields, and expectedRevision. Never log this string. */
+function hashMatchAction(matchId: string, input: MatchActionInput): Buffer {
+  return createHash("sha256").update(canonicalJson({
+    route: MATCH_ACTION_ROUTE,
+    matchId: matchId.toLowerCase(),
+    commandId: input.commandId.toLowerCase(),
+    expectedRevision: input.expectedRevision,
+    type: input.type,
+    payload: input.payload,
+  })).digest();
+}
+
+function sameRequestHash(expected: Buffer, stored: Buffer | Uint8Array | string): boolean {
+  const actual = typeof stored === "string"
+    ? Buffer.from(stored.startsWith("\\x") ? stored.slice(2) : stored, "hex")
+    : Buffer.isBuffer(stored) ? stored : Buffer.from(stored);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 function registeredVersion(
@@ -280,13 +321,7 @@ export class MatchService {
     matchId: string,
     principalId: string,
     input: MatchActionInput,
-  ): Promise<{
-    commandId: string;
-    matchId: string;
-    committedRevision: number;
-    replayed: false;
-    outcome: "accepted";
-  }> {
+  ): Promise<CommandReceipt> {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -305,6 +340,42 @@ export class MatchService {
       );
       const match = matchResult.rows[0];
       if (!match) throw notFound();
+      // An identical retry is already stale against the revision this command committed.
+      const requestHash = hashMatchAction(matchId, input);
+      const existingReceipt = await client.query<CommandReceiptRow>(
+        `SELECT request_hash, match_id, committed_revision::integer AS committed_revision,
+                safe_receipt
+           FROM next_round.command_receipts
+          WHERE principal_id = $1 AND scope = $2 AND command_id = $3`,
+        [principalId, MATCH_ACTION_SCOPE, input.commandId],
+      );
+      const prior = existingReceipt.rows[0];
+      if (prior) {
+        const committedRevision = prior.committed_revision;
+        if (
+          prior.match_id !== matchId ||
+          committedRevision === null ||
+          !sameRequestHash(requestHash, prior.request_hash)
+        ) {
+          throw new ApiError(
+            ERROR_CODES.IDEMPOTENCY_CONFLICT,
+            "This command was already used with a different request.",
+          );
+        }
+        await client.query("COMMIT");
+        const stored = prior.safe_receipt;
+        const commandId = stored && typeof stored === "object" && !Array.isArray(stored) &&
+          typeof stored.commandId === "string"
+          ? stored.commandId
+          : input.commandId;
+        return {
+          commandId,
+          matchId,
+          committedRevision,
+          replayed: true,
+          outcome: "accepted",
+        };
+      }
       if (match.phase === "finished") {
         throw new ApiError(ERROR_CODES.MATCH_CLOSED, "Match is closed.");
       }
@@ -459,14 +530,30 @@ export class MatchService {
         );
       }
 
-      await client.query("COMMIT");
-      return {
+      const receipt: CommandReceipt = {
         commandId: input.commandId,
         matchId,
         committedRevision,
         replayed: false,
         outcome: "accepted",
       };
+      await client.query(
+        `INSERT INTO next_round.command_receipts
+           (principal_id, scope, command_id, request_hash, match_id,
+            committed_revision, safe_receipt)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+        [
+          principalId,
+          MATCH_ACTION_SCOPE,
+          input.commandId,
+          requestHash,
+          matchId,
+          committedRevision,
+          JSON.stringify(receipt),
+        ],
+      );
+      await client.query("COMMIT");
+      return receipt;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

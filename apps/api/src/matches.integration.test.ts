@@ -485,4 +485,131 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     expect(outsiderResult.statusCode).toBe(404);
     expectNoPrivateValues(outsiderResult.body);
   }, 120_000);
+
+  it("retries an identical score command and rejects a conflicting body", async () => {
+    const commandId = randomUUID();
+    const scoreBody = {
+      commandId,
+      expectedRevision: 3,
+      type: "add",
+      payload: { amount: 1 },
+    };
+    const conflictingNote = "conflicting-score-body";
+    const committed = {
+      revision: 4,
+      score: 2,
+      count: 3,
+      note: noteA,
+      events: 1,
+      receipts: 1,
+    };
+
+    async function persisted() {
+      const match = await databasePool.query<{
+        revision: number;
+        state: {
+          count: number;
+          scores: Record<string, number>;
+          notes: Record<string, string>;
+        };
+      }>(
+        `SELECT revision::integer AS revision, state
+           FROM next_round.matches
+          WHERE id = $1`,
+        [matchId],
+      );
+      const effects = await databasePool.query<{ events: number; receipts: number }>(
+        `SELECT
+           (SELECT count(*)::integer FROM next_round.match_events WHERE match_id = $1) AS events,
+           (SELECT count(*)::integer FROM next_round.command_receipts WHERE match_id = $1) AS receipts`,
+        [matchId],
+      );
+      const row = match.rows[0];
+      return {
+        revision: row.revision,
+        score: row.state.scores[memberAId],
+        count: row.state.count,
+        note: row.state.notes[memberAId],
+        events: effects.rows[0].events,
+        receipts: effects.rows[0].receipts,
+      };
+    }
+
+    const accepted = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/actions`,
+      headers: headers(memberA, true),
+      payload: scoreBody,
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.headers["cache-control"]).toBe("no-store");
+    const receipt = {
+      commandId,
+      matchId,
+      committedRevision: 4,
+      replayed: false,
+      outcome: "accepted",
+    };
+    expect(accepted.json().data).toEqual(receipt);
+    expectNoPrivateValues(accepted.body);
+    const scored = await app.inject({
+      method: "GET",
+      url: `/api/v1/matches/${matchId}`,
+      headers: headers(memberA),
+    });
+    expect(scored.json().data.revision).toBe(4);
+    expect(scored.json().data.game).toMatchObject({ myScore: 2, count: 3 });
+    expect(await persisted()).toEqual(committed);
+
+    const replay = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/actions`,
+      headers: headers(memberA, true),
+      payload: scoreBody,
+    });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().data).toEqual({ ...receipt, replayed: true });
+    expectNoPrivateValues(replay.body);
+    expect(await persisted()).toEqual(committed);
+
+    const conflict = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/actions`,
+      headers: headers(memberA, true),
+      payload: {
+        commandId,
+        expectedRevision: 4,
+        type: "note",
+        payload: { text: conflictingNote },
+      },
+    });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json().error).toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    expect(conflict.body).not.toContain(conflictingNote);
+    expectNoPrivateValues(conflict.body);
+    expect(await persisted()).toEqual(committed);
+
+    const stored = await databasePool.query<{ safe_receipt: Record<string, unknown> }>(
+      `SELECT safe_receipt FROM next_round.command_receipts WHERE match_id = $1`,
+      [matchId],
+    );
+    expect(stored.rows).toHaveLength(1);
+    expect(stored.rows[0].safe_receipt).toEqual(receipt);
+
+    await databasePool.query(
+      `UPDATE next_round.match_members
+          SET status = 'left', departed_at = now()
+        WHERE id = $1`,
+      [memberAId],
+    );
+    const revoked = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/actions`,
+      headers: headers(memberA, true),
+      payload: scoreBody,
+    });
+    expect(revoked.statusCode).toBe(404);
+    expectNoPrivateValues(revoked.body);
+    expect(await persisted()).toEqual(committed);
+  }, 120_000);
 });
