@@ -2,21 +2,29 @@
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { ApiError, ERROR_CODES } from "@next-round/contracts";
-import type { GameRegistry } from "@next-round/platform";
+import type { AuthService, GameRegistry } from "@next-round/platform";
 import type { FastifyPluginAsync } from "fastify";
 import { parseGameAction, parseGameSettings } from "../game-input.js";
+import { requireJsonMutation, requireSession } from "./auth.js";
 
 export interface GameRoutesOptions {
   registry: GameRegistry;
 }
 
+interface GameManifestRoutesOptions extends GameRoutesOptions {
+  authService: AuthService;
+  origin: string;
+}
 
-export const gameManifestRoutes: FastifyPluginAsync<GameRoutesOptions> = async (
+
+export const gameManifestRoutes: FastifyPluginAsync<GameManifestRoutesOptions> = async (
   fastify,
   options,
 ) => {
-  fastify.get("/games", async (_request, reply) => {
-    return reply.status(200).send({
+  fastify.get("/games", async (request, reply) => {
+    const session = await requireSession(request, options.authService, false);
+    await options.authService.authorizeGame(session);
+    return reply.status(200).header("Cache-Control", "no-store").send({
       data: options.registry.list(),
       nextCursor: null,
       serverNow: new Date().toISOString(),
@@ -26,17 +34,22 @@ export const gameManifestRoutes: FastifyPluginAsync<GameRoutesOptions> = async (
   fastify.get("/games/:gameId", async (request, reply) => {
     const { gameId } = request.params as { gameId: string };
     const { version } = request.query as { version?: string };
+    const session = await requireSession(request, options.authService, false);
+    await options.authService.authorizeGame(session, gameId, version);
     const registered = options.registry.getVersion(gameId, version);
     if (!registered) {
       throw new ApiError(ERROR_CODES.NOT_FOUND, "Game module was not found.");
     }
-    return reply.status(200).send({
+    return reply.status(200).header("Cache-Control", "no-store").send({
       data: registered.manifest,
       serverNow: new Date().toISOString(),
     });
   });
 
   fastify.post("/games/:gameId/settings", async (request, reply) => {
+    requireJsonMutation(request, options.origin);
+    const session = await requireSession(request, options.authService, true);
+    await options.authService.authorizeGame(session);
     const { gameId } = request.params as { gameId: string };
     const body = request.body as { version?: string; settings: unknown };
     const settings = parseGameSettings(
@@ -52,6 +65,9 @@ export const gameManifestRoutes: FastifyPluginAsync<GameRoutesOptions> = async (
   });
 
   fastify.post("/games/:gameId/actions", async (request, reply) => {
+    requireJsonMutation(request, options.origin);
+    const session = await requireSession(request, options.authService, true);
+    await options.authService.authorizeGame(session);
     const { gameId } = request.params as { gameId: string };
     const body = request.body as {
       version?: string;

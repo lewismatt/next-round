@@ -162,7 +162,7 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (fastify,
     requireJsonMutation(request, origin);
     parseRequestBody(LogoutRequestSchema, request.body);
     const session = await requireSession(request, authService, true);
-    await authService.logout(session.id);
+    await authService.logout(session);
     clearAuthCookies(reply, origin);
     return reply.status(204).send();
   });

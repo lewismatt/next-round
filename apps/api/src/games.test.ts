@@ -9,7 +9,7 @@ import {
   SDK_IDENTIFIER,
   type GameManifest,
 } from "@next-round/contracts";
-import { GameRegistry } from "@next-round/platform";
+import { AuthService, GameRegistry, type AuthenticatedSession } from "@next-round/platform";
 import type { FastifyInstance } from "fastify";
 import { buildServer } from "./server.js";
 
@@ -23,12 +23,20 @@ beforeEach(() => {
   vi.stubEnv("SETUP_TOKEN", randomBytes(32).toString("hex"));
   vi.stubEnv("APP_ORIGIN", "http://localhost:3000");
   vi.stubEnv("TRUST_PROXY", "");
+  // These route/schema tests isolate authentication; real sessions and guest
+  // scope are exercised against PostgreSQL in matches.integration.test.ts.
+  vi.spyOn(AuthService.prototype, "authenticate").mockResolvedValue({
+    id: "session", principal: { id: "principal", kind: "registered" },
+  } as AuthenticatedSession);
+  vi.spyOn(AuthService.prototype, "verifyCsrf").mockReturnValue();
+  vi.spyOn(AuthService.prototype, "authorizeGame").mockResolvedValue();
 });
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => server.close()));
   rmSync(clientRoot, { recursive: true, force: true });
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 function manifest(): GameManifest {
@@ -116,6 +124,7 @@ describe("game input API boundary", () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/v1/games/test-counter/settings",
+      headers: { origin: "http://localhost:3000" },
       payload: {
         version: "0.1.0",
         settings: { target: 10, unknown: true },
@@ -138,6 +147,7 @@ describe("game input API boundary", () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/v1/games/test-counter/actions",
+      headers: { origin: "http://localhost:3000" },
       payload: {
         version: "0.1.0",
         type: "add",
