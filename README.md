@@ -81,11 +81,10 @@ through `addSession`. `connectWs()` subscribes and loads that match's authorized
 snapshot without an explicit listener or a second join; invalidations and reconnects
 refresh it until access is revoked.
 
-The current API serves health routes only. Authentication, match transactions,
-authorized snapshots and `/api/v1/live` are prerequisites for platform acceptance.
-Missing routes fail instead of producing local receipts or snapshots. The harness
-network tests use a test-only protocol server, not a replacement platform or
-evidence of PostgreSQL/F1 acceptance.
+The API currently implements instance setup, session authentication, game manifest
+validation, match lifecycle mutations, caller-private views, and command idempotency
+receipts. Production `/api/v1/live` WebSocket invalidation and worker deadline
+services remain prerequisites for full platform acceptance.
 
 After building, a service fixture can use the compiled client against its API:
 
