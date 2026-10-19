@@ -187,11 +187,12 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 Populate the three blank secrets in `deploy/.env` with independently generated
 values from `node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))'`.
 Run it separately for each secret. Keep the file private (`chmod 600 deploy/.env`)
-and out of Git. Blank secrets prevent Compose startup. The API also rejects missing
-or short `SESSION_SECRET` and `SETUP_TOKEN` values before listening. `SETUP_TOKEN`
-is the spec's canonical name; replace the old scaffold's `SETUP_SECRET` key.
-This scaffold does not yet implement admin bootstrap. F1 will consume the setup
-token and permit its removal after successful initialization.
+and out of Git. Blank database and session secrets prevent Compose startup. The
+API rejects a missing or short `SESSION_SECRET` and rejects a malformed nonblank
+`SETUP_TOKEN` before listening. `APP_ORIGIN` names the one browser origin accepted
+for mutations. The initial setup request consumes `SETUP_TOKEN` by committing the
+singleton instance and first administrator in one transaction. Remove the token
+from the environment after setup and restart the API.
 
 For direct local API/worker startup, load the environment explicitly (for example,
 `node --env-file=deploy/.env apps/api/dist/index.js`) and supply `DATABASE_URL`.
@@ -327,6 +328,7 @@ To exercise both locally after `pnpm install --frozen-lockfile` and `pnpm build`
     export TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/next_round
     DATABASE_DIRECT_URL="$TEST_DATABASE_URL" pnpm --filter @next-round/db migrate
     pnpm --filter @next-round/db test:integration
+    pnpm --filter @next-round/api test:integration
     docker stop next-round-migration-test
     trap - EXIT
   done

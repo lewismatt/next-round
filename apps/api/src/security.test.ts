@@ -15,6 +15,7 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "next-round-security-"));
   vi.stubEnv("SESSION_SECRET", randomBytes(32).toString("hex"));
   vi.stubEnv("SETUP_TOKEN", randomBytes(32).toString("hex"));
+  vi.stubEnv("APP_ORIGIN", "http://localhost:3000");
   vi.stubEnv("TRUST_PROXY", "");
   vi.stubEnv("SOURCE_URL", "");
 });
@@ -80,12 +81,25 @@ describe("GH-1 H-1: proxy trust", () => {
 });
 
 describe("GH-1 H-3: required secrets", () => {
-  it.each(["SESSION_SECRET", "SETUP_TOKEN"])("rejects missing or short %s before boot", async (name) => {
+  it("rejects a missing or short SESSION_SECRET before boot", async () => {
     for (const value of [undefined, "", "short", " ".repeat(64)]) {
-      vi.stubEnv(name, value);
-      await expect(buildServer({ logger: false, staticRoot: root })).rejects.toThrow(name);
+      vi.stubEnv("SESSION_SECRET", value);
+      await expect(buildServer({ logger: false, staticRoot: root })).rejects.toThrow("SESSION_SECRET");
     }
   });
+
+  it.each(["short", " ".repeat(64)])("rejects a malformed SETUP_TOKEN before boot", async (value) => {
+    vi.stubEnv("SETUP_TOKEN", value);
+    await expect(buildServer({ logger: false, staticRoot: root })).rejects.toThrow("SETUP_TOKEN");
+  });
+
+  it.each([undefined, "", "https://example.com/path", "http://example.com", "https://user@example.com"])(
+    "rejects a missing or unsafe APP_ORIGIN: %s",
+    async (value) => {
+      vi.stubEnv("APP_ORIGIN", value);
+      await expect(buildServer({ logger: false, staticRoot: root })).rejects.toThrow("APP_ORIGIN");
+    },
+  );
 
   it("boots with locally supplied secrets and reports the correct source URL (L-1)", async () => {
     const response = await (await server()).inject("/version");

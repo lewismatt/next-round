@@ -4,6 +4,7 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema.js";
 
 const { Pool } = pg;
+export type DatabasePool = pg.Pool;
 
 export * from "./schema.js";
 

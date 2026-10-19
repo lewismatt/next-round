@@ -105,6 +105,9 @@ jobs:
       - name: Exercise real database migrations and transactions
         run: pnpm --filter @next-round/db test:integration
 
+      - name: Exercise bootstrap and session transactions
+        run: pnpm --filter @next-round/api test:integration
+
       - name: Boot compiled API and worker against migrated database
         run: pnpm --filter @next-round/worker test:integration
 

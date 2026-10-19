@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { ApiError, ERROR_CODES } from "@next-round/contracts";
+import { createDatabasePool } from "@next-round/db";
+import type { DatabasePool } from "@next-round/db";
+import { AuthService } from "@next-round/platform";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import websocket from "@fastify/websocket";
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
-import { healthRoutes, type HealthCheckOptions } from "./routes/health.js";
-import { parseTrustedProxies, requireSessionSecret, validateSetupToken, type TrustedProxies } from "./config.js";
+import Fastify from "fastify";
+import type { FastifyInstance, FastifyServerOptions } from "fastify";
+import { parseTrustedProxies, requireAppOrigin, requireSessionSecret, validateSetupToken } from "./config.js";
+import type { TrustedProxies } from "./config.js";
+import { authRoutes } from "./routes/auth.js";
+import { healthRoutes } from "./routes/health.js";
+import type { HealthCheckOptions } from "./routes/health.js";
 
 export interface ServerOptions extends HealthCheckOptions {
   logger?: FastifyServerOptions["logger"];
@@ -18,6 +27,9 @@ export interface ServerOptions extends HealthCheckOptions {
   staticRoot?: string;
   rateLimitMax?: number;
   rateLimitTimeWindow?: string | number;
+  databasePool?: DatabasePool;
+  setupToken?: string;
+  origin?: string;
 }
 
 /**
@@ -29,7 +41,10 @@ export async function buildServer(
 ): Promise<FastifyInstance> {
   const trustProxy = parseTrustedProxies(options.trustProxy);
   const cookieSecret = requireSessionSecret(options.cookieSecret);
-  validateSetupToken();
+  const setupToken = validateSetupToken(options.setupToken);
+  const origin = requireAppOrigin(options.origin);
+  const databasePool = options.databasePool ?? createDatabasePool();
+  const ownsDatabasePool = options.databasePool === undefined;
   const loggerConfig: FastifyServerOptions["logger"] =
     options.logger ?? {
       level: process.env.LOG_LEVEL || "info",
@@ -51,7 +66,36 @@ export async function buildServer(
   const app = Fastify({
     logger: loggerConfig,
     trustProxy,
+    genReqId: () => randomUUID(),
   });
+
+  app.setErrorHandler((error, request, reply) => {
+    if (error instanceof ApiError) {
+      return reply.status(error.statusCode).send(error.toResponse(request.id));
+    }
+    const statusCode =
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      typeof error.statusCode === "number"
+        ? error.statusCode
+        : undefined;
+    if (statusCode === 429) {
+      const rateLimitError = new ApiError(ERROR_CODES.RATE_LIMITED, "Too many requests.");
+      return reply
+        .status(rateLimitError.statusCode)
+        .send(rateLimitError.toResponse(request.id));
+    }
+    request.log.error({ err: error }, "Unhandled API request error");
+    const apiError = new ApiError(ERROR_CODES.INTERNAL_ERROR, "An internal error occurred.");
+    return reply.status(apiError.statusCode).send(apiError.toResponse(request.id));
+  });
+
+  if (ownsDatabasePool) {
+    app.addHook("onClose", async () => {
+      await databasePool.end();
+    });
+  }
 
   // 1. Register Helmet for security headers
   await app.register(helmet, {
@@ -113,6 +157,12 @@ export async function buildServer(
     prefix: "/api/v1",
     checkDb: options.checkDb,
     checkRegistry: options.checkRegistry,
+  });
+
+  await app.register(authRoutes, {
+    prefix: "/api/v1",
+    authService: new AuthService(databasePool, setupToken),
+    origin,
   });
 
   return app;

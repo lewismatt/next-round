@@ -52,7 +52,8 @@ services:
       HOST: 0.0.0.0
       DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
       SESSION_SECRET: ${SESSION_SECRET:?Generate SESSION_SECRET in deploy/.env}
-      SETUP_TOKEN: ${SETUP_TOKEN:?Generate SETUP_TOKEN in deploy/.env}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      APP_ORIGIN: https://${CADDY_DOMAIN:-localhost}
       TRUST_PROXY: ${CADDY_PROXY_IP:-172.30.0.10}
     networks:
       - default
