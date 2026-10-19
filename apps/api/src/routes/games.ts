@@ -4,6 +4,7 @@ import path from "node:path";
 import { ApiError, ERROR_CODES } from "@next-round/contracts";
 import type { GameRegistry } from "@next-round/platform";
 import type { FastifyPluginAsync } from "fastify";
+import { parseGameAction, parseGameSettings } from "../game-input.js";
 
 export interface GameRoutesOptions {
   registry: GameRegistry;
@@ -31,6 +32,41 @@ export const gameManifestRoutes: FastifyPluginAsync<GameRoutesOptions> = async (
     }
     return reply.status(200).send({
       data: registered.manifest,
+      serverNow: new Date().toISOString(),
+    });
+  });
+
+  fastify.post("/games/:gameId/settings", async (request, reply) => {
+    const { gameId } = request.params as { gameId: string };
+    const body = request.body as { version?: string; settings: unknown };
+    const settings = parseGameSettings(
+      options.registry,
+      gameId,
+      body.version,
+      body.settings,
+    );
+    return reply.status(200).send({
+      data: settings,
+      serverNow: new Date().toISOString(),
+    });
+  });
+
+  fastify.post("/games/:gameId/actions", async (request, reply) => {
+    const { gameId } = request.params as { gameId: string };
+    const body = request.body as {
+      version?: string;
+      type: string;
+      payload: unknown;
+    };
+    const payload = parseGameAction(
+      options.registry,
+      gameId,
+      body.version,
+      body.type,
+      body.payload,
+    );
+    return reply.status(200).send({
+      data: payload,
       serverNow: new Date().toISOString(),
     });
   });

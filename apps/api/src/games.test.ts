@@ -5,14 +5,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ApiError,
   ERROR_CODES,
   SDK_IDENTIFIER,
   type GameManifest,
 } from "@next-round/contracts";
 import { GameRegistry } from "@next-round/platform";
 import type { FastifyInstance } from "fastify";
-import { parseGameAction, parseGameSettings } from "./game-input.js";
 import { buildServer } from "./server.js";
 
 let clientRoot: string;
@@ -75,15 +73,6 @@ function registry(): GameRegistry {
   return registry;
 }
 
-function apiError(run: () => unknown): ApiError {
-  try {
-    run();
-  } catch (error) {
-    expect(error).toBeInstanceOf(ApiError);
-    return error as ApiError;
-  }
-  throw new Error("Expected API validation to reject the input.");
-}
 
 describe("game manifest HTTP boundary", () => {
   it("serves the loaded manifest modes and the declared immutable client asset", async () => {
@@ -117,37 +106,48 @@ describe("game manifest HTTP boundary", () => {
 });
 
 describe("game input API boundary", () => {
-  it("rejects unknown settings fields", () => {
-    const error = apiError(() => parseGameSettings(
-      registry(),
-      "test-counter",
-      "0.1.0",
-      { target: 10, unknown: true },
-    ));
-    expect(error).toMatchObject({ code: ERROR_CODES.INVALID_REQUEST });
-    expect(error.details?.fields).toContain("/unknown");
+  it("rejects unknown settings fields over HTTP", async () => {
+    const app = await buildServer({
+      logger: false,
+      staticRoot: clientRoot,
+      gameRegistry: registry(),
+    });
+    servers.push(app);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/games/test-counter/settings",
+      payload: {
+        version: "0.1.0",
+        settings: { target: 10, unknown: true },
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatchObject({
+      code: ERROR_CODES.INVALID_REQUEST,
+      details: { fields: expect.arrayContaining(["/unknown"]) },
+    });
   });
 
-  it("rejects unknown action fields and action types", () => {
-    const loaded = registry();
-    const fieldError = apiError(() => parseGameAction(
-      loaded,
-      "test-counter",
-      "0.1.0",
-      "add",
-      { amount: 1, unknown: true },
-    ));
-    expect(fieldError).toMatchObject({ code: ERROR_CODES.INVALID_REQUEST });
-    expect(fieldError.details?.fields).toContain("/unknown");
-
-    const typeError = apiError(() => parseGameAction(
-      loaded,
-      "test-counter",
-      "0.1.0",
-      "unknown",
-      { amount: 1 },
-    ));
-    expect(typeError).toMatchObject({ code: ERROR_CODES.INVALID_REQUEST });
-    expect(typeError.details?.fields).toEqual(["/type"]);
+  it("rejects unknown action fields over HTTP", async () => {
+    const app = await buildServer({
+      logger: false,
+      staticRoot: clientRoot,
+      gameRegistry: registry(),
+    });
+    servers.push(app);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/games/test-counter/actions",
+      payload: {
+        version: "0.1.0",
+        type: "add",
+        payload: { amount: 1, unknown: true },
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toMatchObject({
+      code: ERROR_CODES.INVALID_REQUEST,
+      details: { fields: expect.arrayContaining(["/unknown"]) },
+    });
   });
 });
