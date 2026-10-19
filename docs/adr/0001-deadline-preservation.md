@@ -1,6 +1,6 @@
 # ADR 0001: Preserve pending deadline identity
 
-Status: Proposed for review with M-8. Specification clarification only; runtime acceptance remains unverified.
+Status: Accepted. Specification clarification only; runtime acceptance remains unverified.
 
 Date: 2026-10-19
 
