@@ -3,7 +3,7 @@ import type { CommandReceipt, Json } from "@next-round/contracts";
 import type { MatchSnapshot } from "@next-round/game-client";
 import { HttpSimulatedClient } from "./client.js";
 import { authenticateGuest, authenticateRegistered } from "./sessions.js";
-export { HttpSimulatedClient, HarnessHttpError } from "./client.js";
+export { HttpSimulatedClient, HarnessHttpError, HarnessCommandError } from "./client.js";
 export type { HttpClientOptions } from "./client.js";
 
 
@@ -274,11 +274,12 @@ export interface SimulatedClient {
     moduleId: string,
     mode: string,
     settings?: Json,
-    visibility?: "invite" | "instance"
-  ): Promise<{ matchId: string }>;
+    visibility?: "invite" | "instance",
+    commandId?: string
+  ): Promise<{ matchId: string; commandId: string }>;
 
-  joinMatch(matchId: string, expectedRevision: number, linkToken?: string): Promise<void>;
-  startMatch(matchId: string, expectedRevision: number): Promise<void>;
+  joinMatch(matchId: string, expectedRevision: number, linkToken?: string, commandId?: string): Promise<CommandReceipt>;
+  startMatch(matchId: string, expectedRevision: number, commandId?: string): Promise<CommandReceipt>;
   act(
     matchId: string,
     action: {
@@ -294,9 +295,9 @@ export interface SimulatedClient {
     action: { type: string; payload: Json; commandId: string; expectedRevision: number }
   ): Promise<CommandReceipt>;
 
-  leaveMatch(matchId: string, expectedRevision: number): Promise<void>;
+  leaveMatch(matchId: string, expectedRevision: number, commandId?: string): Promise<CommandReceipt>;
   getSnapshot(matchId: string): Promise<MatchSnapshot>;
-  createGuestInvitation(matchId: string): Promise<{ token: string }>;
+  createGuestInvitation(matchId: string, commandId?: string): Promise<{ token: string; commandId: string }>;
   onSnapshot(matchId: string, listener: (snapshot: MatchSnapshot) => void): () => void;
 }
 
@@ -369,8 +370,16 @@ export class HarnessEnvironment {
     return client;
   }
 
-  getClient(principalId: string): SimulatedClient | undefined {
-    return Array.from(this.clients).find((client) => client.session.principalId === principalId);
+  getClients(principalId: string): readonly SimulatedClient[] {
+    return Array.from(this.clients).filter((client) => client.session.principalId === principalId);
+  }
+
+  /** Select one device explicitly, or reject an ambiguous principal lookup. */
+  getClient(principalId: string, cookie?: string): SimulatedClient | undefined {
+    const candidates = this.getClients(principalId).filter((client) =>
+      cookie === undefined || client.session.cookie === cookie);
+    if (candidates.length > 1) throw new Error("Multiple harness devices match; select a session explicitly.");
+    return candidates[0];
   }
 
   getAllClients(): readonly SimulatedClient[] {

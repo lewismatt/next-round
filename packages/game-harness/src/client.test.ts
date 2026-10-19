@@ -12,7 +12,7 @@ import {
   type ServerLiveFrame,
 } from "@next-round/contracts";
 import type { MatchSnapshot } from "@next-round/game-client";
-import { HarnessHttpError, HttpSimulatedClient } from "./client.js";
+import { HarnessCommandError, HarnessHttpError, HttpSimulatedClient } from "./client.js";
 import { HarnessEnvironment, HarnessFaultInjector, type SimulatedSession } from "./index.js";
 
 const NOW = "2026-10-18T12:00:00.000Z";
@@ -136,6 +136,7 @@ const fastify = apiRequire("fastify") as (options: { logger: false }) => Fixture
 const websocket: unknown = apiRequire("@fastify/websocket");
 
 interface ScriptedReply {
+  delayMs?: number;
   status?: number;
   data?: Json;
   code?: string;
@@ -171,6 +172,7 @@ async function fixture(
   const releases = new Set<() => void>();
   const holds = new Map<string, { arrived: ReturnType<typeof deferred<void>>; release: ReturnType<typeof deferred<void>> }>();
   let origin = "";
+  let subscriptionHold: { arrived: ReturnType<typeof deferred<void>>; release: ReturnType<typeof deferred<void>> } | undefined;
   const key = (principalId: string, matchId: string) => `${principalId}:${matchId}`;
 
   cleanup.push(async () => {
@@ -228,7 +230,7 @@ async function fixture(
     socket.on("error", () => {});
     socket.on("close", () => sockets.delete(socket));
     socket.send(JSON.stringify({ type: "hello", connectionId: "fixture-connection", serverNow: NOW, heartbeatSeconds: 25 }));
-    socket.on("message", (raw) => {
+    socket.on("message", async (raw) => {
       const incoming: unknown = JSON.parse(raw.toString());
       if (!incoming || typeof incoming !== "object" ||
         !("type" in incoming) || incoming.type !== "subscribe" ||
@@ -241,9 +243,14 @@ async function fixture(
         scope: { kind: "match", id: incoming.scope.id },
       };
       subscriptions.push({ principalId: identity.principalId, frame });
+      const acknowledgedRevision = revisions.get(incoming.scope.id) ?? 0;
+      if (subscriptionHold) {
+        subscriptionHold.arrived.resolve();
+        await subscriptionHold.release.promise;
+      }
       socket.send(JSON.stringify({
         type: "subscribed", requestId: frame.requestId,
-        scope: frame.scope, revision: revisions.get(incoming.scope.id) ?? 0,
+        scope: frame.scope, revision: acknowledgedRevision,
       }));
     });
   });
@@ -259,6 +266,10 @@ async function fixture(
     const identity = record("GET", `/matches/${request.params.id}`, request.headers.cookie,
       request.headers.origin, request.headers["x-csrf-token"], undefined);
     const id = request.params.id!;
+    const scripted = scripts.get(`GET /matches/${id}`)?.shift();
+    if (scripted?.code) return reply.code(scripted.status ?? 403).send({ error: {
+      code: scripted.code, message: `${alice.cookie} ${alice.csrfToken}`,
+    } });
     if (!revisions.has(id) || denied.has(key(identity.principalId, id))) {
       return reply.code(404).send({ error: { code: "NOT_FOUND", message: `${identity.cookie} ${identity.csrfToken}` } });
     }
@@ -272,13 +283,14 @@ async function fixture(
     return { data, serverNow: NOW };
   });
 
-  for (const route of ["/matches", "/matches/:id/join", "/matches/:id/start", "/matches/:id/actions", "/matches/:id/leave"]) {
+  for (const route of ["/matches", "/matches/:id/join", "/matches/:id/start", "/matches/:id/actions", "/matches/:id/leave", "/matches/:id/guest-invitations"]) {
     app.post(`/api/v1${route}`, async (request, reply) => {
       const concrete = route.replace(":id", request.params.id ?? "");
       record("POST", concrete, request.headers.cookie, request.headers.origin,
         request.headers["x-csrf-token"], request.body);
       const body = objectBody(request.body);
       const scripted = scripts.get(concrete)?.shift();
+      if (scripted?.delayMs) await delay(scripted.delayMs);
       if (scripted?.code) {
         return reply.code(scripted.status ?? 409).send({ error: {
           code: scripted.code, message: `${alice.cookie} ${alice.csrfToken}`,
@@ -286,6 +298,7 @@ async function fixture(
         } });
       }
       if (scripted?.data !== undefined) return reply.code(scripted.status ?? 200).send({ data: scripted.data, serverNow: NOW });
+      if (route.endsWith("/guest-invitations")) return { data: { url: `${origin}/guest#token=private-invitation` }, serverNow: NOW };
       if (route === "/matches") {
         return reply.code(201).send({ data: { matchId: CREATED_MATCH, revision: 0, commandId: body.commandId }, serverNow: NOW });
       }
@@ -302,6 +315,11 @@ async function fixture(
     alice, bob, origin, requests, logins, subscriptions, revisions, denied, scripts, key,
     send(principalId: string, frame: ServerLiveFrame) {
       for (const [socket, owner] of sockets) if (owner === principalId) socket.send(JSON.stringify(frame));
+    },
+    holdSubscription() {
+      subscriptionHold = { arrived: deferred<void>(), release: deferred<void>() };
+      releases.add(() => subscriptionHold?.release.resolve());
+      return subscriptionHold;
     },
     expire(principalId: string) {
       for (const [socket, owner] of sockets) if (owner === principalId) socket.close(4401, "session expired");
@@ -347,6 +365,10 @@ describe("HttpSimulatedClient real HTTP and WebSocket boundary", () => {
     expect(first.session.displayName).toBe(f.alice.displayName);
     expect(first.session.cookie).not.toBe(second.session.cookie);
     expect(env.getAllClients()).toHaveLength(2);
+    expect(env.getClients(first.session.principalId)).toEqual([first, second]);
+    expect(() => env.getClient(first.session.principalId)).toThrow("Multiple harness devices");
+    expect(env.getClient(first.session.principalId, second.session.cookie)).toBe(second);
+    expect(env.getClient("absent")).toBeUndefined();
     expect(first).not.toBe(second);
     expect(await first.getSnapshot(MATCH)).toEqual(snapshot(MATCH, f.alice.principalId, 4));
     expect(await second.getSnapshot(MATCH)).toEqual(snapshot(MATCH, f.alice.principalId, 4));
@@ -521,4 +543,165 @@ describe("HttpSimulatedClient real HTTP and WebSocket boundary", () => {
     expect(surfaced).not.toContain(f.alice.cookie);
     expect(surfaced).not.toContain(f.alice.csrfToken);
   });
+
+  it("backs off while HTTP lags a subscribed revision and delivers each revision once", async () => {
+    const f = await fixture();
+    const alice = client(f, f.alice, undefined, 1000);
+    const views: number[] = [];
+    alice.onSnapshot(MATCH, view => views.push(view.revision));
+    await alice.connectWs();
+    f.send(f.alice.principalId, { type: "invalidate", scope: { kind: "match", id: MATCH }, revision: 8 });
+    await until(() => gets(f).length >= 2);
+    await delay(110);
+    expect(gets(f).length).toBeLessThanOrEqual(5);
+    expect(views).toEqual([4]);
+    f.revisions.set(MATCH, 8);
+    await until(() => views.includes(8));
+    expect(views).toEqual([4, 8]);
+    expect(alice.receivedSnapshots.map(view => view.revision)).toEqual([4, 8]);
+    expect(alice.connectionState.wsConnected).toBe(true);
+    expect(alice.receivedErrors).toHaveLength(0);
+  });
+
+  it("bounds a permanently lagging subscription without duplicate deliveries or tight polling", async () => {
+    const f = await fixture();
+    const gate = f.holdSubscription();
+    const alice = client(f, f.alice, undefined, 120);
+    const views: number[] = [];
+    alice.onSnapshot(MATCH, view => views.push(view.revision));
+    // The acknowledgement captures revision 8, but the HTTP projection stays at 4.
+    f.revisions.set(MATCH, 8);
+    const connected = alice.connectWs();
+    const outcome = connected.catch((error: unknown) => error);
+    await gate.arrived.promise;
+    f.revisions.set(MATCH, 4);
+    gate.release.resolve();
+    expect(await outcome).toBeInstanceOf(Error);
+    expect(views).toEqual([4]);
+    expect(gets(f).length).toBeLessThanOrEqual(5);
+    expect(alice.connectionState.wsConnected).toBe(false);
+  });
+
+  it("honors revisionless wakeups before acknowledgement and during an in-flight read", async () => {
+    const f = await fixture();
+    const gate = f.holdSubscription();
+    const alice = client(f);
+    const views: number[] = [];
+    alice.onSnapshot(MATCH, view => views.push(view.revision));
+    const connected = alice.connectWs();
+    await gate.arrived.promise;
+    f.revisions.set(MATCH, 6);
+    f.send(f.alice.principalId, { type: "invalidate", scope: { kind: "match", id: MATCH } });
+    await delay(20);
+    expect(gets(f)).toHaveLength(0);
+    gate.release.resolve();
+    await connected;
+    expect(views).toEqual([6]);
+
+    const hold = f.holdNextGet(f.alice.principalId, MATCH);
+    const reading = alice.getSnapshot(MATCH);
+    await hold.arrived.promise;
+    f.revisions.set(MATCH, 9);
+    f.send(f.alice.principalId, { type: "invalidate", scope: { kind: "match", id: MATCH } });
+    await delay(20);
+    hold.release.resolve();
+    expect((await reading).revision).toBe(9);
+    expect(views).toEqual([6, 9]);
+    const before = gets(f).length;
+    f.revisions.set(MATCH, 10);
+    f.send(f.alice.principalId, { type: "invalidate", scope: { kind: "match", id: MATCH } });
+    await until(() => views.includes(10));
+    expect(gets(f)).toHaveLength(before + 1);
+  });
+
+  it.each([
+    ["command", 401, "SESSION_EXPIRED"], ["command", 403, "ACCOUNT_DISABLED"],
+    ["read", 403, "ACCOUNT_DISABLED"], ["read", 401, "SESSION_EXPIRED"],
+  ] as const)("revokes every cached scope and future sends after %s gets %s/%s", async (operation, status, code) => {
+    const f = await fixture();
+    const alice = client(f);
+    alice.onSnapshot(MATCH, () => {});
+    await alice.connectWs();
+    await alice.getSnapshot(OTHER_MATCH);
+    const hold = f.holdNextGet(f.alice.principalId, OTHER_MATCH);
+    const late = alice.getSnapshot(OTHER_MATCH).catch((error: unknown) => error);
+    await hold.arrived.promise;
+    const route = operation === "read" ? `GET /matches/${MATCH}` : `/matches/${MATCH}/actions`;
+    f.scripts.set(route, [{ status, code }]);
+    await expect(operation === "read" ? alice.getSnapshot(MATCH) : alice.act(MATCH, {
+      type: "choose", payload: {}, expectedRevision: 4,
+    })).rejects.toMatchObject({ status, code });
+    expect(alice.receivedSnapshots).toHaveLength(0);
+    expect(alice.connectionState.wsConnected).toBe(false);
+    hold.release.resolve();
+    expect(await late).toBeInstanceOf(Error);
+    const count = f.requests.length;
+    await expect(alice.createMatch("test-counter", "solo")).rejects.toThrow();
+    await expect(alice.joinMatch(MATCH, 4)).rejects.toThrow();
+    await expect(alice.startMatch(MATCH, 4)).rejects.toThrow();
+    await expect(alice.leaveMatch(MATCH, 4)).rejects.toThrow();
+    await expect(alice.createGuestInvitation(MATCH)).rejects.toThrow();
+    await expect(alice.getSnapshot(OTHER_MATCH)).rejects.toThrow();
+    await expect(alice.connectWs()).rejects.toThrow();
+    expect(f.requests).toHaveLength(count);
+    expect(alice.receivedSnapshots).toHaveLength(0);
+  });
+
+  it.each([[403, "FORBIDDEN"], [404, "NOT_FOUND"]] as const)("revokes only the affected match on a command %s/%s", async (status, code) => {
+    const f = await fixture();
+    const alice = client(f);
+    await alice.getSnapshot(MATCH);
+    await alice.getSnapshot(OTHER_MATCH);
+    f.scripts.set(`/matches/${MATCH}/actions`, [{ status, code }]);
+    await expect(alice.act(MATCH, { type: "choose", payload: {}, expectedRevision: 4 })).rejects.toMatchObject({ status, code });
+    expect(alice.receivedSnapshots.map(view => view.id)).toEqual([OTHER_MATCH]);
+    await expect(alice.getSnapshot(MATCH)).rejects.toThrow();
+    expect((await alice.getSnapshot(OTHER_MATCH)).id).toBe(OTHER_MATCH);
+  });
+
+  it.each(["create", "join", "start", "leave", "invite", "act"] as const)("preserves the minted command ID after %s response loss for explicit identical replay", async (operation) => {
+    const f = await fixture();
+    const faults = new HarnessFaultInjector();
+    const alice = client(f, f.alice, faults);
+    const matchId = operation === "create" ? CREATED_MATCH : MATCH;
+    faults.injectPostCommitFailure(matchId);
+    const invoke = (commandId?: string) => {
+      switch (operation) {
+        case "create": return alice.createMatch("test-counter", "solo", {}, "invite", commandId);
+        case "join": return alice.joinMatch(MATCH, 4, "private-link", commandId);
+        case "start": return alice.startMatch(MATCH, 4, commandId);
+        case "leave": return alice.leaveMatch(MATCH, 4, commandId);
+        case "invite": return alice.createGuestInvitation(MATCH, commandId);
+        case "act": return alice.act(MATCH, { type: "note", payload: { text: "private-note" }, expectedRevision: 4, commandId });
+      }
+    };
+    const failure: unknown = await invoke().catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(HarnessCommandError);
+    if (!(failure instanceof HarnessCommandError)) throw new Error("Expected retry correlation");
+    expect(failure).toMatchObject({ matchId, reason: "response_loss" });
+    const first = f.requests.find(request => request.method === "POST")!;
+    expect(failure.commandId).toBe(first.body.commandId);
+    expect(`${String(failure)} ${JSON.stringify(failure)}`).not.toMatch(/private-(cookie|csrf|note|link|invitation)/);
+    await invoke(failure.commandId);
+    const sent = f.requests.filter(request => request.method === "POST");
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.body).toEqual(sent[0]?.body);
+  });
+
+  it("preserves command correlation on actual HTTP timeout without retaining private payloads", async () => {
+    const f = await fixture();
+    const alice = client(f, f.alice, undefined, 50);
+    f.scripts.set(`/matches/${MATCH}/actions`, [{ delayMs: 150 }]);
+    const failure: unknown = await alice.act(MATCH, {
+      type: "note", payload: { text: "private-note" }, expectedRevision: 4,
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(HarnessCommandError);
+    if (!(failure instanceof HarnessCommandError)) throw new Error("Expected retry correlation");
+    expect(failure).toMatchObject({ matchId: MATCH, reason: "transport_failure" });
+    expect(failure.commandId).toBe(f.requests[0]?.body.commandId);
+    expect(JSON.stringify(failure)).not.toContain("private-note");
+    await alice.act(MATCH, { type: "note", payload: { text: "private-note" }, expectedRevision: 4, commandId: failure.commandId });
+    expect(f.requests[1]?.body).toEqual(f.requests[0]?.body);
+  });
+
 });

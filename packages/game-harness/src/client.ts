@@ -28,6 +28,18 @@ export class HarnessHttpError extends Error {
   }
 }
 
+/** Safe retry correlation only: never retain request bodies or credentials. */
+export class HarnessCommandError extends Error {
+  constructor(
+    readonly commandId: string,
+    readonly matchId: string | undefined,
+    readonly reason: "transport_failure" | "response_loss",
+  ) {
+    super("Harness command response unavailable; retry the original intent with the same command ID.");
+    this.name = "HarnessCommandError";
+  }
+}
+
 function safeCode(value: unknown): string {
   return typeof value === "string" && Object.hasOwn(ERROR_CODES, value)
     ? value
@@ -121,6 +133,7 @@ type Scope = {
   subscription?: Promise<void>;
   refresh?: Promise<MatchSnapshot>;
   wantedRevision: number;
+  invalidationVersion: number;
 };
 type SubscriptionWait = {
   scope: Scope;
@@ -170,7 +183,7 @@ export class HttpSimulatedClient implements SimulatedClient {
     }
     let scope = this.scopes.get(matchId);
     if (!scope) {
-      scope = { matchId, listeners: new Set(), subscribed: false, wantedRevision: -1 };
+      scope = { matchId, listeners: new Set(), subscribed: false, wantedRevision: -1, invalidationVersion: 0 };
       this.scopes.set(matchId, scope);
     }
     return scope;
@@ -386,9 +399,15 @@ export class HttpSimulatedClient implements SimulatedClient {
       wait.resolve();
       return;
     }
-    if (!Number.isSafeInteger(frame.revision) || frame.revision === undefined || frame.revision < 0) return;
-    if (frame.revision <= (scope.snapshot?.revision ?? -1)) return;
-    scope.wantedRevision = Math.max(scope.wantedRevision, frame.revision);
+    if (frame.revision === undefined) {
+      // A wakeup without a revision still requires a read. Track its arrival so
+      // a wakeup during an in-flight GET cannot be satisfied by that older read.
+      scope.invalidationVersion++;
+    } else {
+      if (!Number.isSafeInteger(frame.revision) || frame.revision < 0) return;
+      if (frame.revision <= (scope.snapshot?.revision ?? -1)) return;
+      scope.wantedRevision = Math.max(scope.wantedRevision, frame.revision);
+    }
     // Before acknowledgement, remember the invalidation, but do not fetch yet.
     if (scope.subscribed) void this.refresh(scope).catch((error: unknown) => this.report(error));
   }
@@ -398,29 +417,27 @@ export class HttpSimulatedClient implements SimulatedClient {
     const refresh = (async () => {
       const deadline = Date.now() + timeoutMs(this.options);
       let result: MatchSnapshot;
+      let backoffMs = 25;
+      let readVersion: number;
       do {
         if (Date.now() >= deadline) throw new Error("Harness snapshot refresh timed out.");
+        if (!this.current(scope)) throw new Error("Harness match access is unavailable.");
+        readVersion = scope.invalidationVersion;
         let data: MatchSnapshot;
         try {
           ({ data } = await requestData<MatchSnapshot>(
-            this.options, this.session, `/matches/${encodeURIComponent(scope.matchId)}`
+            { ...this.options, timeoutMs: Math.max(1, deadline - Date.now()) },
+            this.session, `/matches/${encodeURIComponent(scope.matchId)}`
           ));
         } catch (error) {
-          if (error instanceof HarnessHttpError) {
-            if (error.status === 401) {
-              this.revokeSession();
-              this.disconnectWs();
-            } else if (error.status === 403 || error.status === 404) {
-              this.revokeMatch(scope.matchId);
-            }
-          }
+          this.handleAccessError(error, scope.matchId);
           throw error;
         }
         if (!this.current(scope)) throw new Error("Harness match access is unavailable.");
         if (!record(data) || data.id !== scope.matchId || !Number.isSafeInteger(data.revision) || data.revision < 0) {
           throw new Error("Invalid harness snapshot response.");
         }
-        if (!scope.snapshot || data.revision >= scope.snapshot.revision) {
+        if (!scope.snapshot || data.revision > scope.snapshot.revision) {
           scope.snapshot = data;
           this.snapshots.push(data);
           for (const listener of [...scope.listeners]) {
@@ -431,7 +448,15 @@ export class HttpSimulatedClient implements SimulatedClient {
           }
         }
         result = scope.snapshot;
-      } while (this.current(scope) && result.revision < scope.wantedRevision);
+        if (result.revision >= scope.wantedRevision && readVersion === scope.invalidationVersion) break;
+        // An HTTP projection may lag the socket. Retry within the deadline,
+        // without hammering the API or publishing duplicate private views.
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new Error("Harness snapshot refresh timed out.");
+        await new Promise<void>((resolve) => setTimeout(resolve, Math.min(backoffMs, remaining)));
+        backoffMs = Math.min(backoffMs * 2, 250);
+      } while (this.current(scope));
+      if (!this.current(scope)) throw new Error("Harness match access is unavailable.");
       return result;
     })();
     scope.refresh = refresh;
@@ -506,40 +531,52 @@ export class HttpSimulatedClient implements SimulatedClient {
     }
   }
 
-  private async mutate<T>(route: string, body: unknown, matchId?: string): Promise<T> {
+  private handleAccessError(error: unknown, matchId?: string): void {
+    if (!(error instanceof HarnessHttpError)) return;
+    if (error.status === 401 || error.code === "ACCOUNT_DISABLED") {
+      this.revokeSession();
+      this.disconnectWs();
+    } else if (matchId && (error.status === 403 || error.status === 404)) {
+      this.revokeMatch(matchId);
+    }
+  }
+
+  private async mutate<T>(route: string, body: { commandId: string; [key: string]: unknown }, matchId?: string): Promise<T> {
+    if (this.sessionRevoked) throw new Error("Harness session access is unavailable.");
     let data: T;
     try {
       ({ data } = await requestData<T>(this.options, this.session, route, body));
     } catch (error) {
-      if (error instanceof HarnessHttpError && error.status === 401) {
-        this.revokeSession();
-        this.disconnectWs();
-      }
-      throw error;
+      this.handleAccessError(error, matchId);
+      if (error instanceof HarnessHttpError) throw error;
+      throw new HarnessCommandError(body.commandId, matchId, "transport_failure");
     }
-    if (this.options.faults?.consume("post_commit_failure", { matchId, channel: route })) {
-      throw new Error("Harness simulated response loss after successful HTTP response.");
+    const responseMatchId = matchId ?? (record(data) && typeof data.matchId === "string" ? data.matchId : undefined);
+    if (this.options.faults?.consume("post_commit_failure", { matchId: responseMatchId, channel: route })) {
+      throw new HarnessCommandError(body.commandId, responseMatchId, "response_loss");
     }
     return data;
   }
 
-  async createMatch(moduleId: string, mode: string, settings: Json = {}, visibility: "invite" | "instance" = "invite"): Promise<{ matchId: string }> {
-    const data = await this.mutate<CreateMatchResponse>("/matches", { commandId: randomUUID(), moduleId, mode, settings, visibility });
+  async createMatch(moduleId: string, mode: string, settings: Json = {}, visibility: "invite" | "instance" = "invite", commandId: string = randomUUID()): Promise<{ matchId: string; commandId: string }> {
+    const data = await this.mutate<CreateMatchResponse>("/matches", { commandId, moduleId, mode, settings, visibility });
     await this.setActive(data.matchId);
-    return { matchId: data.matchId };
+    return { matchId: data.matchId, commandId };
   }
 
-  async joinMatch(matchId: string, expectedRevision: number, linkToken?: string): Promise<void> {
+  async joinMatch(matchId: string, expectedRevision: number, linkToken?: string, commandId: string = randomUUID()): Promise<CommandReceipt> {
     const receipt = await this.mutate<CommandReceipt>(`/matches/${encodeURIComponent(matchId)}/join`, {
-      commandId: randomUUID(), expectedRevision, ...(linkToken === undefined ? {} : { linkToken }),
+      commandId, expectedRevision, ...(linkToken === undefined ? {} : { linkToken }),
     }, matchId);
     this.receipts.push(receipt);
     await this.setActive(matchId);
+    return receipt;
   }
 
-  async startMatch(matchId: string, expectedRevision: number): Promise<void> {
-    const receipt = await this.mutate<CommandReceipt>(`/matches/${encodeURIComponent(matchId)}/start`, { commandId: randomUUID(), expectedRevision }, matchId);
+  async startMatch(matchId: string, expectedRevision: number, commandId: string = randomUUID()): Promise<CommandReceipt> {
+    const receipt = await this.mutate<CommandReceipt>(`/matches/${encodeURIComponent(matchId)}/start`, { commandId, expectedRevision }, matchId);
     this.receipts.push(receipt);
+    return receipt;
   }
 
   act(matchId: string, action: { type: string; payload: Json; commandId?: string; expectedRevision: number }): Promise<CommandReceipt> {
@@ -552,10 +589,10 @@ export class HttpSimulatedClient implements SimulatedClient {
     return receipt;
   }
 
-  async createGuestInvitation(matchId: string): Promise<{ token: string }> {
+  async createGuestInvitation(matchId: string, commandId: string = randomUUID()): Promise<{ token: string; commandId: string }> {
     const data = await this.mutate<{ url: string }>(
       `/matches/${encodeURIComponent(matchId)}/guest-invitations`,
-      { commandId: randomUUID() },
+      { commandId },
       matchId
     );
     try {
@@ -564,15 +601,16 @@ export class HttpSimulatedClient implements SimulatedClient {
         ? new URLSearchParams(fragment).get("token")
         : decodeURIComponent(fragment);
       if (!token) throw new Error();
-      return { token };
+      return { token, commandId };
     } catch {
       throw new Error("Invalid harness guest invitation response.");
     }
   }
 
-  async leaveMatch(matchId: string, expectedRevision: number): Promise<void> {
-    const receipt = await this.mutate<CommandReceipt>(`/matches/${encodeURIComponent(matchId)}/leave`, { commandId: randomUUID(), expectedRevision }, matchId);
+  async leaveMatch(matchId: string, expectedRevision: number, commandId: string = randomUUID()): Promise<CommandReceipt> {
+    const receipt = await this.mutate<CommandReceipt>(`/matches/${encodeURIComponent(matchId)}/leave`, { commandId, expectedRevision }, matchId);
     this.receipts.push(receipt);
     this.revokeMatch(matchId);
+    return receipt;
   }
 }

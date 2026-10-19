@@ -110,9 +110,27 @@ try {
 
 Match mutations require explicit expected revisions. Replay sends the original
 command ID, revision and payload; stale intentions are never retried automatically.
+All match mutation helpers accept an optional `commandId` (the final argument;
+`act` takes it in its action object). Store one ID and the original arguments per
+intent. Creation/invitation helpers return it alongside their result; join/start/
+leave return the command receipt. If a response is lost or the transport fails,
+`HarnessCommandError` exposes `commandId`, an available `matchId`, and a safe
+`reason`, without retaining the payload or session credentials. Reinvoke the same
+helper with that ID and unchanged arguments; no helper retries automatically.
+For creation, a parsed lost response also supplies the new match ID. If no
+response arrived, that ID is unknown; replay the creation command ID to recover it.
+
+Use `env.getClients(principalId)` for all devices, or
+`env.getClient(principalId, cookie)` to select a session. A principal-only lookup
+throws when multiple devices match instead of silently selecting the first.
+
 WS carries invalidation only. Acknowledged subscriptions and explicit reconnects
 fetch authorized HTTP snapshots; revocation clears cached private views and rejects
-late reads. Call `onSnapshot` to observe a scope, and inspect `receivedErrors` or
+late reads. HTTP 401 and ACCOUNT_DISABLED revoke every cached scope and stop
+further sends; match-specific 403/404 revoke only that match. Revisionless wakeups
+still trigger a read, including wakeups during an in-flight request. Lagging
+snapshots retry with bounded exponential backoff (25–250 ms) within the configured
+timeout; only advancing revisions are published to observers. Call `onSnapshot` to observe a scope, and inspect `receivedErrors` or
 supply `onError` for asynchronous failures. Disconnect/reconnect is explicit so a
 fixture controls when recovery happens.
 
