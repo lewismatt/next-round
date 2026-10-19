@@ -18,7 +18,7 @@ Source: [shadcn/ui LICENSE.md](https://github.com/shadcn-ui/ui/blob/main/LICENSE
 
 Each package record contains its exact name and version, the license expression from its published `package.json`, repository/homepage and registry links, download URL, locked integrity, platform constraints, and references to the original manifest and attribution files. The `graph` field preserves importers and dependency snapshots, including optional edges. Repeated peer contexts share a single name/version attribution record.
 
-The current lockfile contains 561 distinct name/version entries across two YAML documents, including 158 platform-constrained packages. Its declarations include MPL-2.0, OFL-1.1 and Python-2.0 as well as MIT, Apache-2.0, BSD and other terms. Coverage and unresolved items are separate fields in the inventory.
+The current lockfile contains 562 distinct name/version entries across two YAML documents, including 158 platform-constrained packages. Its declarations include MPL-2.0, OFL-1.1 and Python-2.0 as well as MIT, Apache-2.0, BSD and other terms. Coverage and unresolved items are separate fields in the inventory.
 
 The generator downloads each package archive, verifies its bytes against the lockfile integrity, and collects license, copying, copyright, authors, NOTICE, font-license and README files, including nested copies. Original bytes are stored in [`third_party/materials/`](third_party/materials/) under SHA-256 filenames. The inventory maps each original path to its material. Preserve these files with distributed source or application images. Font licenses and copyright notices remain applicable to bundled font assets.
 

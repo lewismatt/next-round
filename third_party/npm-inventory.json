@@ -1,7 +1,7 @@
 {
   "format": "next-round-third-party/1",
-  "lockfileSha256": "af6d52576938dfc0a042737bf9059c9983f34fa71b3660d042661e3103f0efcc",
-  "packageCount": 561,
+  "lockfileSha256": "5c126c945ed4a110fc2510f37127af02c682020902d48f8eb33cce8d32d65617",
+  "packageCount": 562,
   "packages": [
     {
       "name": "@drizzle-team/brocli",
@@ -6595,6 +6595,30 @@
         {
           "path": "react/README.md",
           "material": "materials/0931d954e34e4aa81ae1a2efffada58df2acddb852a2fb5ec276b29703f5b3c7.txt"
+        }
+      ]
+    },
+    {
+      "name": "@types/ws",
+      "version": "8.18.1",
+      "license": "MIT",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/ws",
+      "registry": "https://www.npmjs.com/package/@types/ws/v/8.18.1",
+      "tarball": "https://registry.npmjs.org/@types/ws/-/ws-8.18.1.tgz",
+      "integrity": "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==",
+      "os": [],
+      "cpu": [],
+      "libc": [],
+      "manifest": "materials/92f0a87117b71231a0864f7bb7c6a84b7fc91dbdd7d33379fc23d655980ad083.txt",
+      "files": [
+        {
+          "path": "ws/LICENSE",
+          "material": "materials/c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383.txt"
+        },
+        {
+          "path": "ws/README.md",
+          "material": "materials/1bb2fbdd6e1a9e5320a8a9297e57ac2fefd7690ae695c0b78121bd0092a87910.txt"
         }
       ]
     },
@@ -15045,12 +15069,16 @@
               "specifier": "workspace:*",
               "version": "link:../game-client"
             },
-            "@next-round/game-sdk": {
-              "specifier": "workspace:*",
-              "version": "link:../game-sdk"
+            "ws": {
+              "specifier": "8.22.0",
+              "version": "8.22.0"
             }
           },
           "devDependencies": {
+            "@types/ws": {
+              "specifier": "8.18.1",
+              "version": "8.18.1"
+            },
             "typescript": {
               "specifier": "7.0.2",
               "version": "7.0.2"
@@ -16638,6 +16666,11 @@
         "@types/react@19.0.10": {
           "dependencies": {
             "csstype": "3.2.3"
+          }
+        },
+        "@types/ws@8.18.1": {
+          "dependencies": {
+            "@types/node": "24.10.8"
           }
         },
         "@typescript/typescript-aix-ppc64@7.0.2": {
