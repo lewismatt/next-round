@@ -8,7 +8,7 @@ import {
 } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { ApiError, ERROR_CODES } from "./errors.js";
-import type { Json } from "./manifest.js";
+import { JsonSchema, type Json } from "./manifest.js";
 
 if (!TypeRegistry.Has("OneOf")) {
   TypeRegistry.Set("OneOf", (schema: unknown, value: unknown) => {
@@ -898,6 +898,57 @@ export const AdminGameParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 export type AdminGameParams = Static<typeof AdminGameParamsSchema>;
+
+/** POST /admin/games/:id/import request body. */
+export const AdminGameImportRequestSchema = Type.Object(
+  {
+    commandId: UuidSchema,
+    document: JsonSchema,
+  },
+  { additionalProperties: false },
+);
+export type AdminGameImportRequest = Static<typeof AdminGameImportRequestSchema>;
+
+/** POST /admin/games/:id/import response body. */
+export const AdminGameImportResponseSchema = Type.Object(
+  {
+    data: Type.Object(
+      {
+        resourceId: Type.String(),
+        identity: Type.String(),
+        version: Type.Integer({ minimum: 1 }),
+        duplicate: Type.Boolean(),
+      },
+      { additionalProperties: false },
+    ),
+    serverNow: Type.String(),
+  },
+  { additionalProperties: false },
+);
+export type AdminGameImportResponse = Static<typeof AdminGameImportResponseSchema>;
+
+/** GET /games/:gameId/resources response body. */
+export const GameResourceCatalogResponseSchema = Type.Object(
+  {
+    data: Type.Array(
+      Type.Object(
+        {
+          resourceId: Type.String(),
+          version: Type.Integer({ minimum: 1 }),
+          metadata: JsonSchema,
+          createdAt: Type.String(),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+    nextCursor: Type.Union([Type.String(), Type.Null()]),
+    serverNow: Type.String(),
+  },
+  { additionalProperties: false },
+);
+export type GameResourceCatalogResponse = Static<
+  typeof GameResourceCatalogResponseSchema
+>;
 
 /** Principal response shape: `{id,kind,displayName,username}`. */
 export interface PrincipalView {

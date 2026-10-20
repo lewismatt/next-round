@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   ApiError,
@@ -14,7 +14,13 @@ import {
   type Member,
 } from "@next-round/contracts";
 import type { DatabasePool } from "@next-round/db";
-import type { GameEvent, RuleContext, Transition } from "@next-round/game-sdk";
+import type {
+  Fact,
+  GameEvent,
+  Resource,
+  RuleContext,
+  Transition,
+} from "@next-round/game-sdk";
 import type { GameRegistry, RegisteredGameVersion } from "./registry.js";
 import type { AuthenticatedSession } from "./auth-service.js";
 import {
@@ -23,6 +29,15 @@ import {
   type TransactionClient,
 } from "./transaction-authority.js";
 import { prepareFinalResult, persistFinalResult } from "./final-results.js";
+import { canonicalJson, sameRequestHash } from "./request-hash.js";
+import {
+  loadMatchFacts,
+  loadMatchResource,
+  loadResourceById,
+  lockResourceIdentity,
+  persistMatchFacts,
+  type PinnedResource,
+} from "./resource-service.js";
 import {
   persistMatchEffects,
   readDeadlines,
@@ -147,17 +162,6 @@ interface CommandReceiptRow {
   safe_receipt: Json;
 }
 
-function canonicalJson(value: Json): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
-  }
-  const keys = Object.keys(value).sort();
-  return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
-}
-
 /** Route, normalized command fields, and expectedRevision. Never log this string. */
 function hashMatchAction(matchId: string, input: MatchActionInput): Buffer {
   return createHash("sha256")
@@ -199,19 +203,6 @@ function hashLifecycleCommand(
     .digest();
 }
 
-function sameRequestHash(
-  expected: Buffer,
-  stored: Buffer | Uint8Array | string,
-): boolean {
-  const actual =
-    typeof stored === "string"
-      ? Buffer.from(stored.startsWith("\\x") ? stored.slice(2) : stored, "hex")
-      : Buffer.isBuffer(stored)
-        ? stored
-        : Buffer.from(stored);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
-}
-
 function registeredVersion(
   registry: GameRegistry,
   moduleId: string,
@@ -236,6 +227,8 @@ function context(
   now: string,
   eventId: string,
   actor: { principalId: string; memberId: string } | null,
+  resource: Resource | null = null,
+  facts: readonly Fact[] = [],
 ): RuleContext {
   return {
     matchId: match.id,
@@ -249,8 +242,8 @@ function context(
     members,
     hostMemberId: match.host_member_id,
     settings: match.settings,
-    resource: null,
-    facts: [],
+    resource,
+    facts,
   };
 }
 
@@ -354,11 +347,33 @@ export class MatchService {
         module &&
         registeredVersion(this.registry, input.moduleId, module.version);
       if (!registered) throw moduleUnavailable();
-      if (input.resourceId) {
+      const requiresResource = registered.manifest.capabilities.resources;
+      if (requiresResource && !input.resourceId) {
+        throw new ApiError(
+          ERROR_CODES.INVALID_REQUEST,
+          "This game requires a content resource.",
+        );
+      }
+      if (!requiresResource && input.resourceId) {
         throw new ApiError(
           ERROR_CODES.INVALID_REQUEST,
           "This game does not support resource-based matches.",
         );
+      }
+      let pinnedResource: PinnedResource | null = null;
+      if (input.resourceId) {
+        pinnedResource = await loadResourceById(
+          client,
+          input.moduleId,
+          input.resourceId,
+        );
+        if (!pinnedResource) {
+          throw new ApiError(
+            ERROR_CODES.NOT_FOUND,
+            "The requested resource was not found.",
+          );
+        }
+        await lockResourceIdentity(client, pinnedResource.identityId);
       }
       const mode = registered.manifest.modes.find(
         (candidate) => candidate.id === input.mode,
@@ -418,6 +433,14 @@ export class MatchService {
         now,
         eventId,
         { principalId: session.principal.id, memberId },
+        pinnedResource
+          ? {
+              id: input.resourceId!,
+              identity: pinnedResource.identity,
+              version: pinnedResource.version,
+              data: pinnedResource.data,
+            }
+          : null,
       );
       let transition;
       try {
@@ -452,10 +475,10 @@ export class MatchService {
       await client.query(
         `INSERT INTO next_round.matches
            (id, module_id, module_version, state_version, mode, phase, creator_id,
-            host_member_id, settings, visibility, policy_version, policy_snapshot,
-            revision, state, needs_action_from)
-         VALUES ($1, $2, $3, $4, $5, 'lobby', $6, NULL, $7::jsonb, $8, $9,
-                 $10::jsonb, 0, $11::jsonb, $12::uuid[])`,
+            host_member_id, resource_id, resource_snapshot, settings, visibility,
+            policy_version, policy_snapshot, revision, state, needs_action_from)
+         VALUES ($1, $2, $3, $4, $5, 'lobby', $6, NULL, $7, $8::jsonb, $9::jsonb, $10,
+                 $11, $12::jsonb, 0, $13::jsonb, $14::uuid[])`,
         [
           matchId,
           input.moduleId,
@@ -463,6 +486,8 @@ export class MatchService {
           module.state_version,
           input.mode,
           session.principal.id,
+          input.resourceId ?? null,
+          pinnedResource ? JSON.stringify(pinnedResource.data) : null,
           JSON.stringify(settings),
           visibility,
           currentPolicy.current_policy_version,
@@ -793,6 +818,9 @@ export class MatchService {
           throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
         }
       }
+      // Resource-bound commands serialize on the resource identity before the
+      // match row, so two overlapping matches cannot both miss prior exposure.
+      await this.lockMatchResourceIdentity(client, matchId);
       const matchResult = await client.query<LifecycleMatchRow>(
         `SELECT id, module_id, module_version, state_version, mode, phase,
                 revision::integer AS revision, state, settings, host_member_id, visibility
@@ -1128,10 +1156,24 @@ export class MatchService {
 
       // The reducer receives the database time captured after the match lock.
       const eventId = randomUUID();
-      const ctx = context(match, members, now, eventId, {
-        principalId,
-        memberId: targetMemberId ? existingMember!.id : member.id,
-      });
+      const { resource } = await loadMatchResource(client, matchId);
+      const facts = await loadMatchFacts(
+        client,
+        matchId,
+        members.map((member) => member.principalId),
+      );
+      const ctx = context(
+        match,
+        members,
+        now,
+        eventId,
+        {
+          principalId,
+          memberId: targetMemberId ? existingMember!.id : member.id,
+        },
+        resource,
+        facts,
+      );
       const event: GameEvent =
         kind === "join"
           ? { kind: "join", memberId: member.id, rejoin }
@@ -1356,7 +1398,21 @@ export class MatchService {
       match.module_version,
     );
     const serverNow = new Date().toISOString();
-    const ctx = context(match, match.members, serverNow, randomUUID(), null);
+    const { resource } = await loadMatchResource(this.pool, matchId);
+    const facts = await loadMatchFacts(
+      this.pool,
+      matchId,
+      match.members.map((member) => member.principalId),
+    );
+    const ctx = context(
+      match,
+      match.members,
+      serverNow,
+      randomUUID(),
+      null,
+      resource,
+      facts,
+    );
 
     let game: Json;
     let authority;
@@ -1494,6 +1550,9 @@ export class MatchService {
         ...candidates.rows.map((row) => row.principal_id),
       ];
       await lockPrincipals(client, principalIds);
+      // Resource-bound commands serialize on the resource identity before the
+      // match row, so two overlapping matches cannot both miss prior exposure.
+      await this.lockMatchResourceIdentity(client, matchId);
       const matchResult = await client.query<ActionMatchRow>(
         `SELECT m.id, m.module_id, m.module_version, m.state_version, m.mode, m.phase,
                 m.revision::integer AS revision, m.state, m.settings, m.host_member_id,
@@ -1609,10 +1668,24 @@ export class MatchService {
 
       const members = deadlineMembers;
       const eventId = randomUUID();
-      const ctx = context(match, members, now, eventId, {
-        principalId,
-        memberId: match.viewer_member_id,
-      });
+      const { resource } = await loadMatchResource(client, matchId);
+      const facts = await loadMatchFacts(
+        client,
+        matchId,
+        members.map((member) => member.principalId),
+      );
+      const ctx = context(
+        match,
+        members,
+        now,
+        eventId,
+        {
+          principalId,
+          memberId: match.viewer_member_id,
+        },
+        resource,
+        facts,
+      );
 
       let transition;
       try {
@@ -1677,12 +1750,31 @@ export class MatchService {
   }
 
   private async databaseNow(
-    client: Pick<DatabasePool, "query">,
+    client: Pick<DatabasePool, "query">
   ): Promise<string> {
     const result = await client.query<{ now: Date }>(
       "SELECT clock_timestamp() AS now",
     );
     return result.rows[0].now.toISOString();
+  }
+
+  /**
+   * Locks the resource identity of a match before its row is locked, so two
+   * matches on the same content serialize their exposure checks.
+   */
+  private async lockMatchResourceIdentity(
+    client: Pick<DatabasePool, "query">,
+    matchId: string,
+  ): Promise<void> {
+    const result = await client.query<{ identity_id: string }>(
+      `SELECT r.identity_id
+         FROM next_round.matches m
+         JOIN next_round.module_resources r ON r.id = m.resource_id
+        WHERE m.id = $1`,
+      [matchId],
+    );
+    const identityId = result.rows[0]?.identity_id;
+    if (identityId) await lockResourceIdentity(client, identityId);
   }
 
   private async loadMembers(
@@ -1732,7 +1824,17 @@ export class MatchService {
       let transition;
       try {
         const state = parseJsonSchemaValue(registered.manifest.stateSchema, match.state);
-        transition = registered.server.transition(context(match, members, now, eventId, null), state, event);
+        const { resource } = await loadMatchResource(client, match.id);
+        const facts = await loadMatchFacts(
+          client,
+          match.id,
+          members.map((member) => member.principalId),
+        );
+        transition = registered.server.transition(
+          context(match, members, now, eventId, null, resource, facts),
+          state,
+          event,
+        );
       } catch {
         throw moduleFailure();
       }
@@ -1842,6 +1944,17 @@ export class MatchService {
       stored,
       fired,
     );
+    // Facts are principal-scoped records of the pinned resource identity. They
+    // commit with the transition so a later match observes the exposure.
+    await persistMatchFacts(
+      client,
+      match.id,
+      transition.facts,
+      members.map((member) => member.principalId),
+      registered.manifest.resourceSchemas?.facts as
+        | Record<string, unknown>
+        | undefined,
+    );
     await persistFinalResult(
       client,
       match,
@@ -1895,8 +2008,14 @@ export class MatchService {
       };
       let transition;
       try {
+        const { resource } = await loadMatchResource(client, match.id);
+        const facts = await loadMatchFacts(
+          client,
+          match.id,
+          members.map((member) => member.principalId),
+        );
         transition = registered.server.transition(
-          context(match, members, now, deadline.eventId, null),
+          context(match, members, now, deadline.eventId, null, resource, facts),
           match.state,
           event,
         );

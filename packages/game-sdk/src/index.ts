@@ -2,6 +2,7 @@
 import type { GameServer, Json } from "./types.js";
 
 export * from "./types.js";
+export * from "./errors.js";
 
 /**
  * Type-safe helper to define a GameServer implementation matching Master Spec §2.

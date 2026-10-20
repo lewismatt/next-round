@@ -214,6 +214,9 @@ importers:
       '@next-round/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@next-round/game-crossword':
+        specifier: workspace:*
+        version: link:../../games/crossword
       '@next-round/game-test-counter':
         specifier: workspace:*
         version: link:../../games/test-counter
@@ -288,6 +291,9 @@ importers:
       '@next-round/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@next-round/game-crossword':
+        specifier: workspace:*
+        version: link:../../games/crossword
       '@next-round/game-test-counter':
         specifier: workspace:*
         version: link:../../games/test-counter
@@ -307,6 +313,25 @@ importers:
       '@types/pg':
         specifier: 8.11.11
         version: 8.11.11
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  games/crossword:
+    dependencies:
+      '@next-round/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@next-round/game-client':
+        specifier: workspace:*
+        version: link:../../packages/game-client
+      '@next-round/game-sdk':
+        specifier: workspace:*
+        version: link:../../packages/game-sdk
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.8
+        version: 24.10.8
       typescript:
         specifier: 7.0.2
         version: 7.0.2
