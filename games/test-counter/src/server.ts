@@ -461,6 +461,9 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
       const activeMembers = ctx.members.filter(
         (m) => m.id !== event.memberId && m.status === "active" && !m.disabled
       );
+      const hostMemberId = ctx.hostMemberId === event.memberId
+        ? activeMembers[0]?.id ?? null
+        : ctx.hostMemberId;
 
       if (activeMembers.length === 0) {
         const final: FinalResult = {
@@ -512,7 +515,7 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
         value: {
           state: nextState,
           phase: ctx.phase ?? "lobby",
-          hostMemberId: ctx.hostMemberId,
+          hostMemberId,
           deadlines:
             ctx.phase === "active"
               ? computeDeadline(ctx.now, state.turnSeconds, nextGen)

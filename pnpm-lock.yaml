@@ -214,6 +214,9 @@ importers:
       '@next-round/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@next-round/game-test-counter':
+        specifier: workspace:*
+        version: link:../../games/test-counter
       '@next-round/platform':
         specifier: workspace:*
         version: link:../../packages/platform

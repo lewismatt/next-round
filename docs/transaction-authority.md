@@ -19,6 +19,10 @@ Catalog and schema routes require authentication. Catalog/schema probes require
 registration; an active guest may fetch only its match's exact pinned manifest.
 Protected manifest responses use `no-store`; immutable declared browser assets
 keep their public caching contract. Schema probes require origin and CSRF checks.
+Match create/join/start/leave/action writers follow the same principal-first
+order, current-session recheck and bounded retry protocol. New joins currently
+admit registered principals to instance-visible matches; invite/link redemption
+and new guest admission remain separate work.
 
 ## Verification and boundaries
 
@@ -34,10 +38,12 @@ keep their public caching contract. Schema probes require origin and CSRF checks
   guest denial outside an active exact pinned manifest, including schema probes.
 - F1-05: the existing two-device conflict test observes waits at either the new
   principal lock or the match lock, then verifies one accepted transition.
+- F1-LIFECYCLE: create, join, start, leave, exact receipt replay, rejoin period
+  creation, and read revocation after leave run through HTTP on PostgreSQL 18.
 
 CI runs these cases on PostgreSQL 18.6 and 17. Reset tests exercise the required
 auth-epoch writer protocol directly; they do not prove a reset HTTP endpoint,
 which remains H1 work. Production live/reconnect denial remains F1-09. Principal
-status reducer effects, absent lifecycle commands, deadline reconciliation and
-final projections retain their existing later acceptance gates. This change does
-not establish full F1-01 acceptance or integration until reviewed and merged.
+status reducer effects, deadline reconciliation and final projections retain
+their existing later acceptance gates. Lifecycle integration now passes on
+PostgreSQL 18.6 and 17; full F1-01 acceptance remains open.

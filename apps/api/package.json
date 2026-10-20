@@ -19,6 +19,7 @@
     "@fastify/websocket": "11.3.4",
     "@next-round/contracts": "workspace:*",
     "@next-round/db": "workspace:*",
+    "@next-round/game-test-counter": "workspace:*",
     "@next-round/platform": "workspace:*",
     "fastify": "5.12.7",
     "pino": "9.6.0"
