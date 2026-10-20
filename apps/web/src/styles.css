@@ -515,6 +515,13 @@ a {
 @media (max-width: 720px) {
   .site-header {
     padding: 0.65rem 1rem;
+    flex-wrap: wrap;
+  }
+  /* BL-041: at phone widths the desktop header nav plus the sign-out
+     control overflowed the header. The fixed bottom MobileNav already
+     carries the same navigation at this width, so the top nav yields. */
+  .shell-nav {
+    display: none;
   }
   .header-identity {
     max-width: 8rem;

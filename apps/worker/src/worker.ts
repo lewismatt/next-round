@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { PgBoss } from "pg-boss";
 import { ERROR_CODES } from "@next-round/contracts";
@@ -14,6 +15,14 @@ import { registerCrosswordModule } from "./crossword-fixture.js";
 const { Pool } = pg;
 
 const DEFAULT_RECONCILE_INTERVAL_MS = 10_000;
+/** BL-051: heartbeats run on their own fixed cadence, decoupled from the
+ *  configurable reconciliation interval. The admin health stale threshold
+ *  (30 s) is three missed heartbeats at this cadence, so a healthy worker
+ *  reads fresh whatever LIVE_RECONCILE_INTERVAL_MS is configured to. */
+const HEARTBEAT_INTERVAL_MS = 10_000;
+/** BL-053: heartbeat rows left behind by crashed workers are pruned at
+ *  worker startup once their last heartbeat is older than this window. */
+const HEARTBEAT_RETENTION_INTERVAL = "24 hours";
 const DEFAULT_BATCH_SIZE = 50;
 const OUTBOX_LEASE_DURATION_MS = 30_000;
 const OUTBOX_MAX_ATTEMPTS = 8;
@@ -23,6 +32,20 @@ const PG_SQLSTATE_REGEX = /^[0-9A-Z]{5}$/;
 const KNOWN_ERROR_CODES: Record<string, true> = Object.fromEntries(
   Object.values(ERROR_CODES).map((code) => [code, true]),
 );
+// Worker-internal delivery failure codes (BL-042): recorded verbatim in
+// outbox.last_error_code so an operator can triage a dead-lettered row
+// without reading source.
+const WORKER_DELIVERY_ERROR_CODES: Record<string, true> = {
+  INVALID_PAYLOAD: true,
+  PGBOSS_UNAVAILABLE: true,
+  UNKNOWN_TOPIC: true,
+};
+
+function deliveryError(code: string): Error & { code: string } {
+  const err = new Error(code) as Error & { code: string };
+  err.code = code;
+  return err;
+}
 
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_REGEX.test(value);
@@ -36,6 +59,9 @@ export function safeErrorCode(err: unknown): string {
     typeof err.code === "string"
   ) {
     if (Object.hasOwn(KNOWN_ERROR_CODES, err.code)) {
+      return err.code;
+    }
+    if (Object.hasOwn(WORKER_DELIVERY_ERROR_CODES, err.code)) {
       return err.code;
     }
     if (PG_SQLSTATE_REGEX.test(err.code)) {
@@ -187,6 +213,7 @@ export class WorkerRunner {
   private wakeupDraining = false;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconcileTimer: NodeJS.Timeout | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private running = false;
   private stopped = false;
   private startedAt: number | null = null;
@@ -195,6 +222,7 @@ export class WorkerRunner {
   private isReconciling = false;
   private inFlightWork = 0;
   private inFlightWaiters: Array<() => void> = [];
+  private readonly workerId = randomUUID();
   public readonly registry: GameRegistry;
   public readonly matchService: MatchService;
   private readonly skipRetentionCheck: boolean;
@@ -240,6 +268,11 @@ export class WorkerRunner {
       this.pool = new Pool({
         connectionString: this.config.connectionString,
         max: Number(process.env.WORKER_POOL_MAX || 5),
+      });
+      // Same guard as createDatabasePool: an idle client whose backend
+      // dies must not take the process down via an unlistened pool error.
+      this.pool.on("error", (err) => {
+        console.error(`[worker:pool] Idle client error: ${safeErrorCode(err)}`);
       });
       this.ownsPool = true;
     }
@@ -348,6 +381,45 @@ export class WorkerRunner {
     }
   }
   /**
+   * BL-039: persist a liveness heartbeat so the admin health surface can
+   * report worker presence and staleness (spec section 8). Written at
+   * startup, on every reconciliation sweep, and on a dedicated fixed
+   * 10-second timer (BL-051). Best-effort: a failed write is logged,
+   * never fatal — the next write retries.
+   */
+  private async recordHeartbeat(): Promise<void> {
+    try {
+      await this.pool.query(
+        `INSERT INTO next_round.worker_heartbeats (worker_id, started_at, last_seen_at)
+         VALUES ($1, $2, clock_timestamp())
+         ON CONFLICT (worker_id) DO UPDATE SET last_seen_at = clock_timestamp()`,
+        [this.workerId, new Date(this.startedAt ?? Date.now())],
+      );
+    } catch (err) {
+      console.error(`[worker:heartbeat] Write failed: ${safeErrorCode(err)}`);
+    }
+  }
+
+  /**
+   * BL-053: bound the heartbeat table's growth. A gracefully stopped
+   * worker deletes its own row, but a crashed worker's row stays behind;
+   * prune rows whose last heartbeat is older than the retention window.
+   * Runs at startup, so the table self-cleans on every worker boot while
+   * recent crash rows survive as diagnostics. Best-effort, like the
+   * heartbeat write itself.
+   */
+  private async pruneStaleHeartbeats(): Promise<void> {
+    try {
+      await this.pool.query(
+        `DELETE FROM next_round.worker_heartbeats
+          WHERE last_seen_at < clock_timestamp() - interval '${HEARTBEAT_RETENTION_INTERVAL}'`,
+      );
+    } catch (err) {
+      console.error(`[worker:heartbeat] Prune failed: ${safeErrorCode(err)}`);
+    }
+  }
+
+  /**
    * Initialize pg-boss, register queue workers, and start periodic reconciliation.
    */
   public async start(): Promise<void> {
@@ -387,6 +459,7 @@ export class WorkerRunner {
         this.isReconciling = true;
         try {
           await this.withInFlight(async () => {
+            await this.recordHeartbeat();
             await this.drainOverdueAndOutbox();
           });
         } catch (err) {
@@ -402,6 +475,13 @@ export class WorkerRunner {
       this.running = true;
       this.requestOutboxDrain();
       this.startedAt = Date.now();
+      await this.recordHeartbeat();
+      await this.pruneStaleHeartbeats();
+      this.heartbeatTimer = setInterval(() => {
+        if (this.running) {
+          void this.recordHeartbeat();
+        }
+      }, HEARTBEAT_INTERVAL_MS);
       console.log(
         `[worker] Running. Periodic reconciliation scheduled every ${this.config.reconcileIntervalMs}ms`,
       );
@@ -409,6 +489,10 @@ export class WorkerRunner {
       if (this.reconcileTimer) {
         clearInterval(this.reconcileTimer);
         this.reconcileTimer = null;
+      }
+      if (this.heartbeatTimer) {
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
       }
       this.running = false;
       this.listenerEnabled = false;
@@ -450,6 +534,11 @@ export class WorkerRunner {
       this.reconcileTimer = null;
     }
 
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+
     if (wasRunning && (this.inFlightWork > 0 || this.isReconciling)) {
       const { promise, resolve } = Promise.withResolvers<void>();
       const timeout = setTimeout(resolve, 10_000);
@@ -468,6 +557,18 @@ export class WorkerRunner {
         // Safe cleanup
       }
       this.boss = null;
+    }
+
+    // BL-039: a gracefully stopped worker leaves the admin health view;
+    // a crashed one is exposed by its heartbeat going stale instead.
+    try {
+      await this.pool.query(
+        "DELETE FROM next_round.worker_heartbeats WHERE worker_id = $1",
+        [this.workerId],
+      );
+    } catch {
+      // Best effort: if this delete fails, the next worker startup prunes
+      // the row once it passes the retention window (BL-053).
     }
 
     if (this.ownsPool) {
@@ -788,10 +889,10 @@ export class WorkerRunner {
     try {
       if (row.topic === "deadline.schedule") {
         if (!isDeadlineSchedulePayload(row.safe_payload)) {
-          throw new Error("INVALID_PAYLOAD");
+          throw deliveryError("INVALID_PAYLOAD");
         }
         if (!this.boss) {
-          throw new Error("PGBOSS_UNAVAILABLE");
+          throw deliveryError("PGBOSS_UNAVAILABLE");
         }
         const payload = row.safe_payload;
         await this.boss.send(
@@ -809,13 +910,13 @@ export class WorkerRunner {
         );
       } else if (row.topic === "live.invalidate") {
         if (!isLiveInvalidatePayload(row.safe_payload)) {
-          throw new Error("INVALID_PAYLOAD");
+          throw deliveryError("INVALID_PAYLOAD");
         }
         await this.pool.query("SELECT pg_notify('next_round_live', $1)", [
           JSON.stringify(row.safe_payload),
         ]);
       } else {
-        throw new Error("UNKNOWN_TOPIC");
+        throw deliveryError("UNKNOWN_TOPIC");
       }
 
       // Fencing on ack: monotonically incremented attempts uniquely identifies this claim generation

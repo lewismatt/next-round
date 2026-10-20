@@ -326,6 +326,17 @@ function applyReveal(
   return { board, words };
 }
 
+// BL-049: every finish path derives completedWords from the final state's
+// own completion flags, never from the entry count, so the retained result
+// cannot drift from the state it describes. (On the reveal/solved paths the
+// finish is gated on allComplete, so the values coincide today; deriving
+// them keeps the invariant true by construction.)
+function countCompletedWords(
+  words: Record<string, CrosswordWordState>,
+): number {
+  return Object.values(words).filter((word) => word.completed).length;
+}
+
 function buildView(
   ctx: RuleContext,
   state: CrosswordStateV1,
@@ -1024,7 +1035,7 @@ export const server: GameServer<CrosswordStateV1, CrosswordView> =
               data: {
                 mode: ctx.mode,
                 preset: settings.preset,
-                completedWords: content.entries.length,
+                completedWords: countCompletedWords(revealed.words),
                 totalWords: content.entries.length,
                 winners: [],
                 attribution: crosswordPublicMetadata(content) as unknown as Json,
@@ -1216,7 +1227,7 @@ export const server: GameServer<CrosswordStateV1, CrosswordView> =
               data: {
                 mode: ctx.mode,
                 preset: settings.preset,
-                completedWords: content.entries.length,
+                completedWords: countCompletedWords(words),
                 totalWords: content.entries.length,
                 winners,
                 attribution: crosswordPublicMetadata(content) as unknown as Json,
@@ -1349,9 +1360,7 @@ export const server: GameServer<CrosswordStateV1, CrosswordView> =
             data: {
               mode: ctx.mode,
               preset: settings.preset,
-              completedWords: Object.values(state.words).filter(
-                (word) => word.completed,
-              ).length,
+              completedWords: countCompletedWords(state.words),
               totalWords: content.entries.length,
               winners: [],
               attribution: crosswordPublicMetadata(content) as unknown as Json,
@@ -1451,9 +1460,7 @@ export const server: GameServer<CrosswordStateV1, CrosswordView> =
           data: {
             mode: ctx.mode,
             preset: settings.preset,
-            completedWords: Object.values(state.words).filter(
-              (word) => word.completed,
-            ).length,
+            completedWords: countCompletedWords(state.words),
             totalWords: content.entries.length,
             winners: [],
             attribution: crosswordPublicMetadata(content) as unknown as Json,

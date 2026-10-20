@@ -552,6 +552,29 @@ describe("crossword rules (Master Spec §9 C2-C4)", () => {
     expect(participant?.score).toBe(1);
   });
 
+  it("derives the revealed result's completedWords from the final state (BL-049)", () => {
+    const { ctx, state } = startState();
+    const solved = apply(ctx, state, {
+      kind: "action",
+      type: "submit_word",
+      payload: { wordId: "1A", answer: "ABCDE" },
+    });
+    const revealed = apply(ctx, solved.value.state, {
+      kind: "action",
+      type: "reveal_puzzle",
+      payload: {},
+    });
+    const finalState = revealed.value.state;
+    const stateCount = Object.values(finalState.words).filter(
+      (word) => word.completed,
+    ).length;
+    const data = revealed.value.final?.data as Record<string, unknown>;
+    expect(revealed.value.final?.outcome).toBe("revealed");
+    expect(data.completedWords).toBe(stateCount);
+    expect(data.totalWords).toBe(Object.keys(finalState.words).length);
+    expect(stateCount).toBeGreaterThan(1);
+  });
+
   it("latches a declared exposure before the match starts", () => {
     const { ctx, state } = createState();
     const declared = apply(ctx, state, {

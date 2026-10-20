@@ -31,7 +31,7 @@ import {
 } from "./config.js";
 import type { TrustedProxies } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
-import { healthRoutes } from "./routes/health.js";
+import { adminHealthRoutes, healthRoutes } from "./routes/health.js";
 import {
   adminGameRoutes,
   gameAssetRoutes,
@@ -298,6 +298,11 @@ export async function buildServer(
     authService,
     databasePool,
     origin,
+  });
+  await app.register(adminHealthRoutes, {
+    prefix: "/api/v1",
+    authService,
+    databasePool,
   });
 
   if (options.checkRegistry === undefined) {

@@ -728,6 +728,17 @@ export const maintenancePlans = nextRound.table("maintenance_plans", {
 });
 
 /**
+ * 28. worker_heartbeats
+ * Worker liveness for the admin health surface (spec section 8): one row
+ * per running worker process, refreshed on every reconciliation sweep.
+ */
+export const workerHeartbeats = nextRound.table("worker_heartbeats", {
+  workerId: text("worker_id").primaryKey(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+});
+
+/**
  * All tables object for Drizzle client initialization.
  */
 export const tables = {
@@ -759,4 +770,5 @@ export const tables = {
   participantResults,
   careerContributions,
   maintenancePlans,
+  workerHeartbeats,
 };

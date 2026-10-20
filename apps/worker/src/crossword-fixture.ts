@@ -23,7 +23,15 @@ export function registerCrosswordModule(
 ): void {
   if (registry.has(manifest.id, manifest.version)) return;
   if (!fs.existsSync(path.join(clientRoot, "client.js"))) {
-    console.warn("[worker] Crossword module skipped: bundled client.js unavailable");
+    // BL-045: same structured diagnostic the API emits (BL-028), so a log
+    // search for MODULE_CLIENT_MISSING finds worker skips too.
+    console.warn(JSON.stringify({
+      level: "warn",
+      code: "MODULE_CLIENT_MISSING",
+      moduleId: manifest.id,
+      moduleVersion: manifest.version,
+      message: "Crossword registration skipped: bundled client.js unavailable.",
+    }));
     return;
   }
   registry.register(manifest, server, { clientRoot, isDefault: true });

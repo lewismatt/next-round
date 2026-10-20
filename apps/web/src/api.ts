@@ -369,6 +369,32 @@ export function getAdminGames(): Promise<AdminGameSummary[]> {
   return request("/admin/games");
 }
 
+export interface AdminHealth {
+  workers: Array<{
+    workerId: string;
+    startedAt: string;
+    lastSeenAt: string;
+    ageSeconds: number;
+    status: "ok" | "stale";
+  }>;
+  oldestPendingOutboxAgeSeconds: number | null;
+  oldestPendingDeadlineAgeSeconds: number | null;
+  parkedEffects: {
+    total: number;
+    recent: Array<{
+      id: string;
+      topic: string;
+      attempts: number;
+      lastErrorCode: string | null;
+      deadLetteredAt: string;
+    }>;
+  };
+}
+
+export function getAdminHealth(): Promise<AdminHealth> {
+  return request("/admin/health");
+}
+
 export function patchAdminGame(
   gameId: string,
   patch: { enabled?: boolean; defaultVersion?: string },

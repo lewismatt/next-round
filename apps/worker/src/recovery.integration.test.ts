@@ -620,7 +620,7 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
       const result = await databasePool.query("SELECT attempts, dead_lettered_at, last_error_code FROM next_round.outbox WHERE id=$1", [id]);
       expect(result.rows[0].attempts).toBe(attempt);
       expect(Boolean(result.rows[0].dead_lettered_at)).toBe(attempt === 8);
-      expect(result.rows[0].last_error_code).toBe("INTERNAL_ERROR");
+      expect(result.rows[0].last_error_code).toBe("UNKNOWN_TOPIC");
       await databasePool.query("UPDATE next_round.outbox SET available_at=clock_timestamp() WHERE id=$1", [id]);
     }
     await a.handleOutbox({ outboxId: id });
@@ -660,6 +660,99 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
     } finally {
       await client.query("ROLLBACK");
       client.release();
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("recovers prompt delivery after its LISTEN backend is terminated (BL-047)", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 600_000 });
+    try {
+      await worker.start();
+      const listenerPids = async () => (await databasePool.query<{ pid: number }>(
+        "SELECT pid FROM pg_stat_activity WHERE datname = current_database() AND query LIKE 'LISTEN%'",
+      )).rows.map((row) => row.pid);
+      const before = await listenerPids();
+      expect(before.length).toBeGreaterThan(0);
+      for (const pid of before) {
+        await databasePool.query("SELECT pg_terminate_backend($1)", [pid]);
+      }
+      await expect.poll(async () => (await listenerPids()).length, { timeout: 15_000 }).toBe(0);
+      const id = randomUUID();
+      await databasePool.query(
+        `INSERT INTO next_round.outbox (id, topic, aggregate_id, dedupe_key, safe_payload)
+         VALUES ($1::uuid, 'live.invalidate', 'test', $1::text, $2)`,
+        [id, JSON.stringify({ scope: { kind: "home", principalId: memberA.principalId }, revision: 1 })],
+      );
+      // The periodic sweep is ten minutes out, so delivery within seconds
+      // can only come from the reconnected listener (catch-up drain/NOTIFY).
+      await expect.poll(async () => (await databasePool.query(
+        "SELECT delivered_at IS NOT NULL AS delivered FROM next_round.outbox WHERE id=$1", [id],
+      )).rows[0].delivered, { timeout: 20_000 }).toBe(true);
+      const after = await listenerPids();
+      expect(after.length).toBeGreaterThan(0);
+      expect(after.some((pid) => !before.includes(pid))).toBe(true);
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("publishes a heartbeat at startup and refreshes it on each sweep (BL-039)", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 250 });
+    try {
+      await worker.start();
+      const heartbeats = async () => (await databasePool.query<{ worker_id: string; last_seen_at: Date }>(
+        "SELECT worker_id, last_seen_at FROM next_round.worker_heartbeats",
+      )).rows;
+      await expect.poll(async () => (await heartbeats()).length, { timeout: 10_000 }).toBe(1);
+      const first = (await heartbeats())[0];
+      expect(first.worker_id).toBeTruthy();
+      await expect.poll(
+        async () => (await heartbeats())[0].last_seen_at.getTime(),
+        { timeout: 10_000 },
+      ).toBeGreaterThan(first.last_seen_at.getTime());
+      await worker.stop();
+      expect(await heartbeats()).toHaveLength(0);
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("keeps the heartbeat fresh on its own cadence when the sweep interval is long (BL-051)", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 60_000 });
+    try {
+      await worker.start();
+      const heartbeats = async () => (await databasePool.query<{ worker_id: string; last_seen_at: Date }>(
+        "SELECT worker_id, last_seen_at FROM next_round.worker_heartbeats",
+      )).rows;
+      await expect.poll(async () => (await heartbeats()).length, { timeout: 10_000 }).toBe(1);
+      const first = (await heartbeats())[0];
+      // The next sweep is ~60 s out, so only the decoupled 10 s heartbeat
+      // timer can advance last_seen_at inside this window. On the pre-fix
+      // code the heartbeat moved only on sweeps and this poll times out.
+      await expect.poll(
+        async () => (await heartbeats())[0].last_seen_at.getTime(),
+        { timeout: 20_000 },
+      ).toBeGreaterThan(first.last_seen_at.getTime());
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("prunes heartbeat rows past the retention window at startup (BL-053)", async () => {
+    await databasePool.query(
+      `INSERT INTO next_round.worker_heartbeats (worker_id, started_at, last_seen_at)
+       VALUES ('crashed-old', now() - interval '2 days', now() - interval '25 hours'),
+              ('crashed-recent', now() - interval '3 hours', now() - interval '2 hours')`,
+    );
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 250 });
+    try {
+      await worker.start();
+      const workerIds = (await databasePool.query<{ worker_id: string }>(
+        "SELECT worker_id FROM next_round.worker_heartbeats",
+      )).rows.map((row) => row.worker_id);
+      expect(workerIds).not.toContain("crashed-old");
+      expect(workerIds).toContain("crashed-recent");
+    } finally {
       await worker.stop();
     }
   }, 60_000);
