@@ -22,7 +22,16 @@ leave and results. Test Counter remains internal/operator-disabled by default.
 The development CLI supervises real API/worker processes and exercises both
 solo and group games. [Sprint 4 evidence](docs/sprint4-evidence.md) distinguishes
 the browser journey, login budgets and composed H1–H6 evidence from integration.
-Full production Home/History/Admin polish and crossword belong to F3. The
+
+The crossword module now exists as a working game: the content/import contract,
+the turn, scoring, reveal, exposure and disabled-member rules, and a browser
+client that plays a grid. The platform stores versioned, server-private puzzle
+content with public catalog metadata, pins one immutable resource version per
+match, and keeps principal exposure facts per resource identity.
+[Sprint 5 evidence](docs/sprint5-evidence.md) records what that foundation does
+and does not cover. The three bundled rights-reviewed puzzles, the production
+Home/Games/History/Admin flows and the C5 acceptance harness remain open, so
+full production polish still belongs to F3. The
 remaining self-service session/profile routes and open security/operations nits
 are not claimed complete; see [the backlog](docs/BACKLOG.md).
 
@@ -60,7 +69,7 @@ packages/
   game-harness/        Simulated clients, clock controls, and fault injection
 games/
   test-counter/        Minimal internal SDK test game fixture
-  crossword/           First full game module (bundled after harness gate)
+  crossword/           First full game module (content contract, rules, client)
 deploy/
   docker-compose.yml   Reproducible multi-service Compose configuration
   Caddyfile            Reverse proxy configuration (HTTPS & WebSocket upgrade)
@@ -94,6 +103,30 @@ it for development or harness work, build the workspace and set
 `NEXT_ROUND_ENABLE_TEST_COUNTER=true` for the API process. The loader registers
 its pinned server hooks only after validating the browser bundle emitted by the
 web build.
+
+The crossword module registers itself with the API whenever its compiled
+browser client is present in the build. Its content is imported by an
+administrator and stays server-private:
+
+```sh
+# Import a versioned puzzle document (admin session, CSRF, Origin required).
+curl -X POST http://localhost:3000/api/v1/admin/games/crossword/import \
+  -H 'content-type: application/json' -H "x-csrf-token: $CSRF" \
+  -H "cookie: $SESSION" -H "origin: $APP_ORIGIN" \
+  -d '{"commandId":"'"$(uuidgen)"'","document":{ ... }}'
+
+# Public catalog metadata for the puzzles of one module (registered users).
+curl http://localhost:3000/api/v1/games/crossword/resources -H "cookie: $SESSION"
+```
+
+An import validates the document against the module's declared import schema
+and the module's own content rules (grid shape, entries, clues, rights
+allowlist), then stores the private content, the public catalog metadata and
+the importer's exposure fact. The same grid keeps one identity; changed clues
+or metadata create a new immutable content version. A match pins one resource
+version and snapshot, and every resource-bound command locks the resource
+identity first, so two matches on the same puzzle cannot both miss a prior
+exposure.
 
 The API boundary validates settings and action payloads against the selected
 manifest schema. Unknown fields are rejected when the schema sets
