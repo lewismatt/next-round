@@ -6,13 +6,14 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b --noEmit",
-    "test:integration": "vitest run src/boot.integration.test.ts",
+    "test:integration": "vitest run src/boot.integration.test.ts src/recovery.integration.test.ts",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
     "@next-round/contracts": "workspace:*",
     "@next-round/db": "workspace:*",
+    "@next-round/game-test-counter": "workspace:*",
     "@next-round/platform": "workspace:*",
     "pg": "8.23.1",
     "pg-boss": "12.38.0"

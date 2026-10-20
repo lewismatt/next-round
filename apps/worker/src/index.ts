@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { createWorker } from "./worker.js";
+import { createWorker, safeErrorCode } from "./worker.js";
 
 const connectionString =
   process.env.DATABASE_URL ||
@@ -24,7 +24,7 @@ export async function main(): Promise<void> {
       console.log("[worker] Worker stopped cleanly");
       process.exit(0);
     } catch (err) {
-      console.error("[worker] Error during worker shutdown:", err);
+      console.error(`[worker] Error during worker shutdown: ${safeErrorCode(err)}`);
       process.exit(1);
     }
   };
@@ -39,7 +39,7 @@ export async function main(): Promise<void> {
       `[worker] Background worker running. Schema=pgboss, reconcileInterval=${reconcileIntervalMs}ms`
     );
   } catch (err) {
-    console.error("[worker] Failed to start background worker:", err);
+    console.error(`[worker] Failed to start background worker: ${safeErrorCode(err)}`);
     process.exit(1);
   }
 }

@@ -1,14 +1,45 @@
 // SPDX-License-Identifier: Apache-2.0
 import pg from "pg";
 import { PgBoss } from "pg-boss";
+import { ERROR_CODES } from "@next-round/contracts";
+import { GameRegistry, MatchService } from "@next-round/platform";
+import { loadTestCounterFixtureIfEnabled } from "./test-counter-fixture.js";
 
 const { Pool } = pg;
+
+const DEFAULT_RECONCILE_INTERVAL_MS = 10_000;
+const DEFAULT_BATCH_SIZE = 50;
+const OUTBOX_LEASE_DURATION_MS = 30_000;
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PG_SQLSTATE_REGEX = /^[0-9A-Z]{5}$/;
+const KNOWN_ERROR_CODES: Record<string, true> = Object.fromEntries(
+  Object.values(ERROR_CODES).map((code) => [code, true]),
+);
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_REGEX.test(value);
+}
+
+export function safeErrorCode(err: unknown): string {
+  if (err && typeof err === "object" && "code" in err && typeof err.code === "string") {
+    if (Object.hasOwn(KNOWN_ERROR_CODES, err.code)) {
+      return err.code;
+    }
+    if (PG_SQLSTATE_REGEX.test(err.code)) {
+      return err.code;
+    }
+  }
+  return "INTERNAL_ERROR";
+}
+
 
 export interface WorkerOptions {
   connectionString?: string;
   schema?: string;
   reconcileIntervalMs?: number;
   pool?: pg.Pool;
+  registry?: GameRegistry;
 }
 
 export interface DeadlineJobData {
@@ -30,6 +61,23 @@ export interface WorkerStatus {
   reconcileCount: number;
   uptimeSeconds: number;
 }
+
+export interface DeadlineSchedulePayload {
+  matchId: string;
+  key: string;
+  generation: number;
+  dueAt: string;
+  eventId: string;
+}
+
+export interface LiveInvalidatePayload {
+  scope:
+    | { kind: "match"; id: string }
+    | { kind: "home"; principalId: string }
+    | { kind: "notifications"; principalId: string };
+  revision: number;
+}
+
 interface BossJob<T> {
   data: T;
 }
@@ -42,6 +90,53 @@ function isJobWithData<T>(job: unknown): job is BossJob<T> {
   return typeof data === "object" && data !== null;
 }
 
+export function isDeadlineSchedulePayload(payload: unknown): payload is DeadlineSchedulePayload {
+  if (typeof payload !== "object" || payload === null) return false;
+  if (
+    !("matchId" in payload) || !isUuid(payload.matchId) ||
+    !("key" in payload) || typeof payload.key !== "string" || !payload.key.length ||
+    !("generation" in payload) || typeof payload.generation !== "number" || !Number.isSafeInteger(payload.generation) || payload.generation < 0 ||
+    !("dueAt" in payload) || typeof payload.dueAt !== "string" || !Number.isFinite(Date.parse(payload.dueAt)) ||
+    !("eventId" in payload) || !isUuid(payload.eventId)
+  ) {
+    return false;
+  }
+  const keys = Object.keys(payload);
+  return keys.length === 5;
+}
+
+export function isLiveInvalidatePayload(payload: unknown): payload is LiveInvalidatePayload {
+  if (typeof payload !== "object" || payload === null) return false;
+  if (
+    !("revision" in payload) ||
+    typeof payload.revision !== "number" ||
+    !Number.isSafeInteger(payload.revision) ||
+    payload.revision < 0
+  ) {
+    return false;
+  }
+  if (!("scope" in payload) || typeof payload.scope !== "object" || payload.scope === null) {
+    return false;
+  }
+  const scope = payload.scope;
+  if (!("kind" in scope) || typeof scope.kind !== "string") {
+    return false;
+  }
+  const scopeKeys = Object.keys(scope);
+  if (scope.kind === "match") {
+    if (!("id" in scope) || !isUuid(scope.id) || scopeKeys.length !== 2) {
+      return false;
+    }
+  } else if (scope.kind === "home" || scope.kind === "notifications") {
+    if (!("principalId" in scope) || !isUuid(scope.principalId) || scopeKeys.length !== 2) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+  const topKeys = Object.keys(payload);
+  return topKeys.length === 2;
+}
 
 /**
  * WorkerRunner encapsulates background job processing using pg-boss and PostgreSQL.
@@ -53,11 +148,19 @@ export class WorkerRunner {
   private ownsPool: boolean;
   private reconcileTimer: NodeJS.Timeout | null = null;
   private running = false;
+  private stopped = false;
   private startedAt: number | null = null;
   private lastReconcileAt: string | null = null;
   private reconcileCount = 0;
-  private readonly config: Required<Omit<WorkerOptions, "pool">> & {
-    pool?: pg.Pool;
+  private isReconciling = false;
+  private inFlightWork = 0;
+  private inFlightWaiters: Array<() => void> = [];
+  public readonly registry: GameRegistry;
+  public readonly matchService: MatchService;
+  private readonly config: {
+    connectionString: string;
+    schema: string;
+    reconcileIntervalMs: number;
   };
 
   constructor(options: WorkerOptions = {}) {
@@ -71,8 +174,7 @@ export class WorkerRunner {
       schema: options.schema || process.env.PGBOSS_SCHEMA || "pgboss",
       reconcileIntervalMs:
         options.reconcileIntervalMs ||
-        Number(process.env.LIVE_RECONCILE_INTERVAL_MS || 10000),
-      pool: options.pool,
+        Number(process.env.LIVE_RECONCILE_INTERVAL_MS || DEFAULT_RECONCILE_INTERVAL_MS),
     };
 
     if (options.pool) {
@@ -85,6 +187,37 @@ export class WorkerRunner {
       });
       this.ownsPool = true;
     }
+
+    if (options.registry) {
+      this.registry = options.registry;
+    } else {
+      this.registry = new GameRegistry();
+      loadTestCounterFixtureIfEnabled(
+        this.registry,
+        process.env.NEXT_ROUND_ENABLE_TEST_COUNTER === "true",
+      );
+    }
+
+    this.matchService = new MatchService(this.pool, this.registry);
+  }
+
+  private notifyWaitersIfIdle(): void {
+    if (this.inFlightWork === 0 && !this.isReconciling) {
+      for (const resolve of this.inFlightWaiters) {
+        resolve();
+      }
+      this.inFlightWaiters = [];
+    }
+  }
+
+  private async withInFlight<T>(action: () => Promise<T>): Promise<T> {
+    this.inFlightWork += 1;
+    try {
+      return await action();
+    } finally {
+      this.inFlightWork -= 1;
+      this.notifyWaitersIfIdle();
+    }
   }
 
   /**
@@ -95,62 +228,97 @@ export class WorkerRunner {
       return;
     }
 
-    // 1. Initialize pg-boss with dedicated schema per Master Spec §4
-    this.boss = new PgBoss({
+    const boss = new PgBoss({
       connectionString: this.config.connectionString,
       schema: this.config.schema,
     });
+    this.boss = boss;
 
-    this.boss.on("error", (err: Error) => {
-      console.error("[worker:pg-boss] Error:", err.message);
+    boss.on("error", (err: Error) => {
+      console.error(`[worker:pg-boss] Error: ${safeErrorCode(err)}`);
     });
 
-    await this.boss.start();
-    console.log(
-      `[worker:pg-boss] Started successfully with schema "${this.config.schema}"`
-    );
+    try {
+      await boss.start();
+      console.log(
+        `[worker:pg-boss] Started successfully with schema "${this.config.schema}"`,
+      );
 
-    // 2. Register queue handlers
-    await this.registerHandlers();
+      await this.registerHandlers();
+      await this.drainOverdueAndOutbox();
 
-    // 3. Run initial deadline reconciliation on startup per Master Spec §4
-    await this.reconcileDeadlines();
+      this.reconcileTimer = setInterval(async () => {
+        if (!this.running || this.isReconciling) {
+          return;
+        }
+        this.isReconciling = true;
+        try {
+          await this.withInFlight(async () => {
+            await this.drainOverdueAndOutbox();
+          });
+        } catch (err) {
+          console.error(`[worker] Error in periodic reconciliation: ${safeErrorCode(err)}`);
+        } finally {
+          this.isReconciling = false;
+          this.notifyWaitersIfIdle();
+        }
+      }, this.config.reconcileIntervalMs);
 
-    // 4. Start periodic reconciliation loop (default every 10 seconds)
-    this.reconcileTimer = setInterval(async () => {
-      try {
-        await this.reconcileDeadlines();
-        await this.processOutboxBatch();
-      } catch (err) {
-        console.error("[worker] Error in periodic reconciliation:", err);
+      this.running = true;
+      this.startedAt = Date.now();
+      console.log(
+        `[worker] Running. Periodic reconciliation scheduled every ${this.config.reconcileIntervalMs}ms`,
+      );
+    } catch (err) {
+      if (this.reconcileTimer) {
+        clearInterval(this.reconcileTimer);
+        this.reconcileTimer = null;
       }
-    }, this.config.reconcileIntervalMs);
-
-    this.running = true;
-    this.startedAt = Date.now();
-    console.log(
-      `[worker] Running. Periodic reconciliation scheduled every ${this.config.reconcileIntervalMs}ms`
-    );
+      this.running = false;
+      try {
+        await boss.stop({ graceful: false, timeout: 1000 });
+      } catch {
+        // Safe cleanup
+      }
+      this.boss = null;
+      throw err;
+    }
   }
 
   /**
    * Graceful shutdown of pg-boss, background timers, and database pool.
+   * Awaits in-flight work and active reconciliations before closing.
    */
   public async stop(): Promise<void> {
-    if (!this.running) {
+    if (this.stopped) {
       return;
     }
+    this.stopped = true;
+
+    const wasRunning = this.running;
+    this.running = false;
 
     if (this.reconcileTimer) {
       clearInterval(this.reconcileTimer);
       this.reconcileTimer = null;
     }
 
+    if (wasRunning && (this.inFlightWork > 0 || this.isReconciling)) {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      const timeout = setTimeout(resolve, 10_000);
+      this.inFlightWaiters.push(() => {
+        clearTimeout(timeout);
+        resolve();
+      });
+      this.notifyWaitersIfIdle();
+      await promise;
+    }
+
     if (this.boss) {
       try {
         await this.boss.stop({ graceful: true, timeout: 5000 });
-      } catch (err) {
-        console.error("[worker:pg-boss] Error during stop:", err);
+      } catch {
+        // Safe cleanup
       }
       this.boss = null;
     }
@@ -159,7 +327,6 @@ export class WorkerRunner {
       await this.pool.end();
     }
 
-    this.running = false;
     console.log("[worker] Stopped gracefully");
   }
 
@@ -182,12 +349,9 @@ export class WorkerRunner {
   private async registerHandlers(): Promise<void> {
     if (!this.boss) return;
 
-    // pg-boss 12 requires a queue to exist before work() can subscribe to it.
-    // createQueue is idempotent, so restarts and multiple workers are safe.
     await this.boss.createQueue("match-deadline");
     await this.boss.createQueue("outbox-delivery");
 
-    // Match deadline wakeup handler
     await this.boss.work("match-deadline", async (jobOrJobs: unknown) => {
       const jobs = Array.isArray(jobOrJobs) ? jobOrJobs : [jobOrJobs];
       for (const job of jobs) {
@@ -197,7 +361,6 @@ export class WorkerRunner {
       }
     });
 
-    // Outbox delivery handler
     await this.boss.work("outbox-delivery", async (jobOrJobs: unknown) => {
       const jobs = Array.isArray(jobOrJobs) ? jobOrJobs : [jobOrJobs];
       for (const job of jobs) {
@@ -210,62 +373,302 @@ export class WorkerRunner {
 
   /**
    * Deadline handler per Master Spec §4:
-   * "Deadlines are durable rows, not process timers. Reducers emit unique key/generation
-   * and absolute dueAt using ctx.now. Outbox jobs schedule pg-boss wakeups with
-   * {matchId,key,generation}; generation/status checks make late/duplicate jobs harmless.
-   * Worker applies deadlines using deterministic eventId, resource/match locks and
-   * the same transition/result rules."
+   * Delegates generation/status/due checks and state transition to MatchService.processDeadline.
+   * Duplicate, early, or already-consumed wakeups are harmless and return 0.
+   * Rethrows errors so pg-boss records failure and retries.
    */
-  public async handleDeadline(data: DeadlineJobData): Promise<void> {
-    console.log(
-      `[worker:deadline] Processing deadline matchId=${data.matchId} key=${data.key} gen=${data.generation}`
-    );
-    // Placeholder handler: validates generation/status against match_deadlines table
-    // and applies state transitions via deterministic event execution.
-  }
-
-  /**
-   * Outbox handler per Master Spec §4:
-   * "Workers claim undelivered outbox rows with SKIP LOCKED and a lease. Effects are
-   * retryable and have application dedupe keys; mark delivered after durable effect
-   * acknowledgement. A crash after effect but before acknowledgement may repeat
-   * delivery; recipients/consumers must tolerate duplicates."
-   */
-  public async handleOutbox(data: OutboxJobData): Promise<void> {
-    console.log(`[worker:outbox] Processing outbox delivery outboxId=${data.outboxId}`);
-    // Placeholder handler: executes downstream side-effects (e.g. notifications/LISTEN-NOTIFY)
-    // and marks outbox row delivered within lease.
-  }
-
-  /**
-   * Reconcile overdue pending deadlines per Master Spec §4:
-   * "On worker startup and every 10 seconds, reconcile overdue pending deadline rows
-   * in bounded batches; queue loss/delayed scheduling cannot lose a deadline."
-   */
-  public async reconcileDeadlines(): Promise<number> {
-    this.lastReconcileAt = new Date().toISOString();
-    this.reconcileCount++;
-
-    try {
-      // Placeholder batch query: selects overdue pending deadline rows with SKIP LOCKED
-      // and processes timeouts where due_at <= NOW() and status = 'pending'.
-      return 0;
-    } catch (err) {
-      console.error("[worker:reconcile] Error checking overdue deadlines:", err);
+  public async handleDeadline(data: DeadlineJobData): Promise<number> {
+    if (
+      !data ||
+      typeof data.matchId !== "string" ||
+      !isUuid(data.matchId) ||
+      typeof data.key !== "string" ||
+      !data.key.length ||
+      typeof data.generation !== "number" ||
+      !Number.isSafeInteger(data.generation) ||
+      data.generation < 0
+    ) {
+      console.error("[worker:deadline] Invalid deadline job data received");
       return 0;
     }
+
+    return this.withInFlight(async () => {
+      try {
+        return await this.matchService.processDeadline({
+          matchId: data.matchId,
+          key: data.key,
+          generation: data.generation,
+        });
+      } catch (err) {
+        console.error(`[worker:deadline] Deadline processing failed: ${safeErrorCode(err)}`);
+        throw err;
+      }
+    });
+  }
+
+  /**
+   * Targeted outbox delivery for a specific row id, if triggered by job queue.
+   */
+  public async handleOutbox(data: OutboxJobData): Promise<void> {
+    if (!data || typeof data.outboxId !== "string" || !isUuid(data.outboxId)) {
+      return;
+    }
+
+    await this.withInFlight(async () => {
+      const { rows } = await this.pool.query<{
+        id: string;
+        topic: string;
+        aggregate_id: string;
+        aggregate_revision: number | null;
+        dedupe_key: string;
+        safe_payload: unknown;
+        attempts: number;
+      }>(
+        `WITH claimable AS (
+           SELECT id
+             FROM next_round.outbox
+            WHERE id = $1
+              AND delivered_at IS NULL
+              AND available_at <= clock_timestamp()
+              AND (leased_until IS NULL OR leased_until < clock_timestamp())
+            FOR UPDATE SKIP LOCKED
+         )
+         UPDATE next_round.outbox o
+            SET leased_until = clock_timestamp() + ($2 || ' milliseconds')::interval,
+                attempts = o.attempts + 1
+           FROM claimable
+          WHERE o.id = claimable.id
+         RETURNING o.id,
+                   o.topic,
+                   o.aggregate_id,
+                   o.aggregate_revision::float8 AS aggregate_revision,
+                   o.dedupe_key,
+                   o.safe_payload,
+                   o.attempts`,
+        [data.outboxId, OUTBOX_LEASE_DURATION_MS],
+      );
+
+      if (rows.length > 0) {
+        await this.deliverOutboxRow(rows[0]);
+      }
+    });
+  }
+
+  /**
+   * Reconcile overdue pending deadlines per Master Spec §4.
+   * Selects overdue pending deadline rows in bounded batches and delegates
+   * reconciliation to MatchService.processDeadline.
+   */
+  public async reconcileDeadlines(batchSize = DEFAULT_BATCH_SIZE): Promise<number> {
+    this.lastReconcileAt = new Date().toISOString();
+    this.reconcileCount += 1;
+
+    let rows: Array<{
+      match_id: string;
+      key: string;
+      generation: string | number;
+    }>;
+    try {
+      const result = await this.pool.query<{
+        match_id: string;
+        key: string;
+        generation: string | number;
+      }>(
+        `SELECT match_id, key, generation
+           FROM next_round.match_deadlines
+          WHERE status = 'pending' AND due_at <= clock_timestamp()
+          ORDER BY due_at ASC, match_id ASC, key ASC
+          LIMIT $1`,
+        [batchSize],
+      );
+      rows = result.rows;
+    } catch (err) {
+      console.error(`[worker:reconcile] Error checking overdue deadlines: ${safeErrorCode(err)}`);
+      throw err;
+    }
+
+    let totalApplied = 0;
+    for (const row of rows) {
+      try {
+        const applied = await this.matchService.processDeadline({
+          matchId: row.match_id,
+          key: row.key,
+          generation: Number(row.generation),
+        });
+        totalApplied += applied;
+      } catch (err) {
+        console.error(`[worker:reconcile] Error reconciling deadline: ${safeErrorCode(err)}`);
+      }
+    }
+    return totalApplied;
   }
 
   /**
    * Claim and deliver pending outbox batches using SKIP LOCKED per Master Spec §4.
+   * Leases rows with fencing on ack/release using monotonic attempts.
    */
-  public async processOutboxBatch(): Promise<number> {
+  public async processOutboxBatch(batchSize = DEFAULT_BATCH_SIZE): Promise<number> {
+    let rows: Array<{
+      id: string;
+      topic: string;
+      aggregate_id: string;
+      aggregate_revision: number | null;
+      dedupe_key: string;
+      safe_payload: unknown;
+      attempts: number;
+    }>;
     try {
-      // Placeholder batch claiming undelivered outbox rows with lease
-      return 0;
+      const result = await this.pool.query<{
+        id: string;
+        topic: string;
+        aggregate_id: string;
+        aggregate_revision: number | null;
+        dedupe_key: string;
+        safe_payload: unknown;
+        attempts: number;
+      }>(
+        `WITH claimable AS (
+           SELECT id
+             FROM next_round.outbox
+            WHERE delivered_at IS NULL
+              AND available_at <= clock_timestamp()
+              AND (leased_until IS NULL OR leased_until < clock_timestamp())
+            ORDER BY available_at ASC, created_at ASC
+            LIMIT $1
+            FOR UPDATE SKIP LOCKED
+         )
+         UPDATE next_round.outbox o
+            SET leased_until = clock_timestamp() + ($2 || ' milliseconds')::interval,
+                attempts = o.attempts + 1
+           FROM claimable
+          WHERE o.id = claimable.id
+         RETURNING o.id,
+                   o.topic,
+                   o.aggregate_id,
+                   o.aggregate_revision::float8 AS aggregate_revision,
+                   o.dedupe_key,
+                   o.safe_payload,
+                   o.attempts`,
+        [batchSize, OUTBOX_LEASE_DURATION_MS],
+      );
+      rows = result.rows;
     } catch (err) {
-      console.error("[worker:outbox] Error claiming outbox batch:", err);
-      return 0;
+      console.error(`[worker:outbox] Error claiming outbox batch: ${safeErrorCode(err)}`);
+      throw err;
+    }
+
+    let deliveredCount = 0;
+    for (const row of rows) {
+      const delivered = await this.deliverOutboxRow(row);
+      if (delivered) {
+        deliveredCount += 1;
+      }
+    }
+    return deliveredCount;
+  }
+
+  /**
+   * Drains both overdue deadlines and pending outbox rows in batches until drained.
+   */
+  public async drainOverdueAndOutbox(maxBatches = 10): Promise<{ deadlines: number; outbox: number }> {
+    let totalDeadlines = 0;
+    let totalOutbox = 0;
+
+    for (let i = 0; i < maxBatches; i += 1) {
+      const applied = await this.reconcileDeadlines();
+      totalDeadlines += applied;
+      if (applied === 0) break;
+    }
+
+    for (let i = 0; i < maxBatches; i += 1) {
+      const delivered = await this.processOutboxBatch();
+      totalOutbox += delivered;
+      if (delivered === 0) break;
+    }
+
+    return { deadlines: totalDeadlines, outbox: totalOutbox };
+  }
+
+  private async deliverOutboxRow(row: {
+    id: string;
+    topic: string;
+    aggregate_id: string;
+    aggregate_revision: number | null;
+    dedupe_key: string;
+    safe_payload: unknown;
+    attempts: number;
+  }): Promise<boolean> {
+    try {
+      if (row.topic === "deadline.schedule") {
+        if (!isDeadlineSchedulePayload(row.safe_payload)) {
+          throw new Error("INVALID_PAYLOAD");
+        }
+        if (!this.boss) {
+          throw new Error("PGBOSS_UNAVAILABLE");
+        }
+        const payload = row.safe_payload;
+        await this.boss.send(
+          "match-deadline",
+          {
+            matchId: payload.matchId,
+            key: payload.key,
+            generation: payload.generation,
+          },
+          {
+            id: payload.eventId,
+            startAfter: new Date(payload.dueAt),
+            singletonKey: `deadline:${payload.eventId}`,
+          },
+        );
+      } else if (row.topic === "live.invalidate") {
+        if (!isLiveInvalidatePayload(row.safe_payload)) {
+          throw new Error("INVALID_PAYLOAD");
+        }
+        await this.pool.query(
+          "SELECT pg_notify('next_round_live', $1)",
+          [JSON.stringify(row.safe_payload)],
+        );
+      } else {
+        throw new Error("UNKNOWN_TOPIC");
+      }
+
+      // Fencing on ack: monotonically incremented attempts uniquely identifies this claim generation
+      const ackResult = await this.pool.query(
+        `UPDATE next_round.outbox
+            SET delivered_at = clock_timestamp(),
+                leased_until = NULL
+          WHERE id = $1
+            AND delivered_at IS NULL
+            AND attempts = $2`,
+        [row.id, row.attempts],
+      );
+
+      if (ackResult.rowCount === 0) {
+        console.warn(`[worker:outbox] Lease fencing triggered on ack for outbox row id=${row.id}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error(
+        `[worker:outbox] Delivery failed for outbox row id=${row.id}: ${safeErrorCode(err)}`,
+      );
+      try {
+        await this.pool.query(
+          `UPDATE next_round.outbox
+              SET leased_until = NULL,
+                  available_at = clock_timestamp() + (LEAST(POWER(2, LEAST(attempts, 6)) * 1000, 60000) || ' milliseconds')::interval
+            WHERE id = $1
+              AND delivered_at IS NULL
+              AND attempts = $2`,
+          [row.id, row.attempts],
+        );
+      } catch (releaseErr) {
+        console.error(
+          `[worker:outbox] Fatal error releasing lease for outbox row id=${row.id}: ${safeErrorCode(releaseErr)}`,
+        );
+        throw releaseErr;
+      }
+      return false;
     }
   }
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   ApiError,
   ERROR_CODES,
@@ -13,13 +14,18 @@ import {
   type Member,
 } from "@next-round/contracts";
 import type { DatabasePool } from "@next-round/db";
-import type { RuleContext, Transition } from "@next-round/game-sdk";
+import type { GameEvent, RuleContext, Transition } from "@next-round/game-sdk";
 import type { GameRegistry, RegisteredGameVersion } from "./registry.js";
 import type { AuthenticatedSession } from "./auth-service.js";
 import { lockPrincipals, recheckSession } from "./transaction-authority.js";
 import { prepareFinalResult, persistFinalResult } from "./final-results.js";
+import { persistMatchEffects, readDeadlines, validateDeadlines, type StoredDeadline } from "./match-effects.js";
 
 type MatchPhase = "lobby" | "active" | "finished";
+
+interface ServerGameVersion extends RegisteredGameVersion {
+  server: NonNullable<RegisteredGameVersion["server"]>;
+}
 
 interface MatchRow {
   id: string;
@@ -71,6 +77,12 @@ export interface MatchActionInput {
   expectedRevision: number;
   type: string;
   payload: Json;
+}
+
+export interface DeadlineInput {
+  matchId: string;
+  key: string;
+  generation: number;
 }
 
 export interface MatchSnapshot {
@@ -169,12 +181,10 @@ function registeredVersion(
   registry: GameRegistry,
   moduleId: string,
   moduleVersion: string,
-): RegisteredGameVersion & { server: NonNullable<RegisteredGameVersion["server"]> } {
+): ServerGameVersion {
   const registered = registry.getVersion(moduleId, moduleVersion);
   if (!registered?.server) throw moduleUnavailable();
-  return registered as RegisteredGameVersion & {
-    server: NonNullable<RegisteredGameVersion["server"]>;
-  };
+  return registered as ServerGameVersion;
 }
 
 function context(
@@ -305,7 +315,7 @@ export class MatchService {
       const matchId = randomUUID();
       const memberId = randomUUID();
       const eventId = randomUUID();
-      const now = new Date().toISOString();
+      const now = await this.databaseNow(client);
       const members: Member[] = [{
         id: memberId,
         principalId: session.principal.id,
@@ -370,6 +380,12 @@ export class MatchService {
          VALUES ($1, 0, $2, $3, 'create', '{}'::jsonb)`,
         [matchId, eventId, session.principal.id],
       );
+      await this.persistTransition(client, {
+        id: matchId, module_id: input.moduleId, module_version: module.version,
+        state_version: module.state_version, mode: input.mode, phase: "lobby",
+        revision: -1, state: null, settings, host_member_id: memberId,
+      }, members, registered, transition.value, { kind: "create" }, eventId, now,
+      session.principal.id, true);
       const receipt: CreateMatchResponse = { matchId, revision: 0, commandId: input.commandId };
       await client.query(
         `INSERT INTO next_round.command_receipts
@@ -440,6 +456,7 @@ export class MatchService {
     matchId = matchId.toLowerCase();
     const principalId = session.principal.id.toLowerCase();
     const client = await this.pool.connect();
+    let committedTimeouts = false;
     try {
       await client.query("BEGIN");
       const discovered = await client.query<{ principal_id: string }>(
@@ -516,10 +533,23 @@ export class MatchService {
         };
       }
 
+      const caller = persistedMembers.find((member) => member.principalId.toLowerCase() === principalId);
+      if (kind !== "join" && caller?.status !== "active") throw notFound();
+      if (kind === "join" && (caller?.status === "removed" ||
+          (!caller && (currentSession.kind !== "registered" || match.visibility !== "instance")))) throw notFound();
+      // Revision conflict takes precedence over closed state on every command path.
+      if (match.revision !== input.expectedRevision) {
+        throw new ApiError(ERROR_CODES.STALE_REVISION, "Refresh this match before continuing.", {
+          details: { currentRevision: match.revision },
+        });
+      }
       if (match.phase === "finished") {
         throw new ApiError(ERROR_CODES.MATCH_CLOSED, "Match is closed.");
       }
-      if (match.revision !== input.expectedRevision) {
+      const now = await this.databaseNow(client);
+      if (await this.reconcileDue(client, match, persistedMembers, now)) {
+        await client.query("COMMIT");
+        committedTimeouts = true;
         throw new ApiError(ERROR_CODES.STALE_REVISION, "Refresh this match before continuing.", {
           details: { currentRevision: match.revision },
         });
@@ -588,7 +618,7 @@ export class MatchService {
       }
       if (!member) throw moduleFailure();
 
-      const now = new Date().toISOString();
+      // The reducer receives the database time captured after the match lock.
       const eventId = randomUUID();
       const ctx = context(match, members, now, eventId, { principalId, memberId: member.id });
       let transition;
@@ -614,39 +644,14 @@ export class MatchService {
           details: { ruleCode: `${match.module_id}/RULE_REJECTED` },
         });
       }
-      const finalPresent = transition.value?.final !== null && transition.value?.final !== undefined;
-      if (
-        !transition.value ||
-        !Array.isArray(transition.value.deadlines) ||
-        !Array.isArray(transition.value.needsActionFrom) ||
-        !Array.isArray(transition.value.facts) ||
-        !["lobby", "active", "finished"].includes(transition.value.phase) ||
-        transition.value.final === undefined ||
-        (transition.value.phase === "finished") !== finalPresent ||
-        (kind !== "leave" && finalPresent) ||
-        (finalPresent && (
-          typeof transition.value.final !== "object" ||
-          transition.value.final === null ||
-          Array.isArray(transition.value.final) ||
-          !Array.isArray(transition.value.final.participants)
-        )) ||
-        (kind === "start" && transition.value.phase !== "active") ||
-        (kind === "join" && transition.value.phase !== match.phase) ||
-        (transition.value.hostMemberId !== null && !members.some((candidate) => candidate.id === transition.value.hostMemberId)) ||
-        transition.value.needsActionFrom.some((memberId) => !members.some((candidate) => candidate.id === memberId))
-      ) {
-        throw moduleFailure();
-      }
+      if (!transition.value ||
+          (kind !== "leave" && transition.value.final !== null) ||
+          (kind === "start" && transition.value.phase !== "active") ||
+          (kind === "join" && transition.value.phase !== match.phase)) throw moduleFailure();
       if (
         kind === "leave" && transition.value.hostMemberId === member.id &&
         transition.value.phase !== "finished"
       ) throw moduleFailure();
-      try {
-        state = parseJsonSchemaValue(registered.manifest.stateSchema, transition.value.state);
-      } catch {
-        throw moduleFailure();
-      }
-      const final = prepareFinalResult(registered, transition.value, members);
 
       if (kind === "join") {
         if (rejoin) {
@@ -691,37 +696,11 @@ export class MatchService {
         );
       }
 
-      const committedRevision = match.revision + 1;
-      await client.query(
-        `UPDATE next_round.matches
-            SET state = $2::jsonb,
-                phase = $3,
-                host_member_id = $4,
-                revision = $5,
-                needs_action_from = $6::uuid[],
-                started_at = CASE
-                  WHEN $3 = 'active' THEN COALESCE(started_at, $7::timestamptz)
-                  ELSE started_at
-                END,
-                finished_at = CASE
-                  WHEN $3 = 'finished' THEN $7::timestamptz
-                  ELSE finished_at
-                END,
-                updated_at = $7::timestamptz
-          WHERE id = $1`,
-        [matchId, JSON.stringify(state), transition.value.phase, transition.value.hostMemberId,
-          committedRevision, transition.value.needsActionFrom, now],
-      );
-      await client.query(
-        `INSERT INTO next_round.match_events
-           (match_id, revision, event_id, actor_id, kind, safe_metadata)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-        [matchId, committedRevision, eventId, principalId, kind,
-          JSON.stringify(kind === "join" ? { rejoin } : {})],
-      );
-      await this.persistLifecycleDeadlines(client, matchId, transition.value.deadlines);
-      await persistFinalResult(
-        client, match, registered.manifest.resultVersion, final, committedRevision, now,
+      const committedRevision = await this.persistTransition(
+        client, match, members, registered, transition.value,
+        kind === "join" ? { kind: "join", memberId: member.id, rejoin } :
+          kind === "start" ? { kind: "start" } : { kind: "leave", memberId: member.id, reason: "left" },
+        eventId, now, principalId,
       );
 
       const receipt: CommandReceipt = {
@@ -742,57 +721,13 @@ export class MatchService {
       await client.query("COMMIT");
       return receipt;
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (!committedTimeouts) await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
     }
   }
 
-  private async persistLifecycleDeadlines(
-    client: Pick<DatabasePool, "query">,
-    matchId: string,
-    deadlines: Transition<Json>["deadlines"],
-  ): Promise<void> {
-    const identities = new Set<string>();
-    for (const deadline of deadlines) {
-      if (
-        typeof deadline.key !== "string" || deadline.key.length === 0 ||
-        !Number.isSafeInteger(deadline.generation) || deadline.generation < 1 ||
-        typeof deadline.dueAt !== "string" || !Number.isFinite(Date.parse(deadline.dueAt))
-      ) throw moduleFailure();
-      const identity = `${deadline.key}:${deadline.generation}`;
-      if (identities.has(identity)) throw moduleFailure();
-      identities.add(identity);
-      const prior = await client.query<{ status: string }>(
-        `SELECT status FROM next_round.match_deadlines
-          WHERE match_id = $1 AND key = $2 AND generation = $3`,
-        [matchId, deadline.key, deadline.generation],
-      );
-      if (prior.rows[0] && prior.rows[0].status !== "pending") throw moduleFailure();
-    }
-    await client.query(
-      `UPDATE next_round.match_deadlines d
-          SET status = 'cancelled'
-        WHERE d.match_id = $1
-          AND d.status = 'pending'
-          AND NOT EXISTS (
-            SELECT 1
-              FROM jsonb_to_recordset($2::jsonb) AS wanted(key text, generation bigint)
-             WHERE wanted.key = d.key AND wanted.generation = d.generation
-          )`,
-      [matchId, JSON.stringify(deadlines.map(({ key, generation }) => ({ key, generation })))],
-    );
-    for (const deadline of deadlines) {
-      await client.query(
-        `INSERT INTO next_round.match_deadlines
-           (match_id, key, generation, due_at, status, event_id)
-         VALUES ($1, $2, $3, $4, 'pending', $5)
-         ON CONFLICT (match_id, key, generation) DO NOTHING`,
-        [matchId, deadline.key, deadline.generation, deadline.dueAt, randomUUID()],
-      );
-    }
-  }
 
   async getSnapshot(matchId: string, principalId: string): Promise<MatchSnapshot> {
     const result = await this.pool.query<MatchRow>(
@@ -805,7 +740,7 @@ export class MatchService {
                    jsonb_build_object(
                      'key', d.key,
                      'generation', d.generation::integer,
-                     'dueAt', d.due_at
+                     'dueAt', to_char(d.due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
                    ) ORDER BY d.due_at, d.key, d.generation
                  )
                    FROM next_round.match_deadlines d
@@ -930,6 +865,7 @@ export class MatchService {
     // same representation for receipt comparisons and response identities.
     matchId = matchId.toLowerCase();
     const client = await this.pool.connect();
+    let committedTimeouts = false;
     try {
       await client.query("BEGIN");
       const candidates = await client.query<{ principal_id: string }>(
@@ -1008,6 +944,15 @@ export class MatchService {
       if (match.phase === "finished") {
         throw new ApiError(ERROR_CODES.MATCH_CLOSED, "Match is closed.");
       }
+      const now = await this.databaseNow(client);
+      const deadlineMembers = await this.loadMembers(client, matchId);
+      if (await this.reconcileDue(client, match, deadlineMembers, now)) {
+        await client.query("COMMIT");
+        committedTimeouts = true;
+        throw new ApiError(ERROR_CODES.STALE_REVISION, "Refresh this match before acting.", {
+          details: { currentRevision: match.revision },
+        });
+      }
       if (match.state === null) throw moduleUnavailable();
 
       const registered = registeredVersion(this.registry, match.module_id, match.module_version);
@@ -1021,20 +966,7 @@ export class MatchService {
       }
       const payload = parseJsonSchemaValue(actionSchema, input.payload);
 
-      const membersResult = await client.query<Member>(
-        `SELECT mm.id, mm.principal_id AS "principalId", p.kind,
-                p.display_name AS "displayName", mm.status,
-                mm.join_ordinal::integer AS "joinOrdinal",
-                (p.disabled_at IS NOT NULL) AS disabled,
-                mm.access_epoch::integer AS "accessEpoch"
-           FROM next_round.match_members mm
-           JOIN next_round.principals p ON p.id = mm.principal_id
-          WHERE mm.match_id = $1
-          ORDER BY mm.join_ordinal`,
-        [matchId],
-      );
-      const members = membersResult.rows;
-      const now = new Date().toISOString();
+      const members = deadlineMembers;
       const eventId = randomUUID();
       const ctx = context(match, members, now, eventId, {
         principalId,
@@ -1059,77 +991,9 @@ export class MatchService {
         );
       }
 
-      let state: Json;
-      try {
-        state = parseJsonSchemaValue(registered.manifest.stateSchema, transition.value.state);
-      } catch {
-        throw moduleFailure();
-      }
-      const final = prepareFinalResult(registered, transition.value, members);
-
-      const committedRevision = match.revision + 1;
-      await client.query(
-        `UPDATE next_round.matches
-            SET state = $2::jsonb,
-                phase = $3,
-                host_member_id = $4,
-                revision = $5,
-                needs_action_from = $6::uuid[],
-                started_at = CASE
-                  WHEN $3 = 'active' THEN COALESCE(started_at, $7::timestamptz)
-                  ELSE started_at
-                END,
-                finished_at = CASE
-                  WHEN $3 = 'finished' THEN $7::timestamptz
-                  ELSE finished_at
-                END,
-                updated_at = $7::timestamptz
-          WHERE id = $1`,
-        [
-          matchId,
-          JSON.stringify(state),
-          transition.value.phase,
-          transition.value.hostMemberId,
-          committedRevision,
-          transition.value.needsActionFrom,
-          now,
-        ],
-      );
-      await client.query(
-        `INSERT INTO next_round.match_events
-           (match_id, revision, event_id, actor_id, kind, safe_metadata)
-         VALUES ($1, $2, $3, $4, 'action', $5::jsonb)`,
-        [matchId, committedRevision, eventId, principalId, JSON.stringify({ type: input.type })],
-      );
-
-      const desiredDeadlines = transition.value.deadlines.map((deadline) => ({
-        key: deadline.key,
-        generation: deadline.generation,
-      }));
-      await client.query(
-        `UPDATE next_round.match_deadlines d
-            SET status = 'cancelled'
-          WHERE d.match_id = $1
-            AND d.status = 'pending'
-            AND NOT EXISTS (
-              SELECT 1
-                FROM jsonb_to_recordset($2::jsonb) AS wanted(key text, generation bigint)
-               WHERE wanted.key = d.key AND wanted.generation = d.generation
-            )`,
-        [matchId, JSON.stringify(desiredDeadlines)],
-      );
-      for (const deadline of transition.value.deadlines) {
-        await client.query(
-          `INSERT INTO next_round.match_deadlines
-             (match_id, key, generation, due_at, status, event_id)
-           VALUES ($1, $2, $3, $4, 'pending', $5)
-           ON CONFLICT (match_id, key, generation) DO NOTHING`,
-          [matchId, deadline.key, deadline.generation, deadline.dueAt, randomUUID()],
-        );
-      }
-
-      await persistFinalResult(
-        client, match, registered.manifest.resultVersion, final, committedRevision, now,
+      const committedRevision = await this.persistTransition(
+        client, match, members, registered, transition.value,
+        { kind: "action", type: input.type, payload }, eventId, now, principalId,
       );
 
       const receipt: CommandReceipt = {
@@ -1157,10 +1021,158 @@ export class MatchService {
       await client.query("COMMIT");
       return receipt;
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (!committedTimeouts) await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
+    }
+  }
+
+  private async databaseNow(client: Pick<DatabasePool, "query">): Promise<string> {
+    const result = await client.query<{ now: Date }>("SELECT clock_timestamp() AS now");
+    return result.rows[0].now.toISOString();
+  }
+
+  private async loadMembers(client: Pick<DatabasePool, "query">, matchId: string): Promise<Member[]> {
+    const result = await client.query<Member>(
+      `SELECT mm.id, mm.principal_id AS "principalId", p.kind,
+              p.display_name AS "displayName", mm.status,
+              mm.join_ordinal::integer AS "joinOrdinal",
+              (p.disabled_at IS NOT NULL) AS disabled, mm.access_epoch::integer AS "accessEpoch"
+         FROM next_round.match_members mm JOIN next_round.principals p ON p.id = mm.principal_id
+        WHERE mm.match_id = $1 ORDER BY mm.join_ordinal`, [matchId],
+    );
+    return result.rows;
+  }
+
+  /** Shared state/event/result/deadline/effects commit path for commands and system events. */
+  private async persistTransition(
+    client: Pick<DatabasePool, "query">,
+    match: Omit<ActionMatchRow, "viewer_member_id">,
+    members: readonly Member[],
+    registered: ServerGameVersion,
+    transition: Transition<Json>,
+    event: GameEvent,
+    eventId: string,
+    now: string,
+    actorId: string | null,
+    created = false,
+    fired?: StoredDeadline,
+  ): Promise<number> {
+    if (!transition || !Array.isArray(transition.deadlines) ||
+        !Array.isArray(transition.needsActionFrom) || !Array.isArray(transition.facts) ||
+        !["lobby", "active", "finished"].includes(transition.phase) ||
+        (match.phase === "active" && transition.phase === "lobby") ||
+        (match.phase === "finished") ||
+        (transition.hostMemberId !== null && !members.some((m) => m.id === transition.hostMemberId)) ||
+        new Set(transition.needsActionFrom).size !== transition.needsActionFrom.length ||
+        transition.needsActionFrom.some((id) => !members.some((m) => m.id === id && m.status === "active" && !m.disabled))) {
+      throw moduleFailure();
+    }
+    let state: Json;
+    try { state = parseJsonSchemaValue(registered.manifest.stateSchema, transition.state); }
+    catch { throw moduleFailure(); }
+    const final = prepareFinalResult(registered, transition, members);
+    const stored = await validateDeadlines(client, match.id, transition.deadlines, fired);
+    const revision = match.revision + 1;
+    if (!Number.isSafeInteger(revision)) throw moduleFailure();
+    await client.query(
+      `UPDATE next_round.matches SET state = $2::jsonb, phase = $3, host_member_id = $4,
+              revision = $5, needs_action_from = $6::uuid[],
+              started_at = CASE WHEN $3 = 'active' THEN COALESCE(started_at, $7::timestamptz) ELSE started_at END,
+              finished_at = CASE WHEN $3 = 'finished' THEN $7::timestamptz ELSE finished_at END,
+              updated_at = $7::timestamptz WHERE id = $1`,
+      [match.id, JSON.stringify(state), transition.phase, transition.hostMemberId,
+        revision, transition.needsActionFrom, now],
+    );
+    if (!created) await client.query(
+      `INSERT INTO next_round.match_events (match_id, revision, event_id, actor_id, kind, safe_metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+      [match.id, revision, eventId, actorId, event.kind,
+        JSON.stringify(event.kind === "action" ? { type: event.type } :
+          event.kind === "join" ? { rejoin: event.rejoin } : {})],
+    );
+    await persistMatchEffects(client, match.id, revision, eventId, now, members, transition, stored, fired);
+    await persistFinalResult(client, match, registered.manifest.resultVersion, final, revision, now);
+    // Keep the locked in-memory row current when several originally-due identities are consumed.
+    Object.assign(match, { revision, state, phase: transition.phase, host_member_id: transition.hostMemberId });
+    return revision;
+  }
+
+  private async reconcileDue(
+    client: Pick<DatabasePool, "query">,
+    match: Omit<ActionMatchRow, "viewer_member_id">,
+    members: readonly Member[],
+    now: string,
+  ): Promise<number> {
+    const due = (await readDeadlines(client, match.id)).filter(
+      (row) => row.status === "pending" && Date.parse(row.dueAt) <= Date.parse(now),
+    );
+    let applied = 0;
+    // Snapshot the due set: do not simulate historical turns for newly-created obligations.
+    for (const deadline of due) {
+      if (match.phase === "finished") break;
+      const pending = await client.query(
+        `SELECT 1 FROM next_round.match_deadlines
+          WHERE match_id = $1 AND key = $2 AND generation = $3 AND status = 'pending'`,
+        [match.id, deadline.key, deadline.generation],
+      );
+      if (!pending.rowCount) continue;
+      const registered = registeredVersion(this.registry, match.module_id, match.module_version);
+      const event: GameEvent = { kind: "deadline", deadline: {
+        key: deadline.key, generation: deadline.generation, dueAt: deadline.dueAt,
+      } };
+      let transition;
+      try {
+        transition = registered.server.transition(
+          context(match, members, now, deadline.eventId, null), match.state, event,
+        );
+      } catch { throw moduleFailure(); }
+      if (!transition.ok) throw moduleFailure();
+      await this.persistTransition(client, match, members, registered, transition.value,
+        event, deadline.eventId, now, null, false, deadline);
+      applied += 1;
+    }
+    return applied;
+  }
+
+  async processDeadline(input: DeadlineInput): Promise<number> {
+    for (let attempt = 0; ; attempt += 1) {
+      const client = await this.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const discovered = await client.query<{ principal_id: string }>(
+          "SELECT principal_id FROM next_round.match_members WHERE match_id = $1", [input.matchId],
+        );
+        const principalIds = discovered.rows.map((row) => row.principal_id);
+        await lockPrincipals(client, principalIds);
+        const result = await client.query<Omit<ActionMatchRow, "viewer_member_id">>(
+          `SELECT id, module_id, module_version, state_version, mode, phase,
+                  revision::integer AS revision, state, settings, host_member_id
+             FROM next_round.matches WHERE id = $1 FOR UPDATE`, [input.matchId],
+        );
+        const match = result.rows[0];
+        if (!match || match.phase === "finished") { await client.query("COMMIT"); return 0; }
+        const members = await this.loadMembers(client, match.id);
+        if (members.some((member) => !principalIds.includes(member.principalId))) {
+          throw Object.assign(new Error("Retry membership discovery"), { code: "40001" });
+        }
+        const now = await this.databaseNow(client);
+        const requested = await client.query(
+          `SELECT 1 FROM next_round.match_deadlines WHERE match_id = $1 AND key = $2
+            AND generation = $3 AND status = 'pending' AND due_at <= $4::timestamptz`,
+          [match.id, input.key, input.generation, now],
+        );
+        const applied = requested.rowCount ? await this.reconcileDue(client, match, members, now) : 0;
+        await client.query("COMMIT");
+        return applied;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+        if (code !== "40001" && code !== "40P01") throw error;
+        if (attempt === 2) throw new ApiError(ERROR_CODES.SERVICE_UNAVAILABLE, "Please retry this command.");
+        await delay(10 + Math.random() * 30);
+      } finally { client.release(); }
     }
   }
 }
