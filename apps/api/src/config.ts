@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { isIP } from "node:net";
+import { parsePositiveIntegerInterval } from "@next-round/platform";
 
 export type TrustedProxies = false | string | string[];
 
@@ -71,4 +72,16 @@ export function requireAppOrigin(value = process.env.APP_ORIGIN): string {
     throw new Error("APP_ORIGIN must be one exact HTTPS origin (HTTP is allowed only on localhost)");
   }
   return origin.origin;
+}
+
+/** Validate LIVE_RECONCILE_INTERVAL_MS (positive integer milliseconds, default 10000, BL-005). */
+export function parseLiveReconcileIntervalMs(
+  value: unknown = process.env.LIVE_RECONCILE_INTERVAL_MS,
+  defaultValue = 10_000,
+): number {
+  return parsePositiveIntegerInterval(
+    value,
+    "LIVE_RECONCILE_INTERVAL_MS",
+    defaultValue,
+  );
 }

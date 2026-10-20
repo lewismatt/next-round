@@ -3,9 +3,21 @@ import pg from "pg";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema.js";
 
-const { Pool } = pg;
+const { Pool, Client } = pg;
 export type DatabasePool = pg.Pool;
+export type DedicatedClient = pg.Client;
+export type DatabaseNotification = pg.Notification;
 
+export function createDedicatedClient(
+  connectionString: string,
+  applicationName?: string,
+): pg.Client {
+  return new Client({
+    connectionString,
+    application_name: applicationName,
+    connectionTimeoutMillis: 5000,
+  });
+}
 export * from "./schema.js";
 
 export interface DatabasePoolOptions {

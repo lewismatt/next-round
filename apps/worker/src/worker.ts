@@ -2,7 +2,12 @@
 import pg from "pg";
 import { PgBoss } from "pg-boss";
 import { ERROR_CODES } from "@next-round/contracts";
-import { GameRegistry, MatchService } from "@next-round/platform";
+import {
+  GameRegistry,
+  MatchService,
+  parsePositiveIntegerInterval,
+  verifyModuleRetentionReadiness,
+} from "@next-round/platform";
 import { loadTestCounterFixtureIfEnabled } from "./test-counter-fixture.js";
 
 const { Pool } = pg;
@@ -40,6 +45,7 @@ export interface WorkerOptions {
   reconcileIntervalMs?: number;
   pool?: pg.Pool;
   registry?: GameRegistry;
+  skipRetentionCheck?: boolean;
 }
 
 export interface DeadlineJobData {
@@ -157,6 +163,7 @@ export class WorkerRunner {
   private inFlightWaiters: Array<() => void> = [];
   public readonly registry: GameRegistry;
   public readonly matchService: MatchService;
+  private readonly skipRetentionCheck: boolean;
   private readonly config: {
     connectionString: string;
     schema: string;
@@ -169,13 +176,21 @@ export class WorkerRunner {
       process.env.DATABASE_URL ||
       "postgres://postgres:postgres@localhost:5432/next_round";
 
+    const reconcileIntervalMs =
+      options.reconcileIntervalMs !== undefined
+        ? parsePositiveIntegerInterval(options.reconcileIntervalMs, "reconcileIntervalMs")
+        : parsePositiveIntegerInterval(
+            process.env.LIVE_RECONCILE_INTERVAL_MS,
+            "LIVE_RECONCILE_INTERVAL_MS",
+            DEFAULT_RECONCILE_INTERVAL_MS,
+          );
+
     this.config = {
       connectionString,
       schema: options.schema || process.env.PGBOSS_SCHEMA || "pgboss",
-      reconcileIntervalMs:
-        options.reconcileIntervalMs ||
-        Number(process.env.LIVE_RECONCILE_INTERVAL_MS || DEFAULT_RECONCILE_INTERVAL_MS),
+      reconcileIntervalMs,
     };
+    this.skipRetentionCheck = options.skipRetentionCheck ?? false;
 
     if (options.pool) {
       this.pool = options.pool;
@@ -237,6 +252,10 @@ export class WorkerRunner {
     boss.on("error", (err: Error) => {
       console.error(`[worker:pg-boss] Error: ${safeErrorCode(err)}`);
     });
+
+    if (!this.skipRetentionCheck) {
+      await verifyModuleRetentionReadiness(this.pool, this.registry);
+    }
 
     try {
       await boss.start();

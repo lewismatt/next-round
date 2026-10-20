@@ -2,13 +2,15 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { ApiError, ERROR_CODES } from "@next-round/contracts";
+import { ApiError, ERROR_CODES, LIVE_SUBPROTOCOL } from "@next-round/contracts";
 import { createDatabasePool } from "@next-round/db";
 import type { DatabasePool } from "@next-round/db";
 import {
   AuthService,
+  checkModuleRetentionReadiness,
   defaultGameRegistry,
   MatchService,
+  verifyModuleRetentionReadiness,
   type GameRegistry,
 } from "@next-round/platform";
 import cookie from "@fastify/cookie";
@@ -23,10 +25,11 @@ import { parseTrustedProxies, requireAppOrigin, requireSessionSecret, validateSe
 import type { TrustedProxies } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
-import { gameAssetRoutes, gameManifestRoutes } from "./routes/games.js";
+import { adminGameRoutes, gameAssetRoutes, gameManifestRoutes } from "./routes/games.js";
 import { matchRoutes } from "./routes/matches.js";
 import type { HealthCheckOptions } from "./routes/health.js";
 import { loadTestCounterFixtureIfEnabled } from "./test-counter-fixture.js";
+import { LiveService, liveRoutes, type LiveSweepStats } from "./live/index.js";
 
 export interface ServerOptions extends HealthCheckOptions {
   logger?: FastifyServerOptions["logger"];
@@ -39,6 +42,14 @@ export interface ServerOptions extends HealthCheckOptions {
   setupToken?: string;
   origin?: string;
   gameRegistry?: GameRegistry;
+  reconcileIntervalMs?: number;
+  databaseDirectUrl?: string;
+  listenerApplicationName?: string;
+  heartbeatSeconds?: number;
+  maxSubscriptionsPerConnection?: number;
+  maxBufferedAmount?: number;
+  enableLiveListener?: boolean;
+  onLiveSweep?: (stats: LiveSweepStats) => void;
 }
 
 /**
@@ -63,6 +74,17 @@ export async function buildServer(
   const authService = new AuthService(databasePool, setupToken);
   const matchService = new MatchService(databasePool, gameRegistry);
   const ownsDatabasePool = options.databasePool === undefined;
+
+  const checkRegistry =
+    options.checkRegistry ??
+    (async () => {
+      try {
+        const result = await checkModuleRetentionReadiness(databasePool, gameRegistry);
+        return result.ready;
+      } catch {
+        return false;
+      }
+    });
   const loggerConfig: FastifyServerOptions["logger"] =
     options.logger ?? {
       level: process.env.LOG_LEVEL || "info",
@@ -70,6 +92,7 @@ export async function buildServer(
         paths: [
           "req.headers.authorization",
           "req.headers.cookie",
+          "req.url",
           "headers.authorization",
           "headers.cookie",
           "*.password",
@@ -138,6 +161,12 @@ export async function buildServer(
   await app.register(websocket, {
     options: {
       maxPayload: 16 * 1024, // Spec §6: 16 KiB per message
+      handleProtocols: (protocols) => {
+        if (protocols.has(LIVE_SUBPROTOCOL)) {
+          return LIVE_SUBPROTOCOL;
+        }
+        return false;
+      },
     },
   });
 
@@ -175,20 +204,33 @@ export async function buildServer(
   // 7. Register Health and version routes (at both / and /api/v1 for operator/load-balancer convenience)
   await app.register(healthRoutes, {
     checkDb: options.checkDb,
-    checkRegistry: options.checkRegistry,
+    checkRegistry,
   });
   await app.register(healthRoutes, {
     prefix: "/api/v1",
     checkDb: options.checkDb,
-    checkRegistry: options.checkRegistry,
+    checkRegistry,
   });
   await app.register(gameManifestRoutes, {
     prefix: "/api/v1",
     registry: gameRegistry,
     authService,
     origin,
+    databasePool,
+  });
+  await app.register(adminGameRoutes, {
+    prefix: "/api/v1",
+    registry: gameRegistry,
+    authService,
+    databasePool,
+    origin,
   });
 
+  if (options.checkRegistry === undefined) {
+    app.addHook("onReady", async () => {
+      await verifyModuleRetentionReadiness(databasePool, gameRegistry);
+    });
+  }
   await app.register(authRoutes, {
     prefix: "/api/v1",
     authService,
@@ -198,6 +240,33 @@ export async function buildServer(
     prefix: "/api/v1",
     authService,
     matchService,
+    origin,
+  });
+
+  const liveService = new LiveService({
+    databasePool,
+    databaseDirectUrl: options.databaseDirectUrl,
+    listenerApplicationName: options.listenerApplicationName,
+    reconcileIntervalMs: options.reconcileIntervalMs,
+    heartbeatSeconds: options.heartbeatSeconds,
+    maxSubscriptionsPerConnection: options.maxSubscriptionsPerConnection,
+    maxBufferedAmount: options.maxBufferedAmount,
+    enableListener: options.enableLiveListener ?? true,
+    logger: app.log,
+    onSweep: options.onLiveSweep,
+  });
+  app.decorate("liveService", liveService);
+  app.addHook("onReady", async () => {
+    await liveService.start();
+  });
+  app.addHook("onClose", async () => {
+    await liveService.close();
+  });
+
+  await app.register(liveRoutes, {
+    prefix: "/api/v1",
+    liveService,
+    authService,
     origin,
   });
 

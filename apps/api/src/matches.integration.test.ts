@@ -674,14 +674,6 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     expect(rawState.statusCode).toBe(404);
     expectNoPrivateValues(rawState.body);
 
-    const subscribe = await app.inject({
-      method: "GET",
-      url: "/api/v1/live",
-      headers: headers(outsider),
-    });
-    expect(subscribe.statusCode).toBe(404);
-    expectNoPrivateValues(subscribe.body);
-
     const finalResult = {
       outcome: "completed",
       data: { count: 7, target: 10, winners: [memberAId] },

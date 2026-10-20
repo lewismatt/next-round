@@ -160,6 +160,20 @@ export class GameRegistry {
   }
 
   /**
+   * Sets the default version for a registered module.
+   */
+  public setDefaultVersion(id: string, version: string): void {
+    const mod = this.modules.get(id);
+    if (!mod) {
+      throw new Error(`Module '${id}' is not registered.`);
+    }
+    if (!mod.versions.has(version)) {
+      throw new Error(`Version '${version}' of module '${id}' is not registered.`);
+    }
+    mod.defaultVersion = version;
+  }
+
+  /**
    * Retrieves a registered module by its module ID.
    */
   public get(id: string): RegisteredGameModule | undefined {

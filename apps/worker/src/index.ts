@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
+import { parsePositiveIntegerInterval } from "@next-round/platform";
 import { createWorker, safeErrorCode } from "./worker.js";
 
 const connectionString =
   process.env.DATABASE_URL ||
   "postgres://postgres:postgres@localhost:5432/next_round";
-const reconcileIntervalMs = Number(
-  process.env.LIVE_RECONCILE_INTERVAL_MS || 10000
+const reconcileIntervalMs = parsePositiveIntegerInterval(
+  process.env.LIVE_RECONCILE_INTERVAL_MS,
+  "LIVE_RECONCILE_INTERVAL_MS",
+  10000,
 );
 
 /**

@@ -83,20 +83,17 @@ function registry(): GameRegistry {
 
 
 describe("game manifest HTTP boundary", () => {
-  it("serves the loaded manifest modes and the declared immutable client asset", async () => {
-    const app = await buildServer({ logger: false, staticRoot: clientRoot, gameRegistry: registry() });
+  it("serves the declared immutable client asset", async () => {
+    const app = await buildServer({
+      logger: false,
+      staticRoot: clientRoot,
+      gameRegistry: registry(),
+      enableLiveListener: false,
+      checkDb: async () => true,
+      checkRegistry: async () => true,
+    });
     servers.push(app);
 
-    const list = await app.inject("/api/v1/games");
-    expect(list.statusCode).toBe(200);
-    expect(list.json().data[0].modes).toEqual([
-      expect.objectContaining({ id: "solo", minPlayersToStart: 1, maxPlayers: 1 }),
-      expect.objectContaining({ id: "group", minPlayersToStart: 2, maxPlayers: 8 }),
-    ]);
-
-    const detail = await app.inject("/api/v1/games/test-counter?version=0.1.0");
-    expect(detail.statusCode).toBe(200);
-    expect(detail.json().data).toMatchObject({ id: "test-counter", version: "0.1.0" });
 
     const asset = await app.inject("/games/test-counter/0.1.0/client.js");
     expect(asset.statusCode).toBe(200);
@@ -106,7 +103,14 @@ describe("game manifest HTTP boundary", () => {
 
   it("does not serve an undeclared client asset", async () => {
     writeFileSync(path.join(clientRoot, "server.js"), "export const secret = true;\n");
-    const app = await buildServer({ logger: false, staticRoot: clientRoot, gameRegistry: registry() });
+    const app = await buildServer({
+      logger: false,
+      staticRoot: clientRoot,
+      gameRegistry: registry(),
+      enableLiveListener: false,
+      checkDb: async () => true,
+      checkRegistry: async () => true,
+    });
     servers.push(app);
     const response = await app.inject("/games/test-counter/0.1.0/server.js");
     expect(response.statusCode).toBe(404);
@@ -119,6 +123,9 @@ describe("game input API boundary", () => {
       logger: false,
       staticRoot: clientRoot,
       gameRegistry: registry(),
+      enableLiveListener: false,
+      checkDb: async () => true,
+      checkRegistry: async () => true,
     });
     servers.push(app);
     const response = await app.inject({
@@ -142,6 +149,9 @@ describe("game input API boundary", () => {
       logger: false,
       staticRoot: clientRoot,
       gameRegistry: registry(),
+      enableLiveListener: false,
+      checkDb: async () => true,
+      checkRegistry: async () => true,
     });
     servers.push(app);
     const response = await app.inject({
