@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import {
   Link,
@@ -22,18 +22,23 @@ import {
   createGuestInvite,
   createMatch,
   createMatchLink,
+  getAdminGames,
   getChat,
   getGameManifest,
+  getGameResources,
   getGames,
   getIncomingInvitations,
+  getLeaderboard,
   getMatch,
   getMatchResult,
   getMatches,
   getSession,
+  importGameResource,
   joinMatch,
   login,
   logout,
   matchLifecycle,
+  patchAdminGame,
   redeemGuest,
   redeemResetToken,
   redeemSignInToken,
@@ -43,12 +48,21 @@ import {
   setCsrfToken,
 } from "./api.js";
 import type {
+  AdminGameSummary,
   ChatMessage,
+  GameResourceEntry,
   InvitationPreview,
+  LeaderboardEntry,
   MatchCard,
   PendingInvitation,
   SessionInfo,
 } from "./api.js";
+import {
+  buildCrosswordSettings,
+  catalogSummary,
+  EMPTY_CUSTOM_INPUT,
+} from "./crossword-setup.js";
+import type { CrosswordCustomInput } from "./crossword-setup.js";
 import { LiveClient } from "./live.js";
 import type { LiveBinding } from "./live.js";
 
@@ -60,6 +74,8 @@ const TOKEN_PATHS: Record<string, true> = {
   "/reset-password": true,
 };
 const GUEST_MARKER = "next-round:guest-present";
+const STARTED_NOTICE = "Game started.";
+const ENDED_NOTICE = "Game ended. The result is ready.";
 const GUEST_ENTRY_COPY =
   "Keep using this browser to return to this game. If you clear its saved data, switch browsers or your guest access expires, you’ll need a new invitation. Your earlier points will stay with your original player and won’t move to your new player.";
 const LOST_GUEST_COPY =
@@ -114,6 +130,11 @@ function Header({
       <Link className="brand" to="/" aria-label="Next Round home">
         Next Round
       </Link>
+      <nav className="shell-nav" aria-label="Main navigation">
+        <Link to="/">Home</Link>
+        <Link to="/history">History</Link>
+        {session.permissions.isAdmin && <Link to="/admin">Admin</Link>}
+      </nav>
       <div className="header-actions">
         <span className="header-identity">
           Signed in as {session.principal.displayName}
@@ -131,11 +152,13 @@ function Header({
   );
 }
 
-function MobileNav() {
+function MobileNav({ isAdmin }: { isAdmin: boolean }) {
   return (
     <nav className="mobile-nav" aria-label="Main navigation">
       <Link to="/">Home</Link>
       <Link to="/#games">Games</Link>
+      <Link to="/history">History</Link>
+      {isAdmin && <Link to="/admin">Admin</Link>}
       <Link to="/login">Account</Link>
     </nav>
   );
@@ -154,7 +177,7 @@ function Shell({
     <div className="app-shell">
       <Header session={session} onSignOut={onSignOut} />
       {children}
-      <MobileNav />
+      <MobileNav isAdmin={session.permissions.isAdmin} />
     </div>
   );
 }
@@ -211,6 +234,11 @@ function phaseLabel(phase: string): string {
   if (phase === "finished") return "Finished";
   return "Unavailable";
 }
+function modeLabel(mode: string): string {
+  if (mode === "solo") return "Solo game";
+  if (mode === "group") return "Group game";
+  return `${mode.charAt(0).toUpperCase()}${mode.slice(1)} game`;
+}
 function invitationTitle(preview: InvitationPreview): string {
   if (preview.moduleId === "test-counter") return "Test Counter";
   return preview.title === preview.moduleId ? "Game" : preview.title;
@@ -234,8 +262,7 @@ function MatchCardView({
     <article className="card">
       <h3>{title}</h3>
       <p className="card-meta">
-        {match.mode === "group" ? "Group game" : "Solo game"} ·{" "}
-        {currentPhaseLabel}
+        {modeLabel(match.mode)} · {currentPhaseLabel}
       </p>
       {action && actionLabel && (
         <div className="inline-actions">
@@ -277,6 +304,13 @@ function CreateMatchDialog({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [resources, setResources] = useState<GameResourceEntry[]>([]);
+  const [resourcesLoading, setResourcesLoading] = useState(false);
+  const [resourceId, setResourceId] = useState("");
+  const [custom, setCustom] = useState<CrosswordCustomInput>(
+    EMPTY_CUSTOM_INPUT,
+  );
+  const needsResource = Boolean(selectedGame?.capabilities.resources);
 
   useEffect(() => {
     const first = games.find((game) => game.id === gameId) ?? games[0];
@@ -285,6 +319,31 @@ function CreateMatchDialog({
       first?.modes[0];
     setMode(modeOption?.id ?? "group");
   }, [gameId, games]);
+
+  useEffect(() => {
+    if (!selectedGame?.capabilities.resources) {
+      setResources([]);
+      setResourceId("");
+      return;
+    }
+    let cancelled = false;
+    setResourcesLoading(true);
+    getGameResources(selectedGame.id)
+      .then((entries) => {
+        if (cancelled) return;
+        setResources(entries);
+        setResourceId(entries[0]?.resourceId ?? "");
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(errorMessage(cause));
+      })
+      .finally(() => {
+        if (!cancelled) setResourcesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGame?.id, selectedGame?.capabilities.resources]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -310,11 +369,30 @@ function CreateMatchDialog({
       }
       settings = { target: targetValue, turnSeconds: seconds };
     }
+    let selectedResourceId: string | undefined;
+    if (needsResource) {
+      if (!resourceId) {
+        setError(
+          "Choose a puzzle first. If none are listed, an administrator needs to import one before a match can be created.",
+        );
+        setBusy(false);
+        return;
+      }
+      const built = buildCrosswordSettings(mode, custom);
+      if (!built.ok) {
+        setError(built.error);
+        setBusy(false);
+        return;
+      }
+      settings = { ...built.settings };
+      selectedResourceId = resourceId;
+    }
     try {
       const created = await createMatch({
         moduleId: selectedGame.id,
         mode,
         settings,
+        ...(selectedResourceId ? { resourceId: selectedResourceId } : {}),
         visibility,
       });
       onCreated(created.matchId);
@@ -394,6 +472,120 @@ function CreateMatchDialog({
               </div>
             </>
           )}
+          {needsResource && (
+            <>
+              <div className="field">
+                <label htmlFor="create-resource">Puzzle</label>
+                <select
+                  id="create-resource"
+                  value={resourceId}
+                  onChange={(event) => setResourceId(event.target.value)}
+                  disabled={resourcesLoading || resources.length === 0}
+                >
+                  {resources.map((entry) => (
+                    <option key={entry.resourceId} value={entry.resourceId}>
+                      {entry.metadata.title} — {catalogSummary(entry.metadata)}
+                    </option>
+                  ))}
+                </select>
+                {resourcesLoading && (
+                  <p className="hint">Loading the puzzle library…</p>
+                )}
+                {!resourcesLoading && resources.length === 0 && (
+                  <p className="hint">
+                    No puzzles are in the library yet. An administrator can
+                    import one from the Admin page.
+                  </p>
+                )}
+                {resources.length > 0 &&
+                  (() => {
+                    const selected = resources.find(
+                      (entry) => entry.resourceId === resourceId,
+                    );
+                    return selected ? (
+                      <p className="hint">
+                        Attribution: {selected.metadata.rights.attribution}
+                      </p>
+                    ) : null;
+                  })()}
+              </div>
+              {mode === "quick" && (
+                <p className="hint">
+                  Quick rules: 3 wrong guesses and 1 correct word per turn, no
+                  timer. Settings lock when the match starts.
+                </p>
+              )}
+              {mode === "solo" && (
+                <p className="hint">
+                  Casual solo: no guess limits and no timer.
+                </p>
+              )}
+              {mode === "custom" && (
+                <>
+                  <div className="field">
+                    <label htmlFor="custom-wrong">Wrong guesses per turn</label>
+                    <input
+                      id="custom-wrong"
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      placeholder="No limit"
+                      value={custom.wrongGuessesPerTurn}
+                      onChange={(event) =>
+                        setCustom((current) => ({
+                          ...current,
+                          wrongGuessesPerTurn: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="custom-correct">
+                      Correct words per turn
+                    </label>
+                    <input
+                      id="custom-correct"
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      placeholder="No limit"
+                      value={custom.correctWordsPerTurn}
+                      onChange={(event) =>
+                        setCustom((current) => ({
+                          ...current,
+                          correctWordsPerTurn: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="custom-timer">Turn timer (seconds)</label>
+                    <input
+                      id="custom-timer"
+                      type="number"
+                      min="10"
+                      max="86400"
+                      step="1"
+                      placeholder="No timer"
+                      value={custom.turnSeconds}
+                      onChange={(event) =>
+                        setCustom((current) => ({
+                          ...current,
+                          turnSeconds: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <p className="hint">
+                    Leave a field empty for no limit. Custom rules matches do
+                    not count toward career stats.
+                  </p>
+                </>
+              )}
+            </>
+          )}
           <div className="field">
             <label htmlFor="match-visibility">Who can find this game?</label>
             <select
@@ -455,10 +647,6 @@ function HomePage({
     games: [],
     invitations: [],
   });
-  const testCounterGames = useMemo(
-    () => home.games.filter((game) => game.id === "test-counter"),
-    [home.games],
-  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -620,9 +808,9 @@ function HomePage({
               <button
                 className="button button-primary"
                 type="button"
-                disabled={testCounterGames.length === 0}
+                disabled={home.games.length === 0}
                 onClick={() => {
-                  setCreateGameId(testCounterGames[0]?.id ?? "");
+                  setCreateGameId(home.games[0]?.id ?? "");
                   setCreateOpen(true);
                 }}
               >
@@ -726,10 +914,10 @@ function HomePage({
                 Games
               </h2>
               <div className="card-grid">
-                {testCounterGames.map((game) => (
+                {home.games.map((game) => (
                   <article className="card" key={`${game.id}-${game.version}`}>
                     <h3>{game.name}</h3>
-                    <p>Count to a shared goal alone or with a group.</p>
+                    <p>{game.description}</p>
                     <p className="card-meta">
                       Available modes:{" "}
                       {game.modes.map((mode) => mode.label).join(", ")}
@@ -748,7 +936,7 @@ function HomePage({
                     </div>
                   </article>
                 ))}
-                {!loading && testCounterGames.length === 0 && (
+                {!loading && home.games.length === 0 && (
                   <p className="status-message">
                     No games are available to start right now.
                   </p>
@@ -760,7 +948,7 @@ function HomePage({
       </main>
       {createOpen && (
         <CreateMatchDialog
-          games={testCounterGames}
+          games={home.games}
           initialGameId={createGameId}
           onClose={() => setCreateOpen(false)}
           onCreated={(matchId) =>
@@ -768,6 +956,444 @@ function HomePage({
           }
         />
       )}
+    </Shell>
+  );
+}
+
+function HistoryPage({
+  session,
+  onSignOut,
+  onSessionExpired,
+}: {
+  session: SessionInfo;
+  onSignOut: () => void;
+  onSessionExpired: () => void;
+}) {
+  const navigate = useNavigate();
+  const [finished, setFinished] = useState<MatchCard[]>([]);
+  const [games, setGames] = useState<GameManifest[]>([]);
+  const [boards, setBoards] = useState<Record<string, LeaderboardEntry[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const expiredRef = useRef(onSessionExpired);
+  expiredRef.current = onSessionExpired;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [mine, gameList] = await Promise.all([
+          getMatches("mine", "finished"),
+          session.principal.kind === "registered"
+            ? getGames()
+            : Promise.resolve([] as GameManifest[]),
+        ]);
+        if (cancelled) return;
+        setFinished(mine);
+        setGames(gameList);
+        const careerGames = gameList.filter(
+          (game) => game.capabilities.careerStats,
+        );
+        const loaded = await Promise.all(
+          careerGames.map(async (game) => {
+            try {
+              return [game.id, await getLeaderboard(game.id)] as const;
+            } catch {
+              return [game.id, [] as LeaderboardEntry[]] as const;
+            }
+          }),
+        );
+        if (!cancelled) setBoards(Object.fromEntries(loaded));
+      } catch (cause) {
+        if (cancelled) return;
+        if (cause instanceof ApiError && cause.status === 401)
+          expiredRef.current();
+        else setError(errorMessage(cause));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.principal.id, session.principal.kind]);
+
+  function gameTitle(moduleId: string): string {
+    return games.find((game) => game.id === moduleId)?.name ?? "Game";
+  }
+
+  return (
+    <Shell session={session} onSignOut={onSignOut}>
+      <main className="app-main">
+        <h1 className="page-title">History</h1>
+        <p className="page-intro">
+          Your finished matches and the career standings they produced. Raw
+          per-match points stay with each result; standings count only
+          career-eligible play.
+        </p>
+        {error && (
+          <p className="error-message" role="alert">
+            {error}
+          </p>
+        )}
+        {loading && <p role="status">Loading your history…</p>}
+        <section className="section" aria-labelledby="history-matches-heading">
+          <h2 id="history-matches-heading" className="section-heading">
+            Finished matches
+          </h2>
+          <div className="card-grid">
+            {finished.map((match) => (
+              <MatchCardView
+                key={match.id}
+                match={match}
+                title={gameTitle(match.moduleId)}
+                action={() =>
+                  navigate(`/matches/${encodeURIComponent(match.id)}`)
+                }
+                actionLabel="View result"
+              />
+            ))}
+            {!loading && finished.length === 0 && (
+              <p className="status-message">No finished matches yet.</p>
+            )}
+          </div>
+        </section>
+        {games
+          .filter((game) => game.capabilities.careerStats)
+          .map((game) => (
+            <section
+              className="section"
+              key={game.id}
+              aria-labelledby={`leaderboard-${game.id}`}
+            >
+              <h2 id={`leaderboard-${game.id}`} className="section-heading">
+                {game.name} standings
+              </h2>
+              {(boards[game.id] ?? []).length === 0 ? (
+                <p className="status-message">
+                  No career-eligible results yet.
+                </p>
+              ) : (
+                <table className="result-score-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Rank</th>
+                      <th scope="col">Player</th>
+                      <th scope="col">Points</th>
+                      <th scope="col">Played</th>
+                      <th scope="col">Wins</th>
+                      <th scope="col">Avg / game</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(boards[game.id] ?? []).map((entry) => (
+                      <tr key={entry.principalId}>
+                        <td>{entry.rank}</td>
+                        <td>{entry.displayName}</td>
+                        <td>{entry.points}</td>
+                        <td>{entry.gamesPlayed}</td>
+                        <td>{entry.wins}</td>
+                        <td>
+                          {entry.averagePointsPerGame === null
+                            ? "—"
+                            : entry.averagePointsPerGame.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+          ))}
+      </main>
+    </Shell>
+  );
+}
+
+function AdminPage({
+  session,
+  onSignOut,
+  onSessionExpired,
+}: {
+  session: SessionInfo;
+  onSignOut: () => void;
+  onSessionExpired: () => void;
+}) {
+  const [adminGames, setAdminGames] = useState<AdminGameSummary[]>([]);
+  const [manifests, setManifests] = useState<GameManifest[]>([]);
+  const [catalogs, setCatalogs] = useState<
+    Record<string, GameResourceEntry[]>
+  >({});
+  const [importText, setImportText] = useState<Record<string, string>>({});
+  const [importMessage, setImportMessage] = useState<Record<string, string>>(
+    {},
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  const expiredRef = useRef(onSessionExpired);
+  expiredRef.current = onSessionExpired;
+  const loadRef = useRef<() => Promise<void>>(async () => {});
+  loadRef.current = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [games, manifestList] = await Promise.all([
+        getAdminGames(),
+        getGames(),
+      ]);
+      setAdminGames(games);
+      setManifests(manifestList);
+      const importable = manifestList.filter(
+        (game) => game.resourceSchemas?.import,
+      );
+      const loaded = await Promise.all(
+        importable.map(async (game) => {
+          try {
+            return [game.id, await getGameResources(game.id)] as const;
+          } catch {
+            return [game.id, [] as GameResourceEntry[]] as const;
+          }
+        }),
+      );
+      setCatalogs(Object.fromEntries(loaded));
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401)
+        expiredRef.current();
+      else setError(errorMessage(cause));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session.permissions.isAdmin) void loadRef.current();
+    else setLoading(false);
+  }, [session.permissions.isAdmin]);
+
+  async function toggleEnabled(game: AdminGameSummary) {
+    setBusy(game.id);
+    setError("");
+    try {
+      await patchAdminGame(game.id, { enabled: !game.enabled });
+      await loadRef.current();
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function changeDefault(game: AdminGameSummary, version: string) {
+    setBusy(game.id);
+    setError("");
+    try {
+      await patchAdminGame(game.id, { defaultVersion: version });
+      await loadRef.current();
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function submitImport(gameId: string) {
+    const raw = (importText[gameId] ?? "").trim();
+    if (!raw) {
+      setImportMessage((current) => ({
+        ...current,
+        [gameId]: "Paste a puzzle document (JSON) first.",
+      }));
+      return;
+    }
+    let document: Json;
+    try {
+      document = JSON.parse(raw) as Json;
+    } catch {
+      setImportMessage((current) => ({
+        ...current,
+        [gameId]: "That is not valid JSON.",
+      }));
+      return;
+    }
+    setBusy(gameId);
+    try {
+      const receipt = await importGameResource(gameId, document);
+      setImportMessage((current) => ({
+        ...current,
+        [gameId]: receipt.duplicate
+          ? `Already in the library (version ${receipt.version}); the import still records you as exposed to this puzzle.`
+          : `Imported as version ${receipt.version}. Importing records you as exposed to this puzzle.`,
+      }));
+      setImportText((current) => ({ ...current, [gameId]: "" }));
+      await loadRef.current();
+    } catch (cause) {
+      setImportMessage((current) => ({
+        ...current,
+        [gameId]: errorMessage(cause),
+      }));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  if (!session.permissions.isAdmin) {
+    return (
+      <Shell session={session} onSignOut={onSignOut}>
+        <main className="app-main">
+          <h1 className="page-title">Admin</h1>
+          <p className="status-message">Administrator access is required.</p>
+        </main>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell session={session} onSignOut={onSignOut}>
+      <main className="app-main">
+        <h1 className="page-title">Admin</h1>
+        <p className="page-intro">
+          Manage installed game modules and the content library. Disabling a
+          module blocks new matches; matches already running keep their
+          pinned version and finish normally.
+        </p>
+        {error && (
+          <p className="error-message" role="alert">
+            {error}
+          </p>
+        )}
+        {loading && <p role="status">Loading administration…</p>}
+        <section className="section" aria-labelledby="admin-games-heading">
+          <h2 id="admin-games-heading" className="section-heading">
+            Game modules
+          </h2>
+          <div className="card-grid">
+            {adminGames.map((game) => (
+              <article className="card" key={game.id}>
+                <h3>{game.id}</h3>
+                <p className="card-meta">
+                  {game.enabled ? "Enabled" : "Disabled"} ·{" "}
+                  {game.referenceCounts.total} matches ({" "}
+                  {game.referenceCounts.lobby} waiting,{" "}
+                  {game.referenceCounts.active} in progress,{" "}
+                  {game.referenceCounts.finished} finished)
+                </p>
+                <div className="field">
+                  <label htmlFor={`default-${game.id}`}>Default version</label>
+                  <select
+                    id={`default-${game.id}`}
+                    value={game.defaultVersion}
+                    disabled={busy === game.id}
+                    onChange={(event) =>
+                      void changeDefault(game, event.target.value)
+                    }
+                  >
+                    {game.versions.map((version) => (
+                      <option key={version.version} value={version.version}>
+                        {version.version}
+                        {version.hasClientAssets ? "" : " (client missing)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="inline-actions">
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={busy === game.id}
+                    onClick={() => void toggleEnabled(game)}
+                  >
+                    {game.enabled ? "Disable module" : "Enable module"}
+                  </button>
+                </div>
+              </article>
+            ))}
+            {!loading && adminGames.length === 0 && (
+              <p className="status-message">No game modules are installed.</p>
+            )}
+          </div>
+        </section>
+        {manifests
+          .filter((game) => game.resourceSchemas?.import)
+          .map((game) => (
+            <section
+              className="section"
+              key={game.id}
+              aria-labelledby={`admin-import-${game.id}`}
+            >
+              <h2
+                id={`admin-import-${game.id}`}
+                className="section-heading"
+              >
+                {game.name} library
+              </h2>
+              <div className="card-grid">
+                {(catalogs[game.id] ?? []).map((entry) => (
+                  <article className="card" key={entry.resourceId}>
+                    <h3>{entry.metadata.title}</h3>
+                    <p className="card-meta">
+                      {catalogSummary(entry.metadata)} · version{" "}
+                      {entry.version}
+                    </p>
+                    <p className="card-meta">
+                      Attribution: {entry.metadata.rights.attribution}
+                    </p>
+                  </article>
+                ))}
+                {(catalogs[game.id] ?? []).length === 0 && (
+                  <p className="status-message">
+                    No content has been imported yet.
+                  </p>
+                )}
+              </div>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void submitImport(game.id);
+                }}
+              >
+                <div className="field">
+                  <label htmlFor={`import-${game.id}`}>
+                    Import a {game.name} document (JSON)
+                  </label>
+                  <textarea
+                    id={`import-${game.id}`}
+                    rows={10}
+                    value={importText[game.id] ?? ""}
+                    onChange={(event) =>
+                      setImportText((current) => ({
+                        ...current,
+                        [game.id]: event.target.value,
+                      }))
+                    }
+                    placeholder='{"format": "next-round.crossword/1", ...}'
+                  />
+                </div>
+                <p className="hint">
+                  Only import content with a reviewed license (CC0-1.0,
+                  CC-BY-4.0, CC-BY-SA-4.0 or documented permission). Importing
+                  records you as exposed to the puzzle.
+                </p>
+                {importMessage[game.id] && (
+                  <p className="status-message" role="status">
+                    {importMessage[game.id]}
+                  </p>
+                )}
+                <div className="inline-actions">
+                  <button
+                    className="button button-primary"
+                    type="submit"
+                    disabled={busy === game.id}
+                  >
+                    {busy === game.id ? "Importing…" : "Import document"}
+                  </button>
+                </div>
+              </form>
+            </section>
+          ))}
+      </main>
     </Shell>
   );
 }
@@ -1946,6 +2572,15 @@ function MatchPage({
     return () => live.close();
   }, [matchId, session.principal.id]);
 
+  // BL-025: once the authoritative phase is finished, an earlier lifecycle
+  // notice (above all "Game started.") is obsolete and must not linger over
+  // the final projection. The explicit ended-game confirmation set by the
+  // finish action itself is preserved.
+  useEffect(() => {
+    if (snapshot?.phase !== "finished") return;
+    setActionMessage((current) => (current === STARTED_NOTICE ? "" : current));
+  }, [snapshot?.phase]);
+
   async function refreshSnapshot(): Promise<MatchSnapshot | null> {
     return loadRef.current();
   }
@@ -1968,9 +2603,7 @@ function MatchPage({
       }
       await refreshSnapshot();
       setActionMessage(
-        action === "start"
-          ? "Game started."
-          : "Game ended. The result is ready.",
+        action === "start" ? STARTED_NOTICE : ENDED_NOTICE,
       );
       setConfirmAction(null);
     } catch (cause) {
@@ -2621,6 +3254,56 @@ export function App() {
                   <p className="hint">
                     <Link to="/guest-access-lost">Lost guest access?</Link>
                   </p>
+                </AuthCard>
+              )
+            }
+          />
+          <Route
+            path="/history"
+            element={
+              session ? (
+                <HistoryPage
+                  session={session}
+                  onSignOut={requestLogout}
+                  onSessionExpired={sessionExpired}
+                />
+              ) : lostGuest ? (
+                <GuestRecoveryPage onSignIn={() => navigate("/login")} />
+              ) : (
+                <AuthCard title="Next Round">
+                  <p className="page-intro">
+                    Sign in to see your finished matches and standings.
+                  </p>
+                  <div className="inline-actions">
+                    <Link className="button button-primary" to="/login">
+                      Sign in
+                    </Link>
+                  </div>
+                </AuthCard>
+              )
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              session ? (
+                <AdminPage
+                  session={session}
+                  onSignOut={requestLogout}
+                  onSessionExpired={sessionExpired}
+                />
+              ) : lostGuest ? (
+                <GuestRecoveryPage onSignIn={() => navigate("/login")} />
+              ) : (
+                <AuthCard title="Next Round">
+                  <p className="page-intro">
+                    Sign in with an administrator account to manage games.
+                  </p>
+                  <div className="inline-actions">
+                    <Link className="button button-primary" to="/login">
+                      Sign in
+                    </Link>
+                  </div>
                 </AuthCard>
               )
             }

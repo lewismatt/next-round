@@ -256,11 +256,143 @@ export function createMatch(input: {
   moduleId: string;
   mode: string;
   settings: Json;
+  resourceId?: string;
   visibility: "invite" | "instance";
 }): Promise<{ matchId: string; revision: number; commandId: string }> {
   return request("/matches", {
     method: "POST",
     body: { ...input, commandId: crypto.randomUUID() },
+  });
+}
+
+export interface GameResourceEntry {
+  resourceId: string;
+  version: number;
+  metadata: {
+    title: string;
+    author: string;
+    language: string;
+    difficulty: string;
+    rows: number;
+    cols: number;
+    rights: {
+      license: string;
+      sourceUrl: string | null;
+      attribution: string;
+      permissionNote: string | null;
+    };
+  };
+  createdAt: string;
+}
+
+/** Public resource catalog of one game; never carries solution material. */
+export async function getGameResources(
+  gameId: string,
+): Promise<GameResourceEntry[]> {
+  const entries: GameResourceEntry[] = [];
+  let cursor: string | null = null;
+  do {
+    const query = new URLSearchParams({ limit: "100" });
+    if (cursor) query.set("cursor", cursor);
+    const result = await request<{
+      data: GameResourceEntry[];
+      nextCursor: string | null;
+    }>(`/games/${encodeURIComponent(gameId)}/resources?${query.toString()}`, {
+      unwrapData: false,
+    });
+    entries.push(...result.data);
+    cursor = result.nextCursor;
+  } while (cursor);
+  return entries;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  principalId: string;
+  displayName: string;
+  username: string;
+  points: number;
+  gamesPlayed: number;
+  wins: number;
+  averagePointsPerGame: number | null;
+}
+
+export async function getLeaderboard(
+  gameId: string,
+): Promise<LeaderboardEntry[]> {
+  const entries: LeaderboardEntry[] = [];
+  let cursor: string | null = null;
+  do {
+    const query = new URLSearchParams({ limit: "100" });
+    if (cursor) query.set("cursor", cursor);
+    const result = await request<{
+      data: LeaderboardEntry[];
+      nextCursor: string | null;
+    }>(`/games/${encodeURIComponent(gameId)}/leaderboard?${query.toString()}`, {
+      unwrapData: false,
+    });
+    entries.push(...result.data);
+    cursor = result.nextCursor;
+  } while (cursor);
+  return entries;
+}
+
+export interface AdminGameVersionSummary {
+  version: string;
+  installedAt: string;
+  hasServer: boolean;
+  hasClientAssets: boolean;
+  referenceCounts: {
+    lobby: number;
+    active: number;
+    finished: number;
+    total: number;
+  };
+}
+
+export interface AdminGameSummary {
+  id: string;
+  enabled: boolean;
+  defaultVersion: string;
+  createdAt: string;
+  updatedAt: string;
+  versions: AdminGameVersionSummary[];
+  referenceCounts: {
+    lobby: number;
+    active: number;
+    finished: number;
+    total: number;
+  };
+}
+
+export function getAdminGames(): Promise<AdminGameSummary[]> {
+  return request("/admin/games");
+}
+
+export function patchAdminGame(
+  gameId: string,
+  patch: { enabled?: boolean; defaultVersion?: string },
+): Promise<AdminGameSummary> {
+  return request(`/admin/games/${encodeURIComponent(gameId)}`, {
+    method: "PATCH",
+    body: patch,
+  });
+}
+
+export interface ImportReceipt {
+  resourceId: string;
+  identity: string;
+  version: number;
+  duplicate: boolean;
+}
+
+export function importGameResource(
+  gameId: string,
+  document: Json,
+): Promise<ImportReceipt> {
+  return request(`/admin/games/${encodeURIComponent(gameId)}/import`, {
+    method: "POST",
+    body: { commandId: crypto.randomUUID(), document },
   });
 }
 
