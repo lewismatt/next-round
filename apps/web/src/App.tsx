@@ -2416,6 +2416,7 @@ function MatchPage({
   const [pageError, setPageError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [result, setResult] = useState<Json | null>(null);
+  const [games, setGames] = useState<GameManifest[]>([]);
   const [selectedPanel, setSelectedPanel] = useState<
     "chat" | "participants" | null
   >(null);
@@ -2497,6 +2498,23 @@ function MatchPage({
       setChatLoading(false);
     }
   };
+
+  // BL-044: the title fallback resolves the module's manifest name from the
+  // catalog, like the Home/invitation title paths — no per-module hard-coded
+  // names. Best-effort: a failed catalog load leaves the generic fallback.
+  useEffect(() => {
+    let cancelled = false;
+    void getGames()
+      .then((list) => {
+        if (!cancelled) setGames(list);
+      })
+      .catch(() => {
+        if (!cancelled) setGames([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     void loadRef.current();
@@ -2608,10 +2626,12 @@ function MatchPage({
       ? view.title
       : null;
   const savedTitle = (result as SavedResultView | null)?.data?.attribution?.title;
+  const fallbackTitle =
+    games.find((game) => game.id === snapshot?.moduleId)?.name ?? "Game";
   const title =
     puzzleTitle ??
     (typeof savedTitle === "string" ? savedTitle : null) ??
-    (snapshot?.moduleId === "test-counter" ? "Test Counter" : "Game");
+    fallbackTitle;
   if (snapshotError && !snapshot && !result)
     return (
       <Shell session={session} onSignOut={onSignOut}>
@@ -2639,7 +2659,11 @@ function MatchPage({
             Home
           </Link>
           <span className="badge">
-            {snapshot ? phaseLabel(snapshot.phase) : "Loading game"}
+            {snapshot
+              ? phaseLabel(snapshot.phase)
+              : result
+                ? phaseLabel("finished")
+                : "Loading game"}
           </span>
           <span className="spacer" />
           {snapshot?.capabilities.canStart && (
