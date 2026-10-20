@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { PgBoss } from "pg-boss";
 import { ERROR_CODES } from "@next-round/contracts";
@@ -212,6 +213,7 @@ export class WorkerRunner {
   private isReconciling = false;
   private inFlightWork = 0;
   private inFlightWaiters: Array<() => void> = [];
+  private readonly workerId = randomUUID();
   public readonly registry: GameRegistry;
   public readonly matchService: MatchService;
   private readonly skipRetentionCheck: boolean;
@@ -365,6 +367,25 @@ export class WorkerRunner {
     }
   }
   /**
+   * BL-039: persist a liveness heartbeat so the admin health surface can
+   * report worker presence and staleness (spec section 8). Written at
+   * startup and on every reconciliation sweep. Best-effort: a failed
+   * write is logged, never fatal — the next sweep retries.
+   */
+  private async recordHeartbeat(): Promise<void> {
+    try {
+      await this.pool.query(
+        `INSERT INTO next_round.worker_heartbeats (worker_id, started_at, last_seen_at)
+         VALUES ($1, $2, clock_timestamp())
+         ON CONFLICT (worker_id) DO UPDATE SET last_seen_at = clock_timestamp()`,
+        [this.workerId, new Date(this.startedAt ?? Date.now())],
+      );
+    } catch (err) {
+      console.error(`[worker:heartbeat] Write failed: ${safeErrorCode(err)}`);
+    }
+  }
+
+  /**
    * Initialize pg-boss, register queue workers, and start periodic reconciliation.
    */
   public async start(): Promise<void> {
@@ -404,6 +425,7 @@ export class WorkerRunner {
         this.isReconciling = true;
         try {
           await this.withInFlight(async () => {
+            await this.recordHeartbeat();
             await this.drainOverdueAndOutbox();
           });
         } catch (err) {
@@ -419,6 +441,7 @@ export class WorkerRunner {
       this.running = true;
       this.requestOutboxDrain();
       this.startedAt = Date.now();
+      await this.recordHeartbeat();
       console.log(
         `[worker] Running. Periodic reconciliation scheduled every ${this.config.reconcileIntervalMs}ms`,
       );
@@ -485,6 +508,17 @@ export class WorkerRunner {
         // Safe cleanup
       }
       this.boss = null;
+    }
+
+    // BL-039: a gracefully stopped worker leaves the admin health view;
+    // a crashed one is exposed by its heartbeat going stale instead.
+    try {
+      await this.pool.query(
+        "DELETE FROM next_round.worker_heartbeats WHERE worker_id = $1",
+        [this.workerId],
+      );
+    } catch {
+      // Best effort: the row ages out of the health view on its own.
     }
 
     if (this.ownsPool) {

@@ -696,6 +696,27 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
     }
   }, 60_000);
 
+  it("publishes a heartbeat at startup and refreshes it on each sweep (BL-039)", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 250 });
+    try {
+      await worker.start();
+      const heartbeats = async () => (await databasePool.query<{ worker_id: string; last_seen_at: Date }>(
+        "SELECT worker_id, last_seen_at FROM next_round.worker_heartbeats",
+      )).rows;
+      await expect.poll(async () => (await heartbeats()).length, { timeout: 10_000 }).toBe(1);
+      const first = (await heartbeats())[0];
+      expect(first.worker_id).toBeTruthy();
+      await expect.poll(
+        async () => (await heartbeats())[0].last_seen_at.getTime(),
+        { timeout: 10_000 },
+      ).toBeGreaterThan(first.last_seen_at.getTime());
+      await worker.stop();
+      expect(await heartbeats()).toHaveLength(0);
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
   it("bounds global expiry cleanup and preserves live rate budgets", async () => {
     const worker = new WorkerRunner({ connectionString, pool: databasePool, registry });
     await databasePool.query(

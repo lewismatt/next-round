@@ -72,6 +72,16 @@ FROM next_round.outbox
 WHERE delivered_at IS NULL AND dead_lettered_at IS NULL;
 ```
 
+The same picture is available without SQL at `GET /api/v1/admin/health`
+(admin session required), rendered in the Admin page's Worker health
+section: worker heartbeats with age (`stale` past 30 seconds — roughly
+three missed sweeps at the default interval), the oldest pending outbox
+age, the oldest overdue pending deadline age, and the parked effects with
+topic, attempts and error code. Workers write a heartbeat row at startup
+and on every sweep (migration `0003_worker_heartbeats`); a gracefully
+stopped worker deletes its row, a crashed one shows up as a heartbeat
+going stale. The endpoint exposes metadata only, never payload contents.
+
 After repairing the cause, stop all worker processes and wait for them to exit
 before resetting any attempt counter. This prevents an old in-flight claim from
 matching a reused attempt number. An operator can then deliberately retry a parked

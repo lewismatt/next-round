@@ -23,6 +23,7 @@ import {
   createMatch,
   createMatchLink,
   getAdminGames,
+  getAdminHealth,
   getChat,
   getGameManifest,
   getGameResources,
@@ -49,6 +50,7 @@ import {
 } from "./api.js";
 import type {
   AdminGameSummary,
+  AdminHealth,
   ChatMessage,
   GameResourceEntry,
   InvitationPreview,
@@ -1092,6 +1094,7 @@ function AdminPage({
   onSessionExpired: () => void;
 }) {
   const [adminGames, setAdminGames] = useState<AdminGameSummary[]>([]);
+  const [adminHealth, setAdminHealth] = useState<AdminHealth | null>(null);
   const [manifests, setManifests] = useState<GameManifest[]>([]);
   const [catalogs, setCatalogs] = useState<
     Record<string, GameResourceEntry[]>
@@ -1116,6 +1119,13 @@ function AdminPage({
       ]);
       setAdminGames(games);
       setManifests(manifestList);
+      // Worker health is auxiliary to the module list: a failed health
+      // read must not block module administration.
+      try {
+        setAdminHealth(await getAdminHealth());
+      } catch {
+        setAdminHealth(null);
+      }
       const importable = manifestList.filter(
         (game) => game.resourceSchemas?.import,
       );
@@ -1240,6 +1250,57 @@ function AdminPage({
               <p className="status-message">No game modules are installed.</p>
             )}
           </div>
+        </section>
+        <section className="section" aria-labelledby="admin-health-heading">
+          <h2 id="admin-health-heading" className="section-heading">
+            Worker health
+          </h2>
+          {!adminHealth && !loading && (
+            <p className="status-message">Worker health is unavailable.</p>
+          )}
+          {adminHealth && (
+            <div className="card-grid">
+              <article className="card">
+                <h3>Workers</h3>
+                {adminHealth.workers.length === 0 && (
+                  <p className="card-meta">No worker heartbeat recorded.</p>
+                )}
+                {adminHealth.workers.map((worker) => (
+                  <p className="card-meta" key={worker.workerId}>
+                    {worker.status === "ok" ? "Running" : "Stale"} · last
+                    heartbeat {worker.ageSeconds}s ago · started{" "}
+                    {new Date(worker.startedAt).toLocaleString()}
+                  </p>
+                ))}
+              </article>
+              <article className="card">
+                <h3>Pending work</h3>
+                <p className="card-meta">
+                  Oldest pending outbox effect:{" "}
+                  {adminHealth.oldestPendingOutboxAgeSeconds === null
+                    ? "none"
+                    : `${adminHealth.oldestPendingOutboxAgeSeconds}s old`}
+                </p>
+                <p className="card-meta">
+                  Oldest overdue deadline:{" "}
+                  {adminHealth.oldestPendingDeadlineAgeSeconds === null
+                    ? "none"
+                    : `${adminHealth.oldestPendingDeadlineAgeSeconds}s overdue`}
+                </p>
+                <p className="card-meta">
+                  Parked (dead-lettered) effects:{" "}
+                  {adminHealth.parkedEffects.total}
+                </p>
+                {adminHealth.parkedEffects.recent.map((effect) => (
+                  <p className="card-meta" key={effect.id}>
+                    {effect.topic} · {effect.attempts} attempts ·{" "}
+                    {effect.lastErrorCode ?? "no error code"} ·{" "}
+                    {new Date(effect.deadLetteredAt).toLocaleString()}
+                  </p>
+                ))}
+              </article>
+            </div>
+          )}
         </section>
         {manifests
           .filter((game) => game.resourceSchemas?.import)
