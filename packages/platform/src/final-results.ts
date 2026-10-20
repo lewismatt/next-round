@@ -67,7 +67,8 @@ export function prepareFinalResult(
     if (seen.size !== members.length) throw moduleFailure();
     const eligible = new Map(participants.filter((participant) => participant.careerEligible)
       .map((participant) => [participant.memberId, participant]));
-    const metrics = registered.server!.career(result);
+    if (!registered.server) throw moduleFailure();
+    const metrics = registered.server.career(result);
     if (!Array.isArray(metrics)) throw moduleFailure();
     const career: PreparedFinal["career"] = [];
     const seenMetrics = new Set<string>();
@@ -103,6 +104,18 @@ export async function persistFinalResult(
   now: string,
 ): Promise<void> {
   if (!prepared) return;
+  // Older snapshots may omit this field. Recover only from their own immutable
+  // policy version, never today's default (which could broaden historical visibility).
+  await client.query(
+    `UPDATE next_round.matches m
+        SET policy_snapshot = m.policy_snapshot ||
+              jsonb_build_object('statsVisibility', p.policy->>'statsVisibility')
+       FROM next_round.instance_policy p
+      WHERE m.id = $1 AND p.version = m.policy_version
+        AND NOT (m.policy_snapshot ? 'statsVisibility')
+        AND p.policy->>'statsVisibility' IN ('owner', 'instance')`,
+    [match.id],
+  );
   const policy = await client.query<{ visibility: string }>(
     `SELECT policy_snapshot->>'statsVisibility' AS visibility
        FROM next_round.matches WHERE id = $1`,

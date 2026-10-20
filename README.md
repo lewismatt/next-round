@@ -15,10 +15,12 @@ with retry receipts are implemented. Registered users can join instance-visible
 matches; invitation and guest admission are not wired into these routes yet.
 Final actions and departures write raw results, participant projections and
 eligible registered-player career contributions in the same transaction.
-Production live invalidation, worker effects and the playable shell are still
-being built. The harness example below describes its target integration and
-cannot yet run end to end against the production API. F1-01–05 have merged
-subsets, not full acceptance.
+Deadline processing and durable worker effects are implemented: commands reconcile
+due deadlines using database time, and worker startup/sweeps recover overdue
+deadlines and committed outbox rows. Production `/api/v1/live` delivery and the
+playable shell are still being built. The harness example below describes its
+target integration and cannot yet run end to end against the production API.
+F1-01–05 have merged subsets, not full acceptance.
 
 See the [review and remaining acceptance work](docs/reviews/2026-10-19.md).
 The [work tracker](https://app.notion.com/p/3fd972a22c7581eca2f7fe7fb46d593b)
@@ -109,9 +111,10 @@ refresh it until access is revoked.
 The API currently implements instance setup, session authentication, game manifest
 validation, match lifecycle and action commands, caller-private views, and
 command idempotency receipts. Lifecycle commands require an expected revision;
-join currently admits registered users to instance-visible matches. Production
-`/api/v1/live` WebSocket invalidation and worker deadline services remain
-prerequisites for full platform acceptance.
+join currently admits registered users to instance-visible matches. Deadline
+jobs, reconciliation, notifications and PostgreSQL invalidation wakeups are
+implemented. The production `/api/v1/live` endpoint, API listener/fanout and
+two-node recovery measurements remain prerequisites for full platform acceptance.
 
 After building, a service fixture can use the compiled client against its API:
 
@@ -228,6 +231,13 @@ from the environment after setup and restart the API.
 For direct local API/worker startup, load the environment explicitly (for example,
 `node --env-file=deploy/.env apps/api/dist/index.js`) and supply `DATABASE_URL`.
 Use a URL-safe generated database password such as the hex value above.
+
+The API and worker must load the same installed game registry. The internal
+fixture is opt-in on **both** processes with `NEXT_ROUND_ENABLE_TEST_COUNTER=true`;
+build first so its versioned client assets exist. Worker startup and periodic
+sweeps recover overdue deadlines and undelivered outbox rows using the same
+database; do not delete pending rows or pg-boss data to repair a missed wakeup.
+See [transaction and recovery behavior](docs/transaction-authority.md).
 
 The API ignores forwarded headers by default. For a custom proxy, `TRUST_PROXY`
 accepts only comma-separated IP addresses/CIDRs you control; `true`, wildcard and
