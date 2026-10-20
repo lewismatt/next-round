@@ -7,11 +7,28 @@ import { AdminAccess, AdminModule, HistoryMatches } from "./page-views.js";
 import type { AdminGameSummary } from "./api.js";
 
 function history(error: string, loading = false) {
-  return renderToStaticMarkup(createElement(MemoryRouter, null,
-    createElement(HistoryMatches, {
-      finished: [{ id: "saved/result?one", moduleId: "retired-module", moduleVersion: "1", mode: "solo", phase: "finished", revision: 4, createdAt: "2026-10-20" }],
-      games: [], loading, error,
-    })));
+  return renderToStaticMarkup(
+    createElement(
+      MemoryRouter,
+      null,
+      createElement(HistoryMatches, {
+        finished: [
+          {
+            id: "saved/result?one",
+            moduleId: "retired-module",
+            moduleVersion: "1",
+            mode: "solo",
+            phase: "finished",
+            revision: 4,
+            createdAt: "2026-10-20",
+          },
+        ],
+        games: [],
+        loading,
+        error,
+      }),
+    ),
+  );
 }
 
 describe("History loaded presentation", () => {
@@ -32,18 +49,32 @@ describe("History loaded presentation", () => {
 describe("Admin loaded module controls", () => {
   const counts = { lobby: 1, active: 2, finished: 3, total: 6 };
   const game: AdminGameSummary = {
-    id: "installed-module", enabled: true, defaultVersion: "2",
-    createdAt: "", updatedAt: "", referenceCounts: counts,
+    id: "installed-module",
+    enabled: true,
+    defaultVersion: "2",
+    createdAt: "",
+    updatedAt: "",
+    referenceCounts: counts,
     versions: ["1", "2"].map((version) => ({
-      version, installedAt: "", hasServer: true,
-      hasClientAssets: version === "2", referenceCounts: counts,
+      version,
+      installedAt: "",
+      hasServer: true,
+      hasClientAssets: version === "2",
+      referenceCounts: counts,
     })),
   };
   function render(isAdmin: boolean, busy: boolean, enabled = true) {
-    return renderToStaticMarkup(createElement(AdminAccess, { isAdmin,
-      children: createElement(AdminModule, { game: { ...game, enabled }, busy,
-        onDefault: () => {}, onToggle: () => {} }),
-    }));
+    return renderToStaticMarkup(
+      createElement(AdminAccess, {
+        isAdmin,
+        children: createElement(AdminModule, {
+          game: { ...game, enabled },
+          busy,
+          onDefault: () => {},
+          onToggle: () => {},
+        }),
+      }),
+    );
   }
   it("omits actual loaded module data and controls for nonadministrators", () => {
     const html = render(false, false);

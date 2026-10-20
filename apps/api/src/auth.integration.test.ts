@@ -200,6 +200,7 @@ describe.skipIf(!testDatabaseUrl)("F1-01 bootstrap and registered sessions", () 
     })));
     expect(results.filter((result) => result.statusCode === 201)).toHaveLength(20);
     expect(results.filter((result) => result.statusCode === 429)).toHaveLength(1);
+    expect(Number(results.find((result) => result.statusCode === 429)!.headers["retry-after"])).toBeGreaterThan(0);
     await databasePool.query("DELETE FROM next_round.rate_buckets");
     const issuerId = login.json().data.principal.id;
     await databasePool.query(`INSERT INTO next_round.invitations(kind,issuer_id,expires_at)
@@ -207,6 +208,7 @@ describe.skipIf(!testDatabaseUrl)("F1-01 bootstrap and registered sessions", () 
     const capped = await app.inject({ method: "POST", url: "/api/v1/invitations/registration",
       headers: mintHeaders, payload: { commandId: randomUUID() } });
     expect(capped.statusCode).toBe(429);
+    expect(Number(capped.headers["retry-after"])).toBeGreaterThan(0);
     expect((await databasePool.query("SELECT count(*)::integer AS count FROM next_round.invitations")).rows[0].count).toBe(50);
   }, 120_000);
 
