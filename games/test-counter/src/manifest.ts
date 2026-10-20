@@ -125,10 +125,6 @@ const resultSchema: Schema = {
   $schema: "http://json-schema.org/draft-07/schema#",
   type: "object",
   properties: {
-    outcome: {
-      type: "string",
-      enum: ["completed", "ended_early", "abandoned"],
-    },
     count: { type: "integer", minimum: 0 },
     target: { type: "integer", minimum: 1, maximum: 20 },
     winners: {
@@ -136,7 +132,7 @@ const resultSchema: Schema = {
       items: { type: "string" },
     },
   },
-  required: ["outcome", "count", "target", "winners"],
+  required: ["count", "target", "winners"],
   additionalProperties: false,
 };
 

@@ -13,10 +13,12 @@ This is a development preview. Bootstrap/session APIs, manifest validation,
 private match snapshots, and revisioned create/join/start/leave/action commands
 with retry receipts are implemented. Registered users can join instance-visible
 matches; invitation and guest admission are not wired into these routes yet.
-Production live invalidation, worker effects, result projections and the playable
-shell are still being built. The harness example below describes its target
-integration and cannot yet run end to end against the production API. F1-01–05
-have merged subsets, not full acceptance.
+Final actions and departures write raw results, participant projections and
+eligible registered-player career contributions in the same transaction.
+Production live invalidation, worker effects and the playable shell are still
+being built. The harness example below describes its target integration and
+cannot yet run end to end against the production API. F1-01–05 have merged
+subsets, not full acceptance.
 
 See the [review and remaining acceptance work](docs/reviews/2026-10-19.md).
 The [work tracker](https://app.notion.com/p/3fd972a22c7581eca2f7fe7fb46d593b)
