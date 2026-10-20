@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import {
   CreateMatchRequestSchema,
+  MatchLifecycleCommandSchema,
   MatchActionRequestSchema,
   MatchParamsSchema,
   parseRequestBody,
@@ -45,6 +46,39 @@ export const matchRoutes: FastifyPluginAsync<MatchRoutesOptions> = async (
     return reply.status(200).header("Cache-Control", "no-store").send({
       data: snapshot,
       serverNow: snapshot.serverNow,
+    });
+  });
+
+  fastify.post("/matches/:id/join", async (request, reply) => {
+    requireJsonMutation(request, options.origin);
+    const session = await requireSession(request, options.authService, true);
+    const input = parseRequestBody(MatchLifecycleCommandSchema, request.body);
+    const receipt = await options.matchService.join(matchIdFrom(request.params), session, input);
+    return reply.status(200).header("Cache-Control", "no-store").send({
+      data: receipt,
+      serverNow: new Date().toISOString(),
+    });
+  });
+
+  fastify.post("/matches/:id/start", async (request, reply) => {
+    requireJsonMutation(request, options.origin);
+    const session = await requireSession(request, options.authService, true);
+    const input = parseRequestBody(MatchLifecycleCommandSchema, request.body);
+    const receipt = await options.matchService.start(matchIdFrom(request.params), session, input);
+    return reply.status(200).header("Cache-Control", "no-store").send({
+      data: receipt,
+      serverNow: new Date().toISOString(),
+    });
+  });
+
+  fastify.post("/matches/:id/leave", async (request, reply) => {
+    requireJsonMutation(request, options.origin);
+    const session = await requireSession(request, options.authService, true);
+    const input = parseRequestBody(MatchLifecycleCommandSchema, request.body);
+    const receipt = await options.matchService.leave(matchIdFrom(request.params), session, input);
+    return reply.status(200).header("Cache-Control", "no-store").send({
+      data: receipt,
+      serverNow: new Date().toISOString(),
     });
   });
 

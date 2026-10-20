@@ -10,12 +10,13 @@ Next Round is a self-hosted, open-source platform for turn-based games with frie
 ## Current implementation
 
 This is a development preview. Bootstrap/session APIs, manifest validation,
-private match snapshots, actions and retry receipts are implemented. Match
-creation now initializes a revision-zero lobby with its creator, create event
-and retry receipt in one transaction. Join/start/leave routes, production live invalidation, worker effects,
-result projections and the playable shell are still being built. The harness
-example below describes its target integration and cannot yet run end to end
-against the production API. F1-01–05 have merged subsets, not full acceptance.
+private match snapshots, and revisioned create/join/start/leave/action commands
+with retry receipts are implemented. Registered users can join instance-visible
+matches; invitation and guest admission are not wired into these routes yet.
+Production live invalidation, worker effects, result projections and the playable
+shell are still being built. The harness example below describes its target
+integration and cannot yet run end to end against the production API. F1-01–05
+have merged subsets, not full acceptance.
 
 See the [review and remaining acceptance work](docs/reviews/2026-10-19.md).
 The [work tracker](https://app.notion.com/p/3fd972a22c7581eca2f7fe7fb46d593b)
@@ -80,6 +81,12 @@ incompatible, or incomplete registrations cannot appear in `GET /api/v1/games`,
 `/games/{id}/{version}/{asset}` routes. New versions coexist, and `isDefault`
 selects the default on installation.
 
+The internal Test Counter is excluded from the API registry by default. To load
+it for development or harness work, build the workspace and set
+`NEXT_ROUND_ENABLE_TEST_COUNTER=true` for the API process. The loader registers
+its pinned server hooks only after validating the browser bundle emitted by the
+web build.
+
 The API boundary validates settings and action payloads against the selected
 manifest schema. Unknown fields are rejected when the schema sets
 `additionalProperties: false`, before match or reducer code runs.
@@ -98,9 +105,11 @@ snapshot without an explicit listener or a second join; invalidations and reconn
 refresh it until access is revoked.
 
 The API currently implements instance setup, session authentication, game manifest
-validation, match actions, caller-private views, and command idempotency
-receipts. Production `/api/v1/live` WebSocket invalidation and worker deadline
-services remain prerequisites for full platform acceptance.
+validation, match lifecycle and action commands, caller-private views, and
+command idempotency receipts. Lifecycle commands require an expected revision;
+join currently admits registered users to instance-visible matches. Production
+`/api/v1/live` WebSocket invalidation and worker deadline services remain
+prerequisites for full platform acceptance.
 
 After building, a service fixture can use the compiled client against its API:
 

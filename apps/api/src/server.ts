@@ -26,6 +26,7 @@ import { healthRoutes } from "./routes/health.js";
 import { gameAssetRoutes, gameManifestRoutes } from "./routes/games.js";
 import { matchRoutes } from "./routes/matches.js";
 import type { HealthCheckOptions } from "./routes/health.js";
+import { loadTestCounterFixtureIfEnabled } from "./test-counter-fixture.js";
 
 export interface ServerOptions extends HealthCheckOptions {
   logger?: FastifyServerOptions["logger"];
@@ -53,6 +54,12 @@ export async function buildServer(
   const origin = requireAppOrigin(options.origin);
   const databasePool = options.databasePool ?? createDatabasePool();
   const gameRegistry = options.gameRegistry ?? defaultGameRegistry;
+  if (!options.gameRegistry) {
+    loadTestCounterFixtureIfEnabled(
+      gameRegistry,
+      process.env.NEXT_ROUND_ENABLE_TEST_COUNTER === "true",
+    );
+  }
   const authService = new AuthService(databasePool, setupToken);
   const matchService = new MatchService(databasePool, gameRegistry);
   const ownsDatabasePool = options.databasePool === undefined;

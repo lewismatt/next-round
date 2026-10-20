@@ -428,6 +428,90 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     expect(conflicting.json().error.code).toBe("IDEMPOTENCY_CONFLICT");
   });
 
+  it("joins, starts, leaves, and rejoins through revisioned lifecycle receipts", async () => {
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/v1/matches",
+      headers: headers(memberA, true),
+      payload: {
+        commandId: randomUUID(),
+        moduleId: "test-counter",
+        mode: "group",
+        settings: { target: 10, turnSeconds: 30 },
+        visibility: "instance",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const matchId = created.json().data.matchId as string;
+
+    const joinCommand = { commandId: randomUUID(), expectedRevision: 0 };
+    const joined = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/join`,
+      headers: headers(memberB, true),
+      payload: joinCommand,
+    });
+    expect(joined.statusCode).toBe(200);
+    expect(joined.json().data).toMatchObject({ committedRevision: 1, replayed: false });
+    const replay = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/join`,
+      headers: headers(memberB, true),
+      payload: joinCommand,
+    });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().data).toMatchObject({ committedRevision: 1, replayed: true });
+
+    const nonHostStart = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/start`,
+      headers: headers(memberB, true),
+      payload: { commandId: randomUUID(), expectedRevision: 1 },
+    });
+    expect(nonHostStart.statusCode).toBe(403);
+
+    const started = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/start`,
+      headers: headers(memberA, true),
+      payload: { commandId: randomUUID(), expectedRevision: 1 },
+    });
+    expect(started.statusCode).toBe(200);
+    expect(started.json().data).toMatchObject({ committedRevision: 2, replayed: false });
+
+    const left = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/leave`,
+      headers: headers(memberB, true),
+      payload: { commandId: randomUUID(), expectedRevision: 2 },
+    });
+    expect(left.statusCode).toBe(200);
+    expect(left.json().data).toMatchObject({ committedRevision: 3, replayed: false });
+    expect((await app.inject({ url: `/api/v1/matches/${matchId}`, headers: headers(memberB) })).statusCode).toBe(404);
+
+    const rejoined = await app.inject({
+      method: "POST",
+      url: `/api/v1/matches/${matchId}/join`,
+      headers: headers(memberB, true),
+      payload: { commandId: randomUUID(), expectedRevision: 3 },
+    });
+    expect(rejoined.statusCode).toBe(200);
+    expect(rejoined.json().data).toMatchObject({ committedRevision: 4, replayed: false });
+    expect((await app.inject({ url: `/api/v1/matches/${matchId}`, headers: headers(memberB) })).statusCode).toBe(200);
+    const periods = await databasePool.query(
+      `SELECT mp.access_epoch::integer AS access_epoch, mp.departed_at IS NOT NULL AS departed
+         FROM next_round.member_periods mp
+         JOIN next_round.match_members mm ON mm.id = mp.member_id
+        WHERE mm.match_id = $1 AND mm.principal_id = $2
+        ORDER BY mp.access_epoch`,
+      [matchId, memberB.principalId],
+    );
+    expect(periods.rows).toEqual([
+      { access_epoch: 0, departed: true },
+      { access_epoch: 1, departed: false },
+    ]);
+  });
+
   it("requires registration for catalog/schema routes and confines guests to their pinned manifest", async () => {
     expect((await app.inject("/api/v1/games")).statusCode).toBe(401);
     expect((await app.inject({ url: "/api/v1/games", headers: headers(memberA) })).statusCode).toBe(200);
