@@ -23,6 +23,20 @@ const PG_SQLSTATE_REGEX = /^[0-9A-Z]{5}$/;
 const KNOWN_ERROR_CODES: Record<string, true> = Object.fromEntries(
   Object.values(ERROR_CODES).map((code) => [code, true]),
 );
+// Worker-internal delivery failure codes (BL-042): recorded verbatim in
+// outbox.last_error_code so an operator can triage a dead-lettered row
+// without reading source.
+const WORKER_DELIVERY_ERROR_CODES: Record<string, true> = {
+  INVALID_PAYLOAD: true,
+  PGBOSS_UNAVAILABLE: true,
+  UNKNOWN_TOPIC: true,
+};
+
+function deliveryError(code: string): Error & { code: string } {
+  const err = new Error(code) as Error & { code: string };
+  err.code = code;
+  return err;
+}
 
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_REGEX.test(value);
@@ -36,6 +50,9 @@ export function safeErrorCode(err: unknown): string {
     typeof err.code === "string"
   ) {
     if (Object.hasOwn(KNOWN_ERROR_CODES, err.code)) {
+      return err.code;
+    }
+    if (Object.hasOwn(WORKER_DELIVERY_ERROR_CODES, err.code)) {
       return err.code;
     }
     if (PG_SQLSTATE_REGEX.test(err.code)) {
@@ -788,10 +805,10 @@ export class WorkerRunner {
     try {
       if (row.topic === "deadline.schedule") {
         if (!isDeadlineSchedulePayload(row.safe_payload)) {
-          throw new Error("INVALID_PAYLOAD");
+          throw deliveryError("INVALID_PAYLOAD");
         }
         if (!this.boss) {
-          throw new Error("PGBOSS_UNAVAILABLE");
+          throw deliveryError("PGBOSS_UNAVAILABLE");
         }
         const payload = row.safe_payload;
         await this.boss.send(
@@ -809,13 +826,13 @@ export class WorkerRunner {
         );
       } else if (row.topic === "live.invalidate") {
         if (!isLiveInvalidatePayload(row.safe_payload)) {
-          throw new Error("INVALID_PAYLOAD");
+          throw deliveryError("INVALID_PAYLOAD");
         }
         await this.pool.query("SELECT pg_notify('next_round_live', $1)", [
           JSON.stringify(row.safe_payload),
         ]);
       } else {
-        throw new Error("UNKNOWN_TOPIC");
+        throw deliveryError("UNKNOWN_TOPIC");
       }
 
       // Fencing on ack: monotonically incremented attempts uniquely identifies this claim generation

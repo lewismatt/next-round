@@ -620,7 +620,7 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
       const result = await databasePool.query("SELECT attempts, dead_lettered_at, last_error_code FROM next_round.outbox WHERE id=$1", [id]);
       expect(result.rows[0].attempts).toBe(attempt);
       expect(Boolean(result.rows[0].dead_lettered_at)).toBe(attempt === 8);
-      expect(result.rows[0].last_error_code).toBe("INTERNAL_ERROR");
+      expect(result.rows[0].last_error_code).toBe("UNKNOWN_TOPIC");
       await databasePool.query("UPDATE next_round.outbox SET available_at=clock_timestamp() WHERE id=$1", [id]);
     }
     await a.handleOutbox({ outboxId: id });
