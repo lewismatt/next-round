@@ -24,6 +24,28 @@ order, current-session recheck and bounded retry protocol. New joins currently
 admit registered principals to instance-visible matches; invite/link redemption
 and new guest admission remain separate work.
 
+## Final results (F1-06)
+
+Action and lifecycle finalization share `final-results.ts`. The platform checks
+the `FinalResult` envelope and validates `final.data` against the module's
+`resultSchema` before writing transition effects. Final participants must cover
+the match's member identities exactly once, including departed members. Career
+output must cover eligible registered participants exactly once with finite,
+nonnegative safe-integer metrics. Invalid output returns `MODULE_FAILURE`
+without exposing result values.
+
+Raw results, participant scores/contributions/name snapshots, career
+contributions, state, event, deadlines and receipt commit together. Projection
+inserts use the same transaction client and database uniqueness constraints.
+Metric versions follow the pinned manifest's `resultVersion`; contribution
+visibility comes from the match's policy snapshot, with solo forced to owner.
+Only exclusion reasons shared by every participant enter the match-wide reason
+list. Guest-only exclusions remain on their participant rows.
+
+Receipt replay precedes revision and closed-match checks. A competing completion
+at the old revision gets `STALE_REVISION`; an exact accepted-command retry
+returns its receipt without adding another result or win.
+
 ## Verification and boundaries
 
 `pnpm --filter @next-round/api test:integration` uses real PostgreSQL:
@@ -40,10 +62,13 @@ and new guest admission remain separate work.
   principal lock or the match lock, then verifies one accepted transition.
 - F1-LIFECYCLE: create, join, start, leave, exact receipt replay, rejoin period
   creation, and read revocation after leave run through HTTP on PostgreSQL 18.
+- F1-06: overlapping completions, exact retry, deferred commit failure and
+  rollback of all final effects, final departure, guest attribution, policy
+  snapshot visibility and invalid final/career outputs.
 
 CI runs these cases on PostgreSQL 18.6 and 17. Reset tests exercise the required
 auth-epoch writer protocol directly; they do not prove a reset HTTP endpoint,
 which remains H1 work. Production live/reconnect denial remains F1-09. Principal
-status reducer effects, deadline reconciliation and final projections retain
-their existing later acceptance gates. Lifecycle integration now passes on
-PostgreSQL 18.6 and 17; full F1-01 acceptance remains open.
+status reducer effects and deadline reconciliation retain their later acceptance
+gates. Lifecycle integration passes on PostgreSQL 18.6 and 17; full F1-01
+acceptance remains open.

@@ -247,12 +247,15 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
 
   afterEach(async () => {
     await app?.close();
+    // Pool.end releases clients before their socket 'end' events. Wait for those
+    // events rather than terminating a backend while its client is still closing.
+    const disconnected: Array<Promise<void>> = [];
+    databasePool?.on("remove", (client) => {
+      disconnected.push(new Promise<void>((resolve) => client.once("end", resolve)));
+    });
     await databasePool?.end();
+    await Promise.all(disconnected);
     if (adminPool) {
-      await adminPool.query(
-        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-        [databaseName],
-      );
       await adminPool.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
       await adminPool.end();
     }
@@ -1084,4 +1087,246 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
       barrier.release();
     }
   }, 120_000);
+
+  async function prepareCompletion(): Promise<void> {
+    await databasePool.query(
+      `UPDATE next_round.matches SET state = jsonb_set(state, '{target}', '3'::jsonb),
+         settings = jsonb_set(settings, '{target}', '3'::jsonb) WHERE id = $1`,
+      [matchId],
+    );
+    await databasePool.query(
+      `INSERT INTO next_round.match_deadlines (match_id, key, generation, due_at, status, event_id)
+       VALUES ($1, 'turn', 1, now() + interval '1 hour', 'pending', $2)`,
+      [matchId, randomUUID()],
+    );
+  }
+
+  async function finalLedger() {
+    const match = await databasePool.query(
+      `SELECT phase, revision::integer AS revision, state,
+         (SELECT count(*)::integer FROM next_round.match_results WHERE match_id = m.id) AS results,
+         (SELECT count(*)::integer FROM next_round.match_events WHERE match_id = m.id) AS events,
+         (SELECT count(*)::integer FROM next_round.command_receipts WHERE match_id = m.id) AS receipts,
+         (SELECT status FROM next_round.match_deadlines WHERE match_id = m.id AND key = 'turn' AND generation = 1) AS deadline
+       FROM next_round.matches m WHERE id = $1`, [matchId],
+    );
+    const participants = await databasePool.query(
+      `SELECT member_id, principal_id, score, contribution, win, career_eligible,
+              exclusion_reasons, display_name_snapshot
+       FROM next_round.participant_results WHERE match_id = $1 ORDER BY display_name_snapshot`, [matchId],
+    );
+    const career = await databasePool.query(
+      `SELECT principal_id, module_id, metric_version, points::integer, played::integer,
+              wins::integer, visibility
+       FROM next_round.career_contributions WHERE match_id = $1 ORDER BY principal_id`, [matchId],
+    );
+    return { match: match.rows[0], participants: participants.rows, career: career.rows };
+  }
+
+  it("F1-06 serializes final actions and replays without another result or win", async () => {
+    await prepareCompletion();
+    // A later default-policy change must not rewrite this match's owner-only stats.
+    await databasePool.query(
+      `UPDATE next_round.instance_policy SET policy = jsonb_set(policy, '{statsVisibility}', '"instance"'::jsonb)`,
+    );
+    const device = await seedDevice(memberA.principalId);
+    const commands = [memberA, device].map((session) => ({
+      session, payload: { commandId: randomUUID(), expectedRevision: 3, type: "add", payload: { amount: 1 } },
+    }));
+    const barrier = await databasePool.connect();
+    let pending: Array<Promise<{
+      status: number; body: { error: { code: string } }; command: typeof commands[number];
+    }>> = [];
+    try {
+      await barrier.query("BEGIN");
+      await barrier.query("SELECT id FROM next_round.matches WHERE id = $1 FOR UPDATE", [matchId]);
+      pending = commands.map(async (command) => {
+        const response = await app.inject({
+          method: "POST", url: `/api/v1/matches/${matchId}/actions`,
+          headers: headers(command.session, true), payload: command.payload,
+        });
+        return { status: response.statusCode, body: response.json(), command };
+      });
+      const until = Date.now() + 10_000;
+      let waiting = 0;
+      while (Date.now() < until) {
+        const locks = await databasePool.query(
+          `SELECT count(*)::integer AS waiting FROM pg_stat_activity
+           WHERE datname = current_database() AND wait_event_type = 'Lock'
+             AND (query LIKE '%FOR UPDATE OF m, viewer%' OR query LIKE '%ORDER BY id FOR UPDATE%')`,
+        );
+        waiting = locks.rows[0].waiting;
+        if (waiting === 2) break;
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      expect(waiting).toBe(2);
+      await barrier.query("COMMIT");
+      const results = await Promise.all(pending);
+      expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+      const winner = results.find((result) => result.status === 200)!;
+      expect(results.find((result) => result.status === 409)!.body.error.code).toBe("STALE_REVISION");
+      const ledger = await finalLedger();
+      expect(ledger.match).toMatchObject({
+        phase: "finished", revision: 4, results: 1, events: 1, receipts: 1, deadline: "cancelled",
+        state: { count: 3, scores: { [memberAId]: 2, [memberBId]: 1 } },
+      });
+      expect(ledger.participants).toEqual([
+        { member_id: memberAId, principal_id: memberA.principalId, score: 2,
+          contribution: { actionsTaken: 2, mode: "group" }, win: true, career_eligible: true,
+          exclusion_reasons: [], display_name_snapshot: "Member A" },
+        { member_id: memberBId, principal_id: memberB.principalId, score: 1,
+          contribution: { actionsTaken: 1, mode: "group" }, win: false, career_eligible: true,
+          exclusion_reasons: [], display_name_snapshot: "Member B" },
+      ]);
+      expect(ledger.career).toEqual([
+        { principal_id: memberA.principalId, module_id: "test-counter", metric_version: 1,
+          points: 2, played: 1, wins: 1, visibility: "owner" },
+        { principal_id: memberB.principalId, module_id: "test-counter", metric_version: 1,
+          points: 1, played: 1, wins: 0, visibility: "owner" },
+      ].sort((a, b) => a.principal_id.localeCompare(b.principal_id)));
+      const raw = await databasePool.query(
+        "SELECT raw_result, finished_revision::integer AS revision, eligibility_reasons FROM next_round.match_results WHERE match_id = $1", [matchId],
+      );
+      expect(raw.rows[0]).toMatchObject({
+        revision: 4, eligibility_reasons: [],
+        raw_result: { outcome: "completed", data: { count: 3, target: 3, winners: [memberAId] } },
+      });
+      const replay = await app.inject({
+        method: "POST", url: `/api/v1/matches/${matchId}/actions`,
+        headers: headers(winner.command.session, true), payload: winner.command.payload,
+      });
+      expect(replay.statusCode).toBe(200);
+      expect(replay.json().data).toMatchObject({ committedRevision: 4, replayed: true });
+      expect(await finalLedger()).toEqual(ledger);
+    } finally {
+      await barrier.query("ROLLBACK");
+      barrier.release();
+      await Promise.allSettled(pending);
+    }
+  }, 120_000);
+
+  it("F1-06 rolls back every final effect on commit failure, then accepts the identical retry once", async () => {
+    await prepareCompletion();
+    const before = await finalLedger();
+    await databasePool.query(`
+      CREATE FUNCTION next_round.fail_final_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM next_round.match_results WHERE match_id = NEW.match_id)
+           AND (SELECT count(*) FROM next_round.participant_results WHERE match_id = NEW.match_id) = 2
+           AND (SELECT count(*) FROM next_round.career_contributions WHERE match_id = NEW.match_id) = 2 THEN
+          RAISE EXCEPTION 'test-only final commit failure';
+        END IF;
+        RETURN NEW;
+      END $$;
+      CREATE CONSTRAINT TRIGGER fail_final_commit AFTER INSERT ON next_round.command_receipts
+      DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION next_round.fail_final_commit();
+    `);
+    const payload = { commandId: randomUUID(), expectedRevision: 3, type: "add", payload: { amount: 1 } };
+    const failed = await app.inject({
+      method: "POST", url: `/api/v1/matches/${matchId}/actions`, headers: headers(memberA, true), payload,
+    });
+    expect(failed.statusCode).toBe(500);
+    expect(failed.json().error.code).toBe("INTERNAL_ERROR");
+    expect(failed.body).not.toContain("test-only");
+    expect(await finalLedger()).toEqual(before);
+    await databasePool.query("DROP TRIGGER fail_final_commit ON next_round.command_receipts; DROP FUNCTION next_round.fail_final_commit()");
+    const accepted = await app.inject({
+      method: "POST", url: `/api/v1/matches/${matchId}/actions`, headers: headers(memberA, true), payload,
+    });
+    expect(accepted.statusCode).toBe(200);
+    const committed = await finalLedger();
+    expect(committed.match).toMatchObject({ phase: "finished", revision: 4, results: 1, receipts: 1 });
+    expect(committed.career.map((row) => row.wins).sort()).toEqual([0, 1]);
+    const retry = await app.inject({
+      method: "POST", url: `/api/v1/matches/${matchId}/actions`, headers: headers(memberA, true), payload,
+    });
+    expect(retry.json().data.replayed).toBe(true);
+    expect(await finalLedger()).toEqual(committed);
+  }, 120_000);
+
+  it("F1-06 retains guest attribution without excluding the registered player's career credit", async () => {
+    await prepareCompletion();
+    await databasePool.query("DELETE FROM next_round.accounts WHERE principal_id = $1", [memberB.principalId]);
+    await databasePool.query(
+      "UPDATE next_round.principals SET kind = 'guest', guest_match_id = $2 WHERE id = $1",
+      [memberB.principalId, matchId],
+    );
+    const response = await app.inject({
+      method: "POST", url: `/api/v1/matches/${matchId}/actions`, headers: headers(memberA, true),
+      payload: { commandId: randomUUID(), expectedRevision: 3, type: "add", payload: { amount: 1 } },
+    });
+    expect(response.statusCode).toBe(200);
+    const ledger = await finalLedger();
+    expect(ledger.participants[1]).toMatchObject({
+      principal_id: memberB.principalId, score: 1, career_eligible: false, exclusion_reasons: ["guest_player"],
+    });
+    expect(ledger.career).toEqual([{
+      principal_id: memberA.principalId, module_id: "test-counter", metric_version: 1,
+      points: 2, played: 1, wins: 1, visibility: "owner",
+    }]);
+    const raw = await databasePool.query(
+      "SELECT eligibility_reasons FROM next_round.match_results WHERE match_id = $1", [matchId],
+    );
+    expect(raw.rows[0].eligibility_reasons).toEqual([]);
+  }, 120_000);
+
+  it("F1-06 projects the final leave and replays after membership access is revoked", async () => {
+    const service = new MatchService(databasePool, registry);
+    await service.leave(matchId, await authenticated(memberB), { commandId: randomUUID(), expectedRevision: 3 });
+    const command = { commandId: randomUUID(), expectedRevision: 4 };
+    const session = await authenticated(memberA);
+    expect(await service.leave(matchId, session, command)).toMatchObject({ committedRevision: 5, replayed: false });
+    const ledger = await finalLedger();
+    expect(ledger.match).toMatchObject({ phase: "finished", revision: 5, results: 1 });
+    expect(ledger.participants.map((row) => ({ score: row.score, win: row.win }))).toEqual([
+      { score: 1, win: false }, { score: 1, win: false },
+    ]);
+    expect(ledger.career.map((row) => ({ points: row.points, played: row.played, wins: row.wins }))).toEqual([
+      { points: 1, played: 1, wins: 0 }, { points: 1, played: 1, wins: 0 },
+    ]);
+    expect(await service.leave(matchId, session, command)).toMatchObject({ committedRevision: 5, replayed: true });
+    expect(await finalLedger()).toEqual(ledger);
+  }, 120_000);
+
+  it.each(["unknown participant", "duplicate participant", "missing participant", "bad data", "missing final",
+    "early final", "negative metrics", "duplicate metrics", "missing metrics", "ineligible metrics"])(
+    "F1-06 rejects %s without persisting partial results", async (fault) => {
+      await prepareCompletion();
+      const before = await finalLedger();
+      const registered = registry.getVersion("test-counter", "0.1.0")!;
+      const original = registered.server!;
+      registered.server = {
+        ...original,
+        transition(ctx, state, event) {
+          const result = original.transition(ctx, state, event);
+          if (!result.ok || !result.value.final) return result;
+          const final = result.value.final;
+          if (fault === "unknown participant") final.participants[0].memberId = randomUUID();
+          if (fault === "duplicate participant") final.participants.push(final.participants[0]);
+          if (fault === "missing participant") final.participants.pop();
+          if (fault === "bad data") final.data = { count: "private-invalid-value" };
+          if (fault === "missing final") result.value.final = null;
+          if (fault === "early final") result.value.phase = "active";
+          if (fault === "ineligible metrics") final.participants[0].careerEligible = false;
+          return result;
+        },
+        career(final) {
+          const metrics = original.career(final);
+          if (fault === "negative metrics") metrics[0].points = -1;
+          if (fault === "duplicate metrics") metrics.push(metrics[0]);
+          if (fault === "missing metrics") metrics.pop();
+          if (fault === "ineligible metrics") metrics.push({ memberId: memberAId, points: 2, played: 1, wins: 1 });
+          return metrics;
+        },
+      };
+      const response = await app.inject({
+        method: "POST", url: `/api/v1/matches/${matchId}/actions`, headers: headers(memberA, true),
+        payload: { commandId: randomUUID(), expectedRevision: 3, type: "add", payload: { amount: 1 } },
+      });
+      expect(response.statusCode).toBe(500);
+      expect(response.json().error.code).toBe("MODULE_FAILURE");
+      expect(response.body).not.toContain("private-invalid-value");
+      expect(await finalLedger()).toEqual(before);
+    }, 120_000,
+  );
 });

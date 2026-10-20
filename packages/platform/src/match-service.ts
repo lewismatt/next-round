@@ -17,6 +17,7 @@ import type { RuleContext, Transition } from "@next-round/game-sdk";
 import type { GameRegistry, RegisteredGameVersion } from "./registry.js";
 import type { AuthenticatedSession } from "./auth-service.js";
 import { lockPrincipals, recheckSession } from "./transaction-authority.js";
+import { prepareFinalResult, persistFinalResult } from "./final-results.js";
 
 type MatchPhase = "lobby" | "active" | "finished";
 
@@ -645,6 +646,7 @@ export class MatchService {
       } catch {
         throw moduleFailure();
       }
+      const final = prepareFinalResult(registered, transition.value, members);
 
       if (kind === "join") {
         if (rejoin) {
@@ -718,20 +720,9 @@ export class MatchService {
           JSON.stringify(kind === "join" ? { rejoin } : {})],
       );
       await this.persistLifecycleDeadlines(client, matchId, transition.value.deadlines);
-      if (transition.value.final) {
-        const eligibilityReasons = [...new Set(
-          transition.value.final.participants.flatMap((participant) => participant.exclusionReasons),
-        )];
-        await client.query(
-          `INSERT INTO next_round.match_results
-             (match_id, module_id, module_version, result_version, outcome, raw_result,
-              eligibility_reasons, finished_revision, finished_at)
-           VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::timestamptz)`,
-          [matchId, match.module_id, match.module_version, registered.manifest.resultVersion,
-            transition.value.final.outcome, JSON.stringify(transition.value.final),
-            JSON.stringify(eligibilityReasons), committedRevision, now],
-        );
-      }
+      await persistFinalResult(
+        client, match, registered.manifest.resultVersion, final, committedRevision, now,
+      );
 
       const receipt: CommandReceipt = {
         commandId: input.commandId,
@@ -1009,13 +1000,13 @@ export class MatchService {
           outcome: "accepted",
         };
       }
-      if (match.phase === "finished") {
-        throw new ApiError(ERROR_CODES.MATCH_CLOSED, "Match is closed.");
-      }
       if (match.revision !== input.expectedRevision) {
         throw new ApiError(ERROR_CODES.STALE_REVISION, "Refresh this match before acting.", {
           details: { currentRevision: match.revision },
         });
+      }
+      if (match.phase === "finished") {
+        throw new ApiError(ERROR_CODES.MATCH_CLOSED, "Match is closed.");
       }
       if (match.state === null) throw moduleUnavailable();
 
@@ -1074,6 +1065,7 @@ export class MatchService {
       } catch {
         throw moduleFailure();
       }
+      const final = prepareFinalResult(registered, transition.value, members);
 
       const committedRevision = match.revision + 1;
       await client.query(
@@ -1136,32 +1128,9 @@ export class MatchService {
         );
       }
 
-      if (transition.value.final) {
-        const eligibilityReasons = [
-          ...new Set(
-            transition.value.final.participants.flatMap(
-              (participant) => participant.exclusionReasons,
-            ),
-          ),
-        ];
-        await client.query(
-          `INSERT INTO next_round.match_results
-             (match_id, module_id, module_version, result_version, outcome, raw_result,
-              eligibility_reasons, finished_revision, finished_at)
-           VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::timestamptz)`,
-          [
-            matchId,
-            match.module_id,
-            match.module_version,
-            registered.manifest.resultVersion,
-            transition.value.final.outcome,
-            JSON.stringify(transition.value.final),
-            JSON.stringify(eligibilityReasons),
-            committedRevision,
-            now,
-          ],
-        );
-      }
+      await persistFinalResult(
+        client, match, registered.manifest.resultVersion, final, committedRevision, now,
+      );
 
       const receipt: CommandReceipt = {
         commandId: input.commandId,
