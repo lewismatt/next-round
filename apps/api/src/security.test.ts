@@ -27,7 +27,14 @@ afterEach(async () => {
 });
 
 async function server(trustProxy?: false | string | string[]) {
-  const app = await buildServer({ logger: false, staticRoot: root, trustProxy });
+  const app = await buildServer({
+    logger: false,
+    staticRoot: root,
+    trustProxy,
+    enableLiveListener: false,
+    checkDb: async () => true,
+    checkRegistry: async () => true,
+  });
   servers.push(app);
   app.get("/test/ip", async (request) => ({ ip: request.ip }));
   return app;
@@ -70,7 +77,14 @@ describe("GH-1 H-1: proxy trust", () => {
   );
 
   it("cannot bypass the IP limit by changing forwarded-for", async () => {
-    const app = await buildServer({ logger: false, staticRoot: root, rateLimitMax: 1 });
+    const app = await buildServer({
+      logger: false,
+      staticRoot: root,
+      rateLimitMax: 1,
+      enableLiveListener: false,
+      checkDb: async () => true,
+      checkRegistry: async () => true,
+    });
     servers.push(app);
     await app.ready();
     const request = (ip: string) => app.inject({ url: "/version", remoteAddress: "203.0.113.10",

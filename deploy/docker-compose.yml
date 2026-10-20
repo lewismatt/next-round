@@ -51,6 +51,8 @@ services:
       PORT: 3000
       HOST: 0.0.0.0
       DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      DATABASE_DIRECT_URL: ${DATABASE_DIRECT_URL:-}
+      LIVE_RECONCILE_INTERVAL_MS: ${LIVE_RECONCILE_INTERVAL_MS:-10000}
       SESSION_SECRET: ${SESSION_SECRET:?Generate SESSION_SECRET in deploy/.env}
       SETUP_TOKEN: ${SETUP_TOKEN:-}
       APP_ORIGIN: https://${CADDY_DOMAIN:-localhost}
@@ -71,6 +73,7 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      LIVE_RECONCILE_INTERVAL_MS: ${LIVE_RECONCILE_INTERVAL_MS:-10000}
     depends_on:
       postgres:
         condition: service_healthy

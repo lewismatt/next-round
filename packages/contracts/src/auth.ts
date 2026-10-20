@@ -572,6 +572,23 @@ export const AdminUserParamsSchema = Type.Object(
 );
 export type AdminUserParams = Static<typeof AdminUserParamsSchema>;
 
+/** PATCH /admin/games/:id request body. */
+export const AdminGamePatchRequestSchema = Type.Object(
+  {
+    enabled: Type.Optional(Type.Boolean()),
+    defaultVersion: Type.Optional(Type.String({ minLength: 1 })),
+  },
+  { additionalProperties: false }
+);
+export type AdminGamePatchRequest = Static<typeof AdminGamePatchRequestSchema>;
+
+/** /admin/games/:id path parameters. */
+export const AdminGameParamsSchema = Type.Object(
+  { id: Type.String({ minLength: 1 }) },
+  { additionalProperties: false }
+);
+export type AdminGameParams = Static<typeof AdminGameParamsSchema>;
+
 
 /** Principal response shape: `{id,kind,displayName,username}`. */
 export interface PrincipalView {

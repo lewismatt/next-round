@@ -17,9 +17,11 @@ Final actions and departures write raw results, participant projections and
 eligible registered-player career contributions in the same transaction.
 Deadline processing and durable worker effects are implemented: commands reconcile
 due deadlines using database time, and worker startup/sweeps recover overdue
-deadlines and committed outbox rows. Production `/api/v1/live` delivery and the
-playable shell are still being built. The harness example below describes its
-target integration and cannot yet run end to end against the production API.
+deadlines and committed outbox rows. Production `/api/v1/live` uses a dedicated
+PostgreSQL listener and per-node recovery sweeps. Module defaults and disable
+state are durable; referenced versions must retain their server code and assets.
+The playable shell is still a preview. The harness example below also needs the
+remaining invitation/guest admission routes for its full target workflow.
 F1-01–05 have merged subsets, not full acceptance.
 
 See the [review and remaining acceptance work](docs/reviews/2026-10-19.md).
@@ -113,8 +115,10 @@ validation, match lifecycle and action commands, caller-private views, and
 command idempotency receipts. Lifecycle commands require an expected revision;
 join currently admits registered users to instance-visible matches. Deadline
 jobs, reconciliation, notifications and PostgreSQL invalidation wakeups are
-implemented. The production `/api/v1/live` endpoint, API listener/fanout and
-two-node recovery measurements remain prerequisites for full platform acceptance.
+implemented. `/api/v1/live` authenticates before upgrade and sends authorized
+metadata-only invalidations. Each API node reconciles its own subscriptions,
+including missed wakeups and listener recovery. Full platform acceptance remains
+open beyond these transport and lifecycle paths.
 
 After building, a service fixture can use the compiled client against its API:
 
@@ -238,6 +242,37 @@ build first so its versioned client assets exist. Worker startup and periodic
 sweeps recover overdue deadlines and undelivered outbox rows using the same
 database; do not delete pending rows or pg-boss data to repair a missed wakeup.
 See [transaction and recovery behavior](docs/transaction-authority.md).
+
+Each API process opens one dedicated `LISTEN next_round_live` session through
+`DATABASE_DIRECT_URL`, falling back to `DATABASE_URL`. Both URLs must name the
+same database. Do not use transaction pooling for the listener. Set
+`LIVE_RECONCILE_INTERVAL_MS` on API and worker processes; the default is `10000`.
+Startup rejects zero, negative, fractional, non-numeric, and greater-than-86400000
+millisecond values. Sweep logs include query count, database wait and total
+duration. They contain no module state, chat text or notification contents.
+Request URLs are redacted so rejected query-string credentials cannot enter logs.
+
+Administrators use `GET /api/v1/admin/games` and
+`PATCH /api/v1/admin/games/:id` with `{"defaultVersion":"0.2.0"}` or
+`{"enabled":false}`. Mutation requests require the usual session, Origin and CSRF
+checks. Install compatible code/assets and immutable `module_versions` metadata
+before selecting a new default. Defaults affect only new matches; disable blocks
+new creation without changing existing pins. API and worker startup refuse missing
+referenced code or declared client assets, including finished-history references.
+Keep old packages and metadata unless a separately reviewed migration removes all
+dependencies. No runtime download or installation endpoint is provided.
+
+Run the compiled two-process acceptance scenario on an isolated local PostgreSQL:
+
+```bash
+TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55418/next_round pnpm test:sprint2
+```
+
+The runner creates and drops its own database and listener role, so its database
+role needs `CREATEDB` and `CREATEROLE`. It launches two API processes and a worker,
+records normal delivery/refetch and missed-wakeup recovery, and proves pinned
+version/disable and startup retention behavior. Faults are confined to that
+temporary database and test child launchers; there are no production fault routes.
 
 The API ignores forwarded headers by default. For a custom proxy, `TRUST_PROXY`
 accepts only comma-separated IP addresses/CIDRs you control; `true`, wildcard and

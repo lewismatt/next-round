@@ -39,6 +39,8 @@ interface CompiledApiModule {
   buildServer(options: {
     logger: false;
     staticRoot: string;
+    checkDb?: () => Promise<boolean>;
+    checkRegistry?: () => Promise<boolean>;
   }): Promise<CompiledApiServer>;
 }
 
@@ -73,7 +75,12 @@ describe("compiled API boot", () => {
     const { buildServer } = (await import(
       apiServerModule.href
     )) as CompiledApiModule;
-    api = await buildServer({ logger: false, staticRoot });
+    api = await buildServer({
+      logger: false,
+      staticRoot,
+      checkDb: async () => true,
+      checkRegistry: async () => true,
+    });
     await api.listen({ port: 0, host: "127.0.0.1" });
     const address = api.server.address();
     if (address === null || typeof address === "string") {

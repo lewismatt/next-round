@@ -82,13 +82,31 @@ followed by acknowledgement loss can safely redeliver. Retry backoff is bounded
 at 60 seconds; undelivered rows remain inspectable. Cancelled/consumed job
 wakeups are harmless rather than requiring queue deletion.
 
-Startup and periodic bounded sweeps process overdue deadlines and pending
-outbox effects even if scheduling never ran. PostgreSQL `next_round_live`
-notifications are post-commit wakeups; the API listener, authorized WebSocket
-fanout and per-node recovery sweep are Sprint 2, not supplied by this worker.
-Both processes must load the same pinned modules; Test Counter requires
+Startup and periodic bounded sweeps process overdue deadlines and pending outbox
+effects even if scheduling never ran. Each API node has its own dedicated
+`next_round_live` PostgreSQL listener and independently reconciles its connected
+clients every `LIVE_RECONCILE_INTERVAL_MS` (default 10000 ms). Listener recovery
+forces an immediate authorized sweep. Notifications are wakeups; current database
+revisions and principal inbox/home counters determine delivery.
+
+Live sweeps batch session, principal, revision and membership reads. They hold
+sorted shared principal locks while checking authority and sending metadata-only
+frames. Writers acquire the corresponding exclusive locks, so delivery cannot
+cross a committed logout, auth-epoch change, disable or departure. Pending scopes
+receive no invalidation before authorization. Request URLs and driver/reducer
+errors are excluded from production logs.
+
+API and worker startup verify database-referenced module versions and declared
+browser assets, including finished matches and results. Module administration
+uses the same transaction authority checks, then locks the module row; creation
+holds a shared module lock so disable/default changes serialize with new matches.
+The database default is authoritative across API nodes. Existing commands keep
+their exact stored module version even when the module is disabled.
+
+Both processes must load the same installed modules. Test Counter requires
 `NEXT_ROUND_ENABLE_TEST_COUNTER=true` on each. Failure injection uses test-local
-reducers, SQL triggers and database wrappers, never production clock/fault routes.
+reducers, SQL triggers, isolated listener roles and database wrappers, never
+production clock/fault routes.
 
 BL-001 aligns stale-before-closed precedence across command paths. BL-002
 explicitly checks for a server before invoking career hooks. BL-003 repairs a
@@ -124,7 +142,7 @@ original policy fail closed. Current defaults never broaden historical privacy.
 
 CI runs these cases on PostgreSQL 18.6 and 17. Reset tests exercise the required
 auth-epoch writer protocol directly; they do not prove a reset HTTP endpoint,
-which remains H1 work. Production live/reconnect denial remains F1-09. Principal
+which remains H1 work. Live/reconnect denial is covered by F1-09. Principal
 status reducer effects retain their later acceptance gates. Compiled API/worker
 restart smoke checks on PostgreSQL 18.6 and 17.11 prove retained deadlines and
 notes, overdue-once processing, cancellation/replacement and post-commit wakeups.

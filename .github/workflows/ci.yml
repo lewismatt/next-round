@@ -111,6 +111,9 @@ jobs:
       - name: Boot compiled API and worker against migrated database
         run: pnpm --filter @next-round/worker test:integration
 
+      - name: Measure Sprint 2 live recovery across two API processes
+        run: pnpm test:sprint2
+
   image-argon2:
     name: Deployment image Argon2 runtime
     runs-on: ubuntu-latest

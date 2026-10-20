@@ -13,6 +13,7 @@
     "build": "pnpm -r run build && pnpm check:browser-bundle",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
+    "test:sprint2": "node scripts/sprint2-acceptance.mjs",
     "check:browser-bundle": "node scripts/check-browser-bundle.mjs",
     "check:spdx": "node scripts/check-spdx.mjs",
     "lint": "eslint . --max-warnings 0"
