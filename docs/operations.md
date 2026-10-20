@@ -46,7 +46,7 @@ Active and lobby matches are never retention targets. Disabled principals are no
 
 Record evidence after running the checks. Do not fill this table from expected behavior or code inspection.
 
-| Check                                | PostgreSQL version | Command                               | Result / artifact |
-| ------------------------------------ | ------------------ | ------------------------------------- | ----------------- |
-| Production API and worker acceptance |                    | `pnpm test:sprint3`                   |                   |
-| Backup and restore with readiness    |                    | `node scripts/sprint3-operations.mjs` |                   |
+| Check                                | PostgreSQL version | Command                               | Result / artifact                                                                                                                                           |
+| ------------------------------------ | ------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Production API and worker acceptance | 18.6, 17.11        | `pnpm test:sprint3`                   | 2026-10-20: pass, 20/20 scenarios; negative control exits 1 at `consumer-visible private marker must be viewer-specific`                                    |
+| Backup and restore with readiness    | 18.6, 17.11        | `node scripts/sprint3-operations.mjs` | 2026-10-20: pass, custom-format dump restored into an isolated database, row counts and fingerprints compared, compiled API ready against the restored copy |
