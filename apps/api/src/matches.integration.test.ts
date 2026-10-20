@@ -379,6 +379,55 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
       .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("creates a revision-zero lobby atomically and replays an exact create receipt", async () => {
+    const commandId = randomUUID();
+    const payload = {
+      commandId,
+      moduleId: "test-counter",
+      mode: "group",
+      settings: { target: 10, turnSeconds: null },
+      visibility: "invite",
+    };
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/v1/matches",
+      headers: headers(memberA, true),
+      payload,
+    });
+    expect(first.statusCode).toBe(201);
+    const created = first.json().data;
+    expect(created).toMatchObject({ revision: 0, commandId });
+
+    const replay = await app.inject({
+      method: "POST",
+      url: "/api/v1/matches",
+      headers: headers(memberA, true),
+      payload,
+    });
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json().data).toEqual(created);
+
+    const rows = await databasePool.query(
+      `SELECT m.phase, m.revision::integer AS revision, m.host_member_id,
+              (SELECT count(*)::integer FROM next_round.match_members mm WHERE mm.match_id = m.id) AS members,
+              (SELECT count(*)::integer FROM next_round.match_events e WHERE e.match_id = m.id) AS events,
+              (SELECT count(*)::integer FROM next_round.command_receipts r WHERE r.match_id = m.id) AS receipts
+         FROM next_round.matches m WHERE m.id = $1`,
+      [created.matchId],
+    );
+    expect(rows.rows[0]).toMatchObject({ phase: "lobby", revision: 0, members: 1, events: 1, receipts: 1 });
+    expect(rows.rows[0].host_member_id).toBeTruthy();
+
+    const conflicting = await app.inject({
+      method: "POST",
+      url: "/api/v1/matches",
+      headers: headers(memberA, true),
+      payload: { ...payload, mode: "solo" },
+    });
+    expect(conflicting.statusCode).toBe(409);
+    expect(conflicting.json().error.code).toBe("IDEMPOTENCY_CONFLICT");
+  });
+
   it("requires registration for catalog/schema routes and confines guests to their pinned manifest", async () => {
     expect((await app.inject("/api/v1/games")).statusCode).toBe(401);
     expect((await app.inject({ url: "/api/v1/games", headers: headers(memberA) })).statusCode).toBe(200);

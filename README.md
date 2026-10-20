@@ -11,7 +11,8 @@ Next Round is a self-hosted, open-source platform for turn-based games with frie
 
 This is a development preview. Bootstrap/session APIs, manifest validation,
 private match snapshots, actions and retry receipts are implemented. Match
-create/join/start/leave routes, production live invalidation, worker effects,
+creation now initializes a revision-zero lobby with its creator, create event
+and retry receipt in one transaction. Join/start/leave routes, production live invalidation, worker effects,
 result projections and the playable shell are still being built. The harness
 example below describes its target integration and cannot yet run end to end
 against the production API. F1-01–05 have merged subsets, not full acceptance.

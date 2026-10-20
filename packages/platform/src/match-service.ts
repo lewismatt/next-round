@@ -5,6 +5,8 @@ import {
   ERROR_CODES,
   parseJsonSchemaValue,
   type CommandReceipt,
+  type CreateMatchRequest,
+  type CreateMatchResponse,
   type FinalResult,
   type Json,
   type Member,
@@ -101,6 +103,7 @@ function moduleFailure(): ApiError {
 }
 
 const MATCH_ACTION_SCOPE = "match.action";
+const MATCH_CREATE_SCOPE = "match.create";
 const MATCH_ACTION_ROUTE = "POST /api/v1/matches/:id/actions";
 
 interface CommandReceiptRow {
@@ -209,6 +212,158 @@ export class MatchService {
     private readonly pool: DatabasePool,
     private readonly registry: GameRegistry,
   ) {}
+
+  async create(
+    session: AuthenticatedSession,
+    input: CreateMatchRequest,
+  ): Promise<CreateMatchResponse> {
+    if (session.principal.kind !== "registered") {
+      throw new ApiError(ERROR_CODES.FORBIDDEN, "Registered accounts are required to create matches.");
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await lockPrincipals(client, [session.principal.id]);
+      await recheckSession(client, session, { registered: true });
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+        `${session.principal.id}:${MATCH_CREATE_SCOPE}:${input.commandId.toLowerCase()}`,
+      ]);
+      const requestHash = createHash("sha256").update(canonicalJson({
+        route: "POST /api/v1/matches",
+        commandId: input.commandId.toLowerCase(),
+        moduleId: input.moduleId,
+        mode: input.mode,
+        settings: input.settings as Json,
+        resourceId: input.resourceId ?? null,
+        visibility: input.visibility,
+      })).digest();
+      const prior = await client.query<CommandReceiptRow>(
+        `SELECT request_hash, match_id, committed_revision::integer AS committed_revision, safe_receipt
+           FROM next_round.command_receipts
+          WHERE principal_id = $1 AND scope = $2 AND command_id = $3`,
+        [session.principal.id, MATCH_CREATE_SCOPE, input.commandId],
+      );
+      if (prior.rows[0]) {
+        if (!sameRequestHash(requestHash, prior.rows[0].request_hash) || !prior.rows[0].match_id) {
+          throw new ApiError(ERROR_CODES.IDEMPOTENCY_CONFLICT, "This command was already used with a different request.");
+        }
+        const stored = prior.rows[0].safe_receipt;
+        if (!stored || typeof stored !== "object" || Array.isArray(stored)) throw moduleFailure();
+        await client.query("COMMIT");
+        return stored as unknown as CreateMatchResponse;
+      }
+
+      const moduleResult = await client.query<{ version: string; state_version: number }>(
+        `SELECT mv.version, mv.state_version
+           FROM next_round.modules m
+           JOIN next_round.module_versions mv
+             ON mv.module_id = m.id AND mv.version = m.default_version
+          WHERE m.id = $1 AND m.enabled = true
+          FOR SHARE OF m, mv`,
+        [input.moduleId],
+      );
+      const module = moduleResult.rows[0];
+      const registered = module && registeredVersion(this.registry, input.moduleId, module.version);
+      if (!registered) throw moduleUnavailable();
+      if (input.resourceId) {
+        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "This game does not support resource-based matches.");
+      }
+      const mode = registered.manifest.modes.find((candidate) => candidate.id === input.mode);
+      if (!mode) throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Match mode is not supported.");
+      const settings = parseJsonSchemaValue(registered.manifest.settingsSchema, input.settings);
+      const policyResult = await client.query<{ current_policy_version: number; policy: Json }>(
+        `SELECT s.current_policy_version::integer, p.policy
+           FROM next_round.instance_singleton s
+           JOIN next_round.instance_policy p ON p.version = s.current_policy_version
+          WHERE s.id = true`,
+      );
+      const currentPolicy = policyResult.rows[0];
+      if (!currentPolicy) throw new ApiError(ERROR_CODES.SERVICE_UNAVAILABLE, "Instance setup is incomplete.");
+
+      const matchId = randomUUID();
+      const memberId = randomUUID();
+      const eventId = randomUUID();
+      const now = new Date().toISOString();
+      const members: Member[] = [{
+        id: memberId,
+        principalId: session.principal.id,
+        kind: "registered",
+        displayName: session.principal.displayName,
+        status: "active",
+        joinOrdinal: 1,
+        disabled: false,
+        accessEpoch: 0,
+      }];
+      const matchContext = context({
+        id: matchId,
+        module_version: module.version,
+        mode: input.mode,
+        phase: "lobby",
+        revision: 0,
+        settings,
+        host_member_id: memberId,
+      }, members, now, eventId, { principalId: session.principal.id, memberId });
+      let transition;
+      try {
+        transition = registered.server.transition(matchContext, null, { kind: "create" });
+      } catch {
+        throw moduleFailure();
+      }
+      if (!transition.ok) throw new ApiError(ERROR_CODES.RULE_REJECTED, "The game did not accept this match.");
+      if (transition.value.phase !== "lobby" || transition.value.final !== null || transition.value.hostMemberId !== memberId) {
+        throw moduleFailure();
+      }
+      let state: Json;
+      try {
+        state = parseJsonSchemaValue(registered.manifest.stateSchema, transition.value.state);
+      } catch {
+        throw moduleFailure();
+      }
+      const visibility = mode.maxPlayers === 1 ? "private" : input.visibility;
+      await client.query(
+        `INSERT INTO next_round.matches
+           (id, module_id, module_version, state_version, mode, phase, creator_id,
+            host_member_id, settings, visibility, policy_version, policy_snapshot,
+            revision, state, needs_action_from)
+         VALUES ($1, $2, $3, $4, $5, 'lobby', $6, NULL, $7::jsonb, $8, $9,
+                 $10::jsonb, 0, $11::jsonb, $12::uuid[])`,
+        [matchId, input.moduleId, module.version, module.state_version, input.mode,
+          session.principal.id, JSON.stringify(settings), visibility,
+          currentPolicy.current_policy_version, JSON.stringify(currentPolicy.policy),
+          JSON.stringify(state), transition.value.needsActionFrom],
+      );
+      await client.query(
+        `INSERT INTO next_round.match_members (id, match_id, principal_id, join_ordinal)
+         VALUES ($1, $2, $3, 1)`,
+        [memberId, matchId, session.principal.id],
+      );
+      await client.query("UPDATE next_round.matches SET host_member_id = $2 WHERE id = $1", [matchId, memberId]);
+      await client.query(
+        `INSERT INTO next_round.member_periods (member_id, access_epoch)
+         VALUES ($1, 0)`,
+        [memberId],
+      );
+      await client.query(
+        `INSERT INTO next_round.match_events (match_id, revision, event_id, actor_id, kind, safe_metadata)
+         VALUES ($1, 0, $2, $3, 'create', '{}'::jsonb)`,
+        [matchId, eventId, session.principal.id],
+      );
+      const receipt: CreateMatchResponse = { matchId, revision: 0, commandId: input.commandId };
+      await client.query(
+        `INSERT INTO next_round.command_receipts
+           (principal_id, scope, command_id, request_hash, match_id, committed_revision, safe_receipt)
+         VALUES ($1, $2, $3, $4, $5, 0, $6::jsonb)`,
+        [session.principal.id, MATCH_CREATE_SCOPE, input.commandId, requestHash, matchId, JSON.stringify(receipt)],
+      );
+      await client.query("COMMIT");
+      return receipt;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 
   async getSnapshot(matchId: string, principalId: string): Promise<MatchSnapshot> {
     const result = await this.pool.query<MatchRow>(
