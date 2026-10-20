@@ -52,3 +52,42 @@ BL-006–BL-009 remain Open. Their explicit Sprint 3 triage is in
 [the authoritative backlog](BACKLOG.md#sprint-3-triage-codex-s3-20261020).
 No warning suppression, dependency upgrade, configuration-key cutover or outbox
 latency fix is included as unrelated work.
+
+## H-2 production acceptance (H1–H6)
+
+Full production H1–H6 platform acceptance was executed against PostgreSQL 18.6
+and 17.11 using two compiled API processes, a compiled background worker, real
+HTTP commands, and live WebSocket clients. Command:
+
+```sh
+TEST_DATABASE_URL=postgresql://... node scripts/sprint3-evidence.mjs
+```
+
+Both runs executed all 20 requirement scenarios (positive pass) and rejected the
+intentionally broken private-view fixture with exit code 1 at the exact positive
+assertion (`consumer-visible private marker must be viewer-specific`).
+
+| Scenario / Requirement | Checks | PostgreSQL 18.6 | PostgreSQL 17.11 |
+| --- | --- | --- | --- |
+| Lifecycle & private view | Create, join, start, action, viewer-specific view | pass (167 ms) | pass (168 ms) |
+| WS view & reconnect | 2 API WS sessions, snapshot receipt, reconnect view | pass (9151 ms) | pass (9027 ms) |
+| Retry & deadline retention | Exact replay revision, note retains dueAt/gen, worker ACK | pass (695 ms) | pass (732 ms) |
+| H1: Token rate limit | 10 invalid attempts share cluster IP budget; 11th 429 | pass (68 ms) | pass (69 ms) |
+| H1: Registration invite | 7-day expiry, single parallel consumption, destination | pass (420 ms) | pass (395 ms) |
+| H1: Registration expiry | Expired 7-day token rejected by redemption | pass (287 ms) | pass (272 ms) |
+| H1: Sign-in QR | 15-minute expiry, authenticates principal, expired rejected | pass (83 ms) | pass (79 ms) |
+| H1: Password reset | 30-minute expiry, reissue revokes, redemptions revoke sessions | pass (884 ms) | pass (963 ms) |
+| H1: Guest invite expiry | 15-minute expiry, expired returns TOKEN_INVALID | pass (142 ms) | pass (141 ms) |
+| H2: Guest session lifetime | 30-day idle expiry, 180-day absolute expiry persisted | pass (73 ms) | pass (74 ms) |
+| H1: Guest invite revocation | Revocation blocks redemption, permission removal blocks | pass (109 ms) | pass (101 ms) |
+| H2: Guest idle/absolute | Idle expiry rejects, absolute independently rejects | pass (136 ms) | pass (130 ms) |
+| H1: Capacity & join limits | Targeted invite, late join, 8-player capacity, full/finished | pass (1324 ms) | pass (1378 ms) |
+| H2: Guest resume & scope | Bound match resume, name imitation denied, catalog denied | pass (340 ms) | pass (330 ms) |
+| H3: Chat lifecycle & privacy | Durable/idempotent chat, WS wakeup, revocation, solo 404 | pass (15675 ms) | pass (15626 ms) |
+| H4: Inbox, sync & attribution | turn_missed notification, 2-session read sync, guest exclusion | pass (29020 ms) | pass (29015 ms) |
+| H5: Backup & restore | pg_dump/pg_restore into isolated DB, counts verified, API ready | pass (5349 ms) | pass (5050 ms) |
+| H5: Recovery, retry, migrate | Live sweep recovery, worker outbox retry, module migration 500/0.2.0 | pass (25379 ms) | pass (25659 ms) |
+| H6: Retention maintenance | Preview counts, manifest guard, execution purges state, leaderboard | pass (270 ms) | pass (243 ms) |
+| Negative control | Broken private-view fixture rejected with exit code 1 | pass (exit 1) | pass (exit 1) |
+
+All 20 positive cases and the negative control passed on both PostgreSQL 18.6 and 17.11.
