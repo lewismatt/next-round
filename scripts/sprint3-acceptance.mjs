@@ -126,6 +126,7 @@ async function until(check, label, timeoutMs = 20000) {
   throw new Error(`Timed out waiting for ${label}`);
 }
 
+let cases = [];
 try {
   await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
   created = true;
@@ -219,10 +220,12 @@ try {
   const api1 = launch(apiCode, {
     PORT: String(portA),
     APP_ORIGIN: `http://127.0.0.1:${portA}`,
+    LOG_LEVEL: "info",
   });
   const api2 = launch(apiCode, {
     PORT: String(portB),
     APP_ORIGIN: `http://127.0.0.1:${portB}`,
+    LOG_LEVEL: "info",
   });
   const [one, two] = await Promise.all([
     waitMessage(api1, "API 1 startup"),
@@ -421,6 +424,10 @@ try {
         "worker acknowledgement of live invalidation",
       );
     },
+  );
+  await pool.query(
+    "UPDATE next_round.match_deadlines SET due_at=clock_timestamp()+interval '1 hour' WHERE match_id=$1 AND status='pending'",
+    [host.matchId],
   );
   const postgres = (await pool.query("SHOW server_version")).rows[0]
     .server_version;

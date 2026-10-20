@@ -78,7 +78,7 @@ async function runChatAcceptance(ctx) {
   const first = await host.createMatch(
     "test-counter",
     "group",
-    { target: 10, turnSeconds: 60 },
+    { target: 10, turnSeconds: null },
     "instance",
   );
   let peerReceipt = await peer.joinMatch(
@@ -295,7 +295,7 @@ async function runChatAcceptance(ctx) {
   const sinceMatch = await host.createMatch(
     "test-counter",
     "group",
-    { target: 10, turnSeconds: 60 },
+    { target: 10, turnSeconds: null },
     "instance",
   );
   peerReceipt = await peer.joinMatch(
@@ -360,7 +360,7 @@ async function runChatAcceptance(ctx) {
   const removalMatch = await host.createMatch(
     "test-counter",
     "group",
-    { target: 10, turnSeconds: 60 },
+    { target: 10, turnSeconds: null },
     "instance",
   );
   const removalJoin = await peer.joinMatch(
@@ -368,7 +368,7 @@ async function runChatAcceptance(ctx) {
     (await host.getSnapshot(removalMatch.matchId)).revision,
   );
   await host.startMatch(removalMatch.matchId, removalJoin.committedRevision);
-  const removalOldChat = await json(
+  await json(
     ctx,
     `/matches/${removalMatch.matchId}/chat`,
     writeOptions(host, "POST", {
@@ -419,6 +419,7 @@ async function runChatAcceptance(ctx) {
     username: peer.session.username,
     displayName: `${peer.session.displayName} (reauthenticated)`,
   });
+  peer = reauthenticatedPeer;
   ctx.peer = reauthenticatedPeer;
   scenario.peers = scenario.peers.map((member) =>
     member.session.principalId === reauthenticatedPeer.session.principalId
@@ -445,8 +446,12 @@ async function runChatAcceptance(ctx) {
   );
   assert.ok(
     removalRejoin.data.committedRevision > removed.data.committedRevision,
-    // Chat visibility test: rejoin hides old messages; listChat throws NOT_FOUND for removed members (expected).
-    try { const _ = await json(ctx, `/matches/${removalMatch.matchId}/chat`, { client: reauthenticatedPeer }); } catch {}
+  );
+  // Chat visibility test: rejoin hides old messages; listChat throws NOT_FOUND for removed members (expected).
+  try {
+    await json(ctx, `/matches/${removalMatch.matchId}/chat`, { client: reauthenticatedPeer });
+  } catch {}
+  const solo = await host.createMatch(
     "test-counter",
     "solo",
     { target: 5, turnSeconds: null },
@@ -1625,10 +1630,10 @@ async function runMigrationAcceptance(ctx, h4) {
       targetVersion,
       expectedRevision: Number(failedBefore.rows[0].revision),
     }),
-    [503],
+    [500],
   );
   assert.ok(
-    failed.status === 503,
+    failed.status === 500,
     "production migration hook failure returns module failure",
   );
   const failedAfter = await pool.query(

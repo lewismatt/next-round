@@ -777,10 +777,16 @@ export async function executeAdminRetention(
       plan.target_manifest.scope,
       plan.target_manifest.cutoff,
     );
-    if (
-      JSON.stringify(targets) !== JSON.stringify(plan.target_manifest.targets)
-    )
-      throw invalid();
+    const planTargets = plan.target_manifest.targets;
+    const sameTargets =
+      targets.length === planTargets.length &&
+      targets.every(
+        (t, i) =>
+          t.id === planTargets[i]?.id &&
+          t.scope === planTargets[i]?.scope &&
+          t.updatedAt === planTargets[i]?.updatedAt,
+      );
+    if (!sameTargets) throw invalid();
     for (const item of plan.target_manifest.targets) {
       if (item.scope === "chat")
         await client.query(
