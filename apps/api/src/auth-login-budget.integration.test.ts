@@ -128,13 +128,19 @@ describe.skipIf(!testDatabaseUrl)("BL-010 shared login failure budgets", () => {
   afterEach(async () => {
     await appA?.close();
     await appB?.close();
-    await poolA?.end();
-    await poolB?.end();
+    // Pool.end resolves before every client socket emits end. Wait for those
+    // events before dropping the database instead of terminating closing clients.
+    const disconnected: Array<Promise<void>> = [];
+    for (const pool of [poolA, poolB]) {
+      pool?.on("remove", (client) => {
+        disconnected.push(
+          new Promise<void>((resolve) => client.once("end", resolve)),
+        );
+      });
+    }
+    await Promise.all([poolA?.end(), poolB?.end()]);
+    await Promise.all(disconnected);
     if (adminPool) {
-      await adminPool.query(
-        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-        [databaseName],
-      );
       await adminPool.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
       await adminPool.end();
     }

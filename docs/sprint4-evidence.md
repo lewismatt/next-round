@@ -174,6 +174,16 @@ fixture mistakes (solo expected `invite` rather than actual forced `private`,
 missing registration commandId and a bodyless JSON DELETE); assertions were
 corrected to the approved behavior, not weakened around production failures.
 
+The first documented-head CI run,
+[39426318489](https://github.com/lewismatt/next-round/actions/runs/39426318489),
+passed all 66 API assertions on PG18 but failed on an unhandled `57P01` during
+the new login-budget fixture's forced backend termination. PG17 and the other
+three jobs passed. The fixture now follows the existing match-test convention:
+wait for each pool client's socket `end` after pool removal before dropping the
+database; do not terminate still-closing clients. No error handler, production
+code, timeout, assertion or acceptance boundary was weakened to address this.
+
+
 A default-parallel local run of both database suites plus CLI work exposed two
 existing short transport-test timeouts on PG17. Unchanged tests passed with
 `--maxWorkers=2` on each major; BL-024 records the saturation concern. No
