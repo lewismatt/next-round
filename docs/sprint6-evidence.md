@@ -2,7 +2,7 @@
 
 Agent: `omp-s6-20261020`. Base: `4a73e7957706be3e296bb655630981688949032c`.
 Implementation: `55e58f7325e2c4a2bbefdb24683c9669b042c307`.
-Final source and Retry-After regression: `cdbe15064d8e88443fafc7b7a56dd61e96bb1527`.
+Production source and Retry-After regression: `cdbe15064d8e88443fafc7b7a56dd61e96bb1527`.
 
 This review unit addresses the 20 assigned backlog rows. The branch marks them
 Fixed; main does not gain those fixes until Matthew reviews and merges the draft
@@ -145,6 +145,16 @@ The temporary API/seed probe was removed after use.
   fixed the fixture. The first browser navigation also overtook an in-flight
   login; after the session settled, the actual result/history/admin smoke passed.
 - Existing pg driver deprecation warnings remain BL-007; they were not suppressed.
+- CI run [39493896293](https://github.com/lewismatt/next-round/actions/runs/39493896293)
+  on `8d60400`, attempt 1, finished with 3/5 successful jobs. Both database jobs
+  passed all 87 API assertions but failed on auth-fixture `57P01` teardown (two unhandled errors on
+  PG18, one on PG17). The auth fixture now uses the same socket-close drain before
+  termination/DROP. No assertion or production timeout was weakened, and this
+  failed head was not rerun. The superseded docs head `015459d` had its earlier CI
+  run cancelled; neither run is a green gate.
+  After that fixture correction, the focused auth suite passed all four tests
+  on each supported major, with clean teardown. Build, typecheck, zero-warning
+  lint and SPDX (132 sources) also passed again.
 
 CI evidence belongs to the draft PR and Page 08, verified from terminal API state
 on the exact final PR head. Local results above do not substitute for that gate.

@@ -150,8 +150,10 @@ have [Sprint 6 evidence](sprint6-evidence.md): bounded-worker PostgreSQL 18.6/17
 suites, process/restore/negative-control checks and compiled browser/HTTP smoke.
 BL-037 now has five real loaded-component SSR regressions using existing pinned
 tools; interaction/effect coverage remains a browser-smoke responsibility.
-BL-034 also covers the same socket-drain correction in the touched worker fixture,
-where the first full local run exposed another `57P01` teardown failure.
+BL-034 also covers the same socket-drain correction in the touched worker fixture
+(first full local run) and auth fixture (CI run 39493896293), where `57P01`
+teardown failures persisted after passing assertions. Those failed runs remain
+in the evidence record; they are not treated as passed gates.
 
 New BL-039/040/041 stay Open. BL-006/007/008 remain standalone maintenance.
 No CONTENT puzzle or future self-service session route is delivered here.

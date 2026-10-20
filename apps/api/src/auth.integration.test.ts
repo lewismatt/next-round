@@ -84,7 +84,14 @@ describe.skipIf(!testDatabaseUrl)("F1-01 bootstrap and registered sessions", () 
 
   afterEach(async () => {
     await app?.close();
+    const disconnected: Array<Promise<void>> = [];
+    databasePool?.on("remove", (client) => {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      client.once("end", resolve);
+      disconnected.push(promise);
+    });
     await databasePool?.end();
+    await Promise.all(disconnected);
     if (adminPool) {
       await adminPool.query(
         "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
