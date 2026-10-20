@@ -19,8 +19,8 @@ Every session MUST execute this 4-step loop:
 
 2. **Pick and claim the next logical chunk:**
    - Honor the user's requested scope. For a review or maintenance request, claim a bounded review/maintenance chunk instead of starting a queued feature.
-   - Take the earliest `Ready` dependency-satisfied chunk in the queue.
-   - **BEFORE EDITING CODE**, update Page 08 to claim the chunk: set status to `In progress`, record agent ID, UTC claimed-at timestamp, working branch, and intended deliverable.
+   - Take the earliest `Ready` sprint in the queue (see the Sprints section on Page 08). Claim, deliver, and hand off the sprint as one review unit — not per chunk. (For work outside any sprint, fall back to the earliest `Ready` chunk.)
+   - **BEFORE EDITING CODE**, update Page 08 to claim the sprint (or chunk, for work outside a sprint): set status to `In progress`, record agent ID, UTC claimed-at timestamp, working branch, and intended deliverable.
    - Re-fetch Page 08 to ensure no conflicting claims exist.
 
 3. **Implement and verify:**
@@ -39,6 +39,7 @@ Every session MUST execute this 4-step loop:
    - If acceptance criteria are met and integrated, set chunk to `Done` and promote eligible dependent chunks to `Ready`. If incomplete or blocked, record exact status (`In progress` or `Blocked` with concrete unblock conditions).
    - A merged acceptance subset is not a passed acceptance row. Retain unchecked sentences and missing prerequisite services explicitly; use `Review` for a ready change awaiting integration.
    - Append a structured session handoff entry using the template in Page 08.
+   - One handoff per sprint: record per-chunk evidence inside the single sprint handoff entry.
 
 ## Backlog: Nits, Nags & Small Bugs
 
