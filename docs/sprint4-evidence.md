@@ -183,7 +183,6 @@ wait for each pool client's socket `end` after pool removal before dropping the
 database; do not terminate still-closing clients. No error handler, production
 code, timeout, assertion or acceptance boundary was weakened to address this.
 
-
 A default-parallel local run of both database suites plus CLI work exposed two
 existing short transport-test timeouts on PG17. Unchanged tests passed with
 `--maxWorkers=2` on each major; BL-024 records the saturation concern. No
@@ -191,6 +190,16 @@ production timeout or retry behavior was widened. BL-010/014/015/020 are fixed;
 BL-023 (expired credential-bucket cleanup) and BL-025 (obsolete started notice
 above a completed solo result) are logged. Other pre-existing backlog remains
 explicitly open.
+
+The first documented-head CI run failed only the PostgreSQL 18.6 job: all 66 API
+assertions passed and then the new login-budget fixture's forced
+`pg_terminate_backend` teardown killed a still-closing client, surfacing an
+unhandled `57P01` that Vitest reported as an error. The fixture now ends its
+pools and waits for each client socket's `end` event before dropping its
+disposable database, matching the existing integration-fixture pattern. No
+production timeout, retry behavior or assertion changed. The repaired fixture
+passes on both majors locally; the PostgreSQL 17 job, build/verification,
+deployment-image Argon2 and Caddy WebSocket jobs were green in that run.
 
 Targeted read-only auth/status and browser-lifecycle source reviews found no
 new Blocker/Major issue. They did not run acceptance and are not represented as
