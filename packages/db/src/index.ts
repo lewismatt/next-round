@@ -29,18 +29,33 @@ export interface DatabasePoolOptions {
 
 /**
  * Initializes a PostgreSQL connection pool with connection pooling limits.
+ *
+ * The pool carries a default `error` listener: when an idle pooled client's
+ * backend dies (database restart, restore, administrative termination) pg
+ * emits the failure on the pool, and an unlistened `error` event would
+ * throw as an uncaught exception and take the process down. Listening here
+ * lets the pool discard the dead client and carry on; only the error code
+ * is logged, never the message (it can carry connection details).
  */
 export function createDatabasePool(options?: DatabasePoolOptions): pg.Pool {
   const connectionString = options?.connectionString ?? process.env.DATABASE_URL;
   const max =
     options?.max ?? (process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : 10);
 
-  return new Pool({
+  const pool = new Pool({
     connectionString,
     max,
     idleTimeoutMillis: options?.idleTimeoutMillis,
     connectionTimeoutMillis: options?.connectionTimeoutMillis,
   });
+  pool.on("error", (err) => {
+    const code =
+      typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code: unknown }).code)
+        : "UNKNOWN";
+    console.error(`[db:pool] Idle client error: ${code}`);
+  });
+  return pool;
 }
 
 /**

@@ -260,6 +260,11 @@ export class WorkerRunner {
         connectionString: this.config.connectionString,
         max: Number(process.env.WORKER_POOL_MAX || 5),
       });
+      // Same guard as createDatabasePool: an idle client whose backend
+      // dies must not take the process down via an unlistened pool error.
+      this.pool.on("error", (err) => {
+        console.error(`[worker:pool] Idle client error: ${safeErrorCode(err)}`);
+      });
       this.ownsPool = true;
     }
 
