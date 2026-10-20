@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 import { ApiError, ERROR_CODES } from "@next-round/contracts";
-import type { Permissions, PolicyV1, PrincipalView } from "@next-round/contracts";
+import type {
+  Permissions,
+  PolicyV1,
+  PrincipalView,
+} from "@next-round/contracts";
 import type { DatabasePool } from "@next-round/db";
-import { lockPrincipals, recheckSession } from "./transaction-authority.js";
+import {
+  lockPrincipals,
+  recheckSession,
+  type TransactionClient,
+} from "./transaction-authority.js";
 import {
   generateCsrfToken,
   generateOpaqueSessionToken,
@@ -125,20 +133,37 @@ function permissions(row: {
 function validateDisplayName(value: string): string {
   const displayName = value.trim();
   const length = Array.from(displayName).length;
-  if (length < 1 || length > 40 || CONTROL_CHARACTER.test(displayName) || /[<>]/.test(displayName)) {
-    throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Display name is invalid.", {
-      details: { fields: ["/displayName"] },
-    });
+  if (
+    length < 1 ||
+    length > 40 ||
+    CONTROL_CHARACTER.test(displayName) ||
+    /[<>]/.test(displayName)
+  ) {
+    throw new ApiError(
+      ERROR_CODES.INVALID_REQUEST,
+      "Display name is invalid.",
+      {
+        details: { fields: ["/displayName"] },
+      },
+    );
   }
   return displayName;
 }
 
 function validateInstanceName(value: string): string {
   const instanceName = value.trim();
-  if (instanceName.length === 0 || CONTROL_CHARACTER.test(instanceName) || /[<>]/.test(instanceName)) {
-    throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Instance name is invalid.", {
-      details: { fields: ["/instanceName"] },
-    });
+  if (
+    instanceName.length === 0 ||
+    CONTROL_CHARACTER.test(instanceName) ||
+    /[<>]/.test(instanceName)
+  ) {
+    throw new ApiError(
+      ERROR_CODES.INVALID_REQUEST,
+      "Instance name is invalid.",
+      {
+        details: { fields: ["/instanceName"] },
+      },
+    );
   }
   return instanceName;
 }
@@ -167,15 +192,23 @@ export class AuthService {
 
     const usernameResult = validateUsername(input.username);
     if (!usernameResult.valid || !usernameResult.normalized) {
-      throw new ApiError(ERROR_CODES.INVALID_REQUEST, usernameResult.error ?? "Username is invalid.", {
-        details: { fields: ["/username"] },
-      });
+      throw new ApiError(
+        ERROR_CODES.INVALID_REQUEST,
+        usernameResult.error ?? "Username is invalid.",
+        {
+          details: { fields: ["/username"] },
+        },
+      );
     }
     const passwordResult = validatePassword(input.password);
     if (!passwordResult.valid) {
-      throw new ApiError(ERROR_CODES.INVALID_REQUEST, passwordResult.error ?? "Password is invalid.", {
-        details: { fields: ["/password"] },
-      });
+      throw new ApiError(
+        ERROR_CODES.INVALID_REQUEST,
+        passwordResult.error ?? "Password is invalid.",
+        {
+          details: { fields: ["/password"] },
+        },
+      );
     }
     const displayName = validateDisplayName(input.displayName);
     const instanceName = validateInstanceName(input.instanceName);
@@ -184,10 +217,10 @@ export class AuthService {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock($1::integer, $2::integer)", [
-        SETUP_LOCK_NAMESPACE,
-        SETUP_LOCK_KEY,
-      ]);
+      await client.query(
+        "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+        [SETUP_LOCK_NAMESPACE, SETUP_LOCK_KEY],
+      );
       const configured = await client.query(
         "SELECT 1 FROM next_round.instance_singleton WHERE id = true",
       );
@@ -225,7 +258,10 @@ export class AuthService {
         `INSERT INTO next_round.audit_log
            (actor_id, action, target_type, target_id, safe_metadata)
          VALUES ($1, 'instance.setup', 'instance', 'singleton', $2::jsonb)`,
-        [principal.id, JSON.stringify({ commandId: input.commandId, policyVersion: 1 })],
+        [
+          principal.id,
+          JSON.stringify({ commandId: input.commandId, policyVersion: 1 }),
+        ],
       );
       await client.query("COMMIT");
 
@@ -264,10 +300,19 @@ export class AuthService {
     const account = accountResult.rows[0];
     if (!account) {
       await verifyDummyPassword(password);
-      throw new ApiError(ERROR_CODES.INVALID_CREDENTIALS, "Username or password is incorrect.");
+      throw new ApiError(
+        ERROR_CODES.INVALID_CREDENTIALS,
+        "Username or password is incorrect.",
+      );
     }
-    if (!(await verifyPassword(account.password_hash, password)) || account.disabled_at) {
-      throw new ApiError(ERROR_CODES.INVALID_CREDENTIALS, "Username or password is incorrect.");
+    if (
+      !(await verifyPassword(account.password_hash, password)) ||
+      account.disabled_at
+    ) {
+      throw new ApiError(
+        ERROR_CODES.INVALID_CREDENTIALS,
+        "Username or password is incorrect.",
+      );
     }
 
     if (needsPasswordRehash(account.password_hash)) {
@@ -280,8 +325,11 @@ export class AuthService {
 
     const now = Date.now();
     const absoluteExpiresAt = new Date(now + SESSION_ABSOLUTE_EXPIRY_MS);
-    const idleExpiresAt = new Date(Math.min(now + SESSION_IDLE_EXPIRY_MS, absoluteExpiresAt.getTime()));
-    const { rawToken: rawSessionToken, tokenHash } = generateOpaqueSessionToken();
+    const idleExpiresAt = new Date(
+      Math.min(now + SESSION_IDLE_EXPIRY_MS, absoluteExpiresAt.getTime()),
+    );
+    const { rawToken: rawSessionToken, tokenHash } =
+      generateOpaqueSessionToken();
     const { rawToken: rawCsrfToken, csrfHash } = generateCsrfToken();
     await this.pool.query(
       `INSERT INTO next_round.sessions
@@ -305,10 +353,325 @@ export class AuthService {
       expiresAt: idleExpiresAt.toISOString(),
     };
   }
+  async register(
+    token: string,
+    usernameInput: string,
+    password: string,
+    displayNameInput: string,
+    commandId: string,
+  ): Promise<
+    LoginResult & {
+      destination: { matchId: string; invitationId: string } | null;
+    }
+  > {
+    const username = validateUsername(usernameInput);
+    const validPassword = validatePassword(password);
+    if (!username.valid || !username.normalized || !validPassword.valid) {
+      throw new ApiError(
+        ERROR_CODES.INVALID_REQUEST,
+        "Registration details are invalid.",
+      );
+    }
+    const displayName = validateDisplayName(displayNameInput);
+    const passwordHash = await hashPassword(password);
+    const invitationHash = hashSessionToken(token);
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const pending = await client.query<{
+        issuer_id: string;
+        match_id: string | null;
+      }>(
+        `SELECT issuer_id, match_id FROM next_round.invitations
+          WHERE token_hash = $1 AND kind = 'registration'`,
+        [invitationHash],
+      );
+      const invitation = pending.rows[0];
+      if (!invitation)
+        throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+      await lockPrincipals(client, [invitation.issuer_id]);
+      const issuer = await client.query<{
+        disabled_at: Date | null;
+        role: "admin" | "member";
+        can_invite_registrations: boolean;
+      }>(
+        `SELECT p.disabled_at, a.role, a.can_invite_registrations
+           FROM next_round.principals p JOIN next_round.accounts a ON a.principal_id = p.id
+          WHERE p.id = $1`,
+        [invitation.issuer_id],
+      );
+      const issuerRow = issuer.rows[0];
+      if (
+        !issuerRow ||
+        issuerRow.disabled_at ||
+        (issuerRow.role !== "admin" && !issuerRow.can_invite_registrations)
+      ) {
+        throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+      }
+      if (invitation.match_id) {
+        const activeMembership = await client.query(
+          `SELECT 1 FROM next_round.match_members
+            WHERE match_id = $1 AND principal_id = $2 AND status = 'active'`,
+          [invitation.match_id, invitation.issuer_id],
+        );
+        if (!activeMembership.rowCount) {
+          throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+        }
+      }
+      const consumed = await client.query(
+        `UPDATE next_round.invitations SET status='accepted',consumed_at=now()
+          WHERE token_hash=$1 AND kind='registration' AND status='pending'
+            AND expires_at>clock_timestamp() RETURNING id`,
+        [invitationHash],
+      );
+      if (!consumed.rowCount)
+        throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+      const principalResult = await client.query<{
+        id: string;
+        display_name: string;
+      }>(
+        `INSERT INTO next_round.principals(kind,display_name) VALUES('registered',$1) RETURNING id,display_name`,
+        [displayName],
+      );
+      const principalId = principalResult.rows[0]!.id;
+      await client.query(
+        "UPDATE next_round.invitations SET consumed_by=$2 WHERE id=$1",
+        [consumed.rows[0]!.id, principalId],
+      );
+      await client.query(
+        `INSERT INTO next_round.accounts(principal_id,username,password_hash) VALUES($1,$2,$3)`,
+        [principalId, username.normalized, passwordHash],
+      );
+      let destination: { matchId: string; invitationId: string } | null = null;
+      if (invitation.match_id) {
+        const target = await client.query<{ id: string }>(
+          `INSERT INTO next_round.invitations(kind,issuer_id,recipient_id,match_id,status,expires_at)
+           VALUES('member',$1,$2,$3,'pending',now()+interval '7 days') RETURNING id`,
+          [invitation.issuer_id, principalId, invitation.match_id],
+        );
+        destination = {
+          matchId: invitation.match_id,
+          invitationId: target.rows[0]!.id,
+        };
+      }
+      const { rawToken: rawSessionToken, tokenHash } =
+        generateOpaqueSessionToken();
+      const { rawToken: rawCsrfToken, csrfHash } = generateCsrfToken();
+      const now = Date.now();
+      const expiresAt = new Date(now + SESSION_IDLE_EXPIRY_MS);
+      const absolute = new Date(now + SESSION_ABSOLUTE_EXPIRY_MS);
+      await client.query(
+        `INSERT INTO next_round.sessions(principal_id,token_hash,csrf_hash,auth_epoch,idle_expires_at,absolute_expires_at)
+         VALUES($1,$2,$3,0,$4,$5)`,
+        [principalId, tokenHash, csrfHash, expiresAt, absolute],
+      );
+      await client.query(
+        `INSERT INTO next_round.audit_log(actor_id,action,target_type,target_id,safe_metadata)
+         VALUES($1,'registration.redeemed','invitation',$2,$3::jsonb)`,
+        [principalId, consumed.rows[0]!.id, JSON.stringify({ commandId })],
+      );
+      await client.query("COMMIT");
+      return {
+        principal: {
+          id: principalId,
+          kind: "registered",
+          displayName,
+          username: username.normalized,
+        },
+        permissions: {
+          isAdmin: false,
+          canInviteRegistrations: false,
+          canInviteGuests: false,
+        },
+        rawSessionToken,
+        rawCsrfToken,
+        expiresAt: expiresAt.toISOString(),
+        destination,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      if (
+        error !== null &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "23505"
+      ) {
+        throw new ApiError(
+          ERROR_CODES.RULE_REJECTED,
+          "Registration could not be completed.",
+        );
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 
-  async authenticate(rawSessionToken: string | undefined): Promise<AuthenticatedSession> {
+  async redeemSignInToken(
+    token: string,
+    commandId: string,
+  ): Promise<LoginResult> {
+    const tokenHash = hashSessionToken(token);
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const found = await client.query<{
+        principal_id: string;
+        issuer_id: string;
+      }>(
+        `SELECT principal_id,issuer_id FROM next_round.auth_tokens WHERE token_hash=$1 AND kind='signin'`,
+        [tokenHash],
+      );
+      const candidate = found.rows[0];
+      if (!candidate)
+        throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+      await lockPrincipals(client, [
+        candidate.principal_id,
+        candidate.issuer_id,
+      ]);
+      const account = await client.query<AccountRow>(
+        `SELECT p.id AS principal_id,p.kind,p.display_name,p.disabled_at,p.auth_epoch,
+                a.username,a.password_hash,a.role,a.can_invite_registrations,a.can_invite_guests
+           FROM next_round.principals p JOIN next_round.accounts a ON a.principal_id=p.id
+          WHERE p.id=$1 AND p.disabled_at IS NULL`,
+        [candidate.principal_id],
+      );
+      const consumed = await client.query(
+        `UPDATE next_round.auth_tokens SET used_at=now()
+          WHERE token_hash=$1 AND kind='signin' AND used_at IS NULL AND revoked_at IS NULL
+            AND expires_at>clock_timestamp()`,
+        [tokenHash],
+      );
+      if (!account.rowCount || consumed.rowCount !== 1)
+        throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+      const result = await this.createSession(client, account.rows[0]!);
+      await client.query(
+        `INSERT INTO next_round.audit_log(actor_id,action,target_type,target_id,safe_metadata)
+         VALUES($1,'signin_token.redeemed','principal',$2,$3::jsonb)`,
+        [
+          candidate.principal_id,
+          candidate.principal_id,
+          JSON.stringify({ commandId }),
+        ],
+      );
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async redeemResetToken(
+    token: string,
+    password: string,
+    commandId: string,
+  ): Promise<void> {
+    if (!validatePassword(password).valid)
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Password is invalid.");
+    const passwordHash = await hashPassword(password);
+    const tokenHash = hashSessionToken(token);
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const found = await client.query<{
+        principal_id: string;
+        issuer_id: string;
+      }>(
+        `SELECT principal_id,issuer_id FROM next_round.auth_tokens WHERE token_hash=$1 AND kind='reset'`,
+        [tokenHash],
+      );
+      const candidate = found.rows[0];
+      if (!candidate)
+        throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+      await lockPrincipals(client, [
+        candidate.principal_id,
+        candidate.issuer_id,
+      ]);
+      const consumed = await client.query(
+        `UPDATE next_round.auth_tokens SET used_at=now()
+          WHERE token_hash=$1 AND kind='reset' AND used_at IS NULL AND revoked_at IS NULL
+            AND expires_at>clock_timestamp()`,
+        [tokenHash],
+      );
+      if (consumed.rowCount !== 1)
+        throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+      await client.query(
+        `UPDATE next_round.accounts SET password_hash=$2,updated_at=now() WHERE principal_id=$1`,
+        [candidate.principal_id, passwordHash],
+      );
+      await client.query(
+        `UPDATE next_round.principals SET auth_epoch=auth_epoch+1,updated_at=now() WHERE id=$1`,
+        [candidate.principal_id],
+      );
+      await client.query(
+        `UPDATE next_round.sessions SET revoked_at=now() WHERE principal_id=$1 AND revoked_at IS NULL`,
+        [candidate.principal_id],
+      );
+      await client.query(
+        `UPDATE next_round.auth_tokens SET revoked_at=now()
+          WHERE principal_id=$1 AND kind IN ('signin','reset') AND used_at IS NULL AND revoked_at IS NULL`,
+        [candidate.principal_id],
+      );
+      await client.query(
+        `INSERT INTO next_round.audit_log(actor_id,action,target_type,target_id,safe_metadata)
+         VALUES($1,'password.reset_completed','principal',$2,$3::jsonb)`,
+        [
+          candidate.principal_id,
+          candidate.principal_id,
+          JSON.stringify({ commandId }),
+        ],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async createSession(
+    client: TransactionClient,
+    account: AccountRow,
+  ): Promise<LoginResult> {
+    const { rawToken: rawSessionToken, tokenHash } =
+      generateOpaqueSessionToken();
+    const { rawToken: rawCsrfToken, csrfHash } = generateCsrfToken();
+    const now = Date.now();
+    const expiresAt = new Date(now + SESSION_IDLE_EXPIRY_MS);
+    const absolute = new Date(now + SESSION_ABSOLUTE_EXPIRY_MS);
+    await client.query(
+      `INSERT INTO next_round.sessions(principal_id,token_hash,csrf_hash,auth_epoch,idle_expires_at,absolute_expires_at)
+       VALUES($1,$2,$3,$4,$5,$6)`,
+      [
+        account.principal_id,
+        tokenHash,
+        csrfHash,
+        account.auth_epoch,
+        expiresAt,
+        absolute,
+      ],
+    );
+    return {
+      principal: principalView(account),
+      permissions: permissions(account),
+      rawSessionToken,
+      rawCsrfToken,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  async authenticate(
+    rawSessionToken: string | undefined,
+  ): Promise<AuthenticatedSession> {
     if (!rawSessionToken) {
-      throw new ApiError(ERROR_CODES.AUTH_REQUIRED, "Authentication is required.");
+      throw new ApiError(
+        ERROR_CODES.AUTH_REQUIRED,
+        "Authentication is required.",
+      );
     }
     const tokenHash = hashSessionToken(rawSessionToken);
     const result = await this.pool.query<SessionRow>(
@@ -326,7 +689,10 @@ export class AuthService {
     );
     const row = result.rows[0];
     if (!row) {
-      throw new ApiError(ERROR_CODES.AUTH_REQUIRED, "Authentication is required.");
+      throw new ApiError(
+        ERROR_CODES.AUTH_REQUIRED,
+        "Authentication is required.",
+      );
     }
     if (
       row.revoked_at ||
@@ -340,11 +706,23 @@ export class AuthService {
     }
 
     let expiresAt = row.idle_expires_at;
-    if (Date.now() - row.last_seen_at.getTime() >= SESSION_IDLE_REFRESH_THRESHOLD_MS) {
+    if (
+      Date.now() - row.last_seen_at.getTime() >=
+      SESSION_IDLE_REFRESH_THRESHOLD_MS
+    ) {
       const refreshed = await this.pool.query<{ idle_expires_at: Date }>(
         `UPDATE next_round.sessions
             SET last_seen_at = now(),
-                idle_expires_at = LEAST(now() + interval '7 days', absolute_expires_at)
+                idle_expires_at = LEAST(
+                  now() + CASE
+                    WHEN EXISTS (
+                      SELECT 1 FROM next_round.principals p
+                       WHERE p.id = sessions.principal_id AND p.kind = 'guest'
+                    ) THEN interval '30 days'
+                    ELSE interval '7 days'
+                  END,
+                  absolute_expires_at
+                )
           WHERE id = $1
             AND revoked_at IS NULL
             AND idle_expires_at > clock_timestamp()
@@ -366,8 +744,14 @@ export class AuthService {
     };
   }
 
-  verifyCsrf(session: AuthenticatedSession, rawCsrfToken: string | undefined): void {
-    if (!rawCsrfToken || !timingSafeEqualBuffers(session.csrfHash, hashCsrfToken(rawCsrfToken))) {
+  verifyCsrf(
+    session: AuthenticatedSession,
+    rawCsrfToken: string | undefined,
+  ): void {
+    if (
+      !rawCsrfToken ||
+      !timingSafeEqualBuffers(session.csrfHash, hashCsrfToken(rawCsrfToken))
+    ) {
       throw new ApiError(ERROR_CODES.FORBIDDEN, "CSRF token is invalid.");
     }
   }
@@ -379,7 +763,10 @@ export class AuthService {
       await client.query("BEGIN");
       await lockPrincipals(client, [session.principal.id]);
       await recheckSession(client, session);
-      await client.query("UPDATE next_round.sessions SET csrf_hash = $1 WHERE id = $2", [csrfHash, session.id]);
+      await client.query(
+        "UPDATE next_round.sessions SET csrf_hash = $1 WHERE id = $2",
+        [csrfHash, session.id],
+      );
       await client.query("COMMIT");
       return rawToken;
     } catch (error) {
@@ -396,7 +783,10 @@ export class AuthService {
       await client.query("BEGIN");
       await lockPrincipals(client, [session.principal.id]);
       await recheckSession(client, session);
-      await client.query("UPDATE next_round.sessions SET revoked_at = now() WHERE id = $1", [session.id]);
+      await client.query(
+        "UPDATE next_round.sessions SET revoked_at = now() WHERE id = $1",
+        [session.id],
+      );
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -406,7 +796,11 @@ export class AuthService {
     }
   }
 
-  async authorizeGame(session: AuthenticatedSession, gameId?: string, version?: string): Promise<void> {
+  async authorizeGame(
+    session: AuthenticatedSession,
+    gameId?: string,
+    version?: string,
+  ): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -421,7 +815,8 @@ export class AuthService {
               AND m.module_id = $2 AND m.module_version = $3`,
           [session.principal.id, gameId ?? null, version ?? null],
         );
-        if (pinned.rowCount !== 1) throw new ApiError(ERROR_CODES.FORBIDDEN, "Access is not permitted.");
+        if (pinned.rowCount !== 1)
+          throw new ApiError(ERROR_CODES.FORBIDDEN, "Access is not permitted.");
       }
       await client.query("COMMIT");
     } catch (error) {
@@ -432,9 +827,21 @@ export class AuthService {
     }
   }
 
-  async setUserDisabled(actor: AuthenticatedSession, principalId: string, disabled: boolean): Promise<PrincipalView> {
+  async setUserDisabled(
+    actor: AuthenticatedSession,
+    principalId: string,
+    disabled?: boolean,
+    changes: {
+      role?: "admin" | "member";
+      canInviteRegistrations?: boolean;
+      canInviteGuests?: boolean;
+    } = {},
+  ): Promise<PrincipalView & { disabled: boolean }> {
     if (!actor.permissions.isAdmin) {
-      throw new ApiError(ERROR_CODES.FORBIDDEN, "Administrator access is required.");
+      throw new ApiError(
+        ERROR_CODES.FORBIDDEN,
+        "Administrator access is required.",
+      );
     }
 
     const client = await this.pool.connect();
@@ -443,7 +850,11 @@ export class AuthService {
       const adminCandidates = await client.query<{ principal_id: string }>(
         "SELECT principal_id FROM next_round.accounts WHERE role = 'admin'",
       );
-      await lockPrincipals(client, [actor.principal.id, principalId, ...adminCandidates.rows.map((row) => row.principal_id)]);
+      await lockPrincipals(client, [
+        actor.principal.id,
+        principalId,
+        ...adminCandidates.rows.map((row) => row.principal_id),
+      ]);
       await recheckSession(client, actor, { registered: true, admin: true });
       const enabledAdmins = await client.query<{ principal_id: string }>(
         `SELECT a.principal_id
@@ -459,9 +870,12 @@ export class AuthService {
         display_name: string;
         username: string;
         role: "admin" | "member";
+        can_invite_registrations: boolean;
+        can_invite_guests: boolean;
         disabled_at: Date | null;
       }>(
-        `SELECT p.id AS principal_id, p.kind, p.display_name, p.disabled_at, a.username, a.role
+        `SELECT p.id AS principal_id, p.kind, p.display_name, p.disabled_at, a.username, a.role,
+                a.can_invite_registrations, a.can_invite_guests
            FROM next_round.principals p
            JOIN next_round.accounts a ON a.principal_id = p.id
           WHERE p.id = $1
@@ -472,36 +886,112 @@ export class AuthService {
       if (!target) {
         throw new ApiError(ERROR_CODES.NOT_FOUND, "User was not found.");
       }
-      if (disabled && !target.disabled_at && target.role === "admin" && enabledAdmins.rowCount === 1) {
-        throw new ApiError(ERROR_CODES.RULE_REJECTED, "The last enabled administrator cannot be disabled.");
-      }
-
-      if (disabled !== Boolean(target.disabled_at)) {
-        await client.query(
-          `UPDATE next_round.principals
-              SET disabled_at = CASE WHEN $2 THEN now() ELSE NULL END,
-                  auth_epoch = auth_epoch + 1,
-                  updated_at = now()
-            WHERE id = $1`,
-          [principalId, disabled],
+      const nextDisabled = disabled ?? Boolean(target.disabled_at);
+      const nextRole = changes.role ?? target.role;
+      if (
+        (nextDisabled || nextRole !== "admin") &&
+        !target.disabled_at &&
+        target.role === "admin" &&
+        enabledAdmins.rowCount === 1
+      ) {
+        throw new ApiError(
+          ERROR_CODES.RULE_REJECTED,
+          "The last enabled administrator cannot be removed.",
         );
-        if (disabled) {
-          await client.query(
-            "UPDATE next_round.sessions SET revoked_at = now() WHERE principal_id = $1 AND revoked_at IS NULL",
-            [principalId],
-          );
-          await client.query(
-            `UPDATE next_round.invitations
-                SET status = 'revoked'
-              WHERE status = 'pending' AND (issuer_id = $1 OR recipient_id = $1)`,
-            [principalId],
-          );
-        }
+      }
+      const nextCanInviteRegistrations =
+        changes.canInviteRegistrations ?? target.can_invite_registrations;
+      const registrationPermissionLost =
+        (target.role === "admin" || target.can_invite_registrations) &&
+        nextRole !== "admin" &&
+        !nextCanInviteRegistrations;
+      const nextCanInviteGuests =
+        changes.canInviteGuests ?? target.can_invite_guests;
+      const guestPermissionLost =
+        (target.role === "admin" || target.can_invite_guests) &&
+        nextRole !== "admin" &&
+        !nextCanInviteGuests;
+      const disabledChanged = nextDisabled !== Boolean(target.disabled_at);
+      const permissionChanged =
+        nextRole !== target.role ||
+        (changes.canInviteRegistrations !== undefined &&
+          changes.canInviteRegistrations !== target.can_invite_registrations) ||
+        (changes.canInviteGuests !== undefined &&
+          changes.canInviteGuests !== target.can_invite_guests);
+      await client.query(
+        `UPDATE next_round.principals
+            SET disabled_at = CASE WHEN $2 THEN COALESCE(disabled_at,now()) ELSE NULL END,
+                auth_epoch = auth_epoch + CASE WHEN $3 THEN 1 ELSE 0 END,
+                updated_at = now()
+          WHERE id = $1`,
+        [principalId, nextDisabled, disabledChanged],
+      );
+      await client.query(
+        `UPDATE next_round.accounts
+            SET role=$2,
+                can_invite_registrations=COALESCE($3,can_invite_registrations),
+                can_invite_guests=COALESCE($4,can_invite_guests),
+                updated_at=now()
+          WHERE principal_id=$1`,
+        [
+          principalId,
+          nextRole,
+          changes.canInviteRegistrations ?? null,
+          changes.canInviteGuests ?? null,
+        ],
+      );
+      if (disabledChanged && nextDisabled) {
         await client.query(
-          `INSERT INTO next_round.audit_log
-             (actor_id, action, target_type, target_id, safe_metadata)
-           VALUES ($1, 'user.disabled_changed', 'principal', $2, $3::jsonb)`,
-          [actor.principal.id, principalId, JSON.stringify({ disabled })],
+          "UPDATE next_round.sessions SET revoked_at=now() WHERE principal_id=$1 AND revoked_at IS NULL",
+          [principalId],
+        );
+        await client.query(
+          `UPDATE next_round.invitations SET status='revoked'
+            WHERE status='pending' AND (issuer_id=$1 OR recipient_id=$1)`,
+          [principalId],
+        );
+      }
+      if (registrationPermissionLost || (disabledChanged && nextDisabled)) {
+        await client.query(
+          `UPDATE next_round.invitations SET status='revoked'
+            WHERE issuer_id=$1 AND kind='registration' AND status='pending'`,
+          [principalId],
+        );
+      }
+      if (guestPermissionLost || (disabledChanged && nextDisabled)) {
+        await client.query(
+          `UPDATE next_round.invitations SET status='revoked'
+            WHERE issuer_id=$1 AND kind='guest' AND status='pending'`,
+          [principalId],
+        );
+      }
+      if (
+        disabledChanged ||
+        registrationPermissionLost ||
+        guestPermissionLost ||
+        permissionChanged
+      ) {
+        await client.query(
+          `UPDATE next_round.auth_tokens SET revoked_at=now()
+            WHERE (issuer_id=$1 OR principal_id=$1) AND used_at IS NULL AND revoked_at IS NULL`,
+          [principalId],
+        );
+        await client.query(
+          `INSERT INTO next_round.audit_log(actor_id,action,target_type,target_id,safe_metadata)
+           VALUES($1,'user.access_changed','principal',$2,$3::jsonb)`,
+          [
+            actor.principal.id,
+            principalId,
+            JSON.stringify({
+              disabled: nextDisabled,
+              role: nextRole,
+              canInviteRegistrations:
+                changes.canInviteRegistrations ??
+                target.can_invite_registrations,
+              canInviteGuests:
+                changes.canInviteGuests ?? target.can_invite_guests,
+            }),
+          ],
         );
       }
       await client.query("COMMIT");
@@ -510,6 +1000,7 @@ export class AuthService {
         kind: target.kind,
         displayName: target.display_name,
         username: target.username,
+        disabled: nextDisabled,
       };
     } catch (error) {
       await client.query("ROLLBACK");

@@ -9,7 +9,9 @@ import {
   AuthService,
   checkModuleRetentionReadiness,
   defaultGameRegistry,
+  InvitationService,
   MatchService,
+  TokenService,
   verifyModuleRetentionReadiness,
   type GameRegistry,
 } from "@next-round/platform";
@@ -21,12 +23,25 @@ import swagger from "@fastify/swagger";
 import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
-import { parseTrustedProxies, requireAppOrigin, requireSessionSecret, validateSetupToken } from "./config.js";
+import {
+  parseTrustedProxies,
+  requireAppOrigin,
+  requireSessionSecret,
+  validateSetupToken,
+} from "./config.js";
 import type { TrustedProxies } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
-import { adminGameRoutes, gameAssetRoutes, gameManifestRoutes } from "./routes/games.js";
+import {
+  adminGameRoutes,
+  gameAssetRoutes,
+  gameManifestRoutes,
+} from "./routes/games.js";
 import { matchRoutes } from "./routes/matches.js";
+import { tokenRoutes } from "./routes/tokens.js";
+import { invitationRoutes } from "./routes/invitations.js";
+import { sharedRoutes } from "./routes/shared.js";
+import { maintenanceRoutes } from "./routes/maintenance.js";
 import type { HealthCheckOptions } from "./routes/health.js";
 import { loadTestCounterFixtureIfEnabled } from "./test-counter-fixture.js";
 import { LiveService, liveRoutes, type LiveSweepStats } from "./live/index.js";
@@ -57,7 +72,7 @@ export interface ServerOptions extends HealthCheckOptions {
  * Configures security, cookies, WebSockets, rate limiting, static assets, and health checks.
  */
 export async function buildServer(
-  options: ServerOptions = {}
+  options: ServerOptions = {},
 ): Promise<FastifyInstance> {
   const trustProxy = parseTrustedProxies(options.trustProxy);
   const cookieSecret = requireSessionSecret(options.cookieSecret);
@@ -73,36 +88,44 @@ export async function buildServer(
   }
   const authService = new AuthService(databasePool, setupToken);
   const matchService = new MatchService(databasePool, gameRegistry);
+  const tokenService = new TokenService(databasePool);
+  const invitationService = new InvitationService(
+    databasePool,
+    matchService,
+    origin,
+  );
   const ownsDatabasePool = options.databasePool === undefined;
 
   const checkRegistry =
     options.checkRegistry ??
     (async () => {
       try {
-        const result = await checkModuleRetentionReadiness(databasePool, gameRegistry);
+        const result = await checkModuleRetentionReadiness(
+          databasePool,
+          gameRegistry,
+        );
         return result.ready;
       } catch {
         return false;
       }
     });
-  const loggerConfig: FastifyServerOptions["logger"] =
-    options.logger ?? {
-      level: process.env.LOG_LEVEL || "info",
-      redact: {
-        paths: [
-          "req.headers.authorization",
-          "req.headers.cookie",
-          "req.url",
-          "headers.authorization",
-          "headers.cookie",
-          "*.password",
-          "*.token",
-          "*.setupToken",
-          "*.secret",
-        ],
-        censor: "[REDACTED]",
-      },
-    };
+  const loggerConfig: FastifyServerOptions["logger"] = options.logger ?? {
+    level: process.env.LOG_LEVEL || "info",
+    redact: {
+      paths: [
+        "req.headers.authorization",
+        "req.headers.cookie",
+        "req.url",
+        "headers.authorization",
+        "headers.cookie",
+        "*.password",
+        "*.token",
+        "*.setupToken",
+        "*.secret",
+      ],
+      censor: "[REDACTED]",
+    },
+  };
 
   const app = Fastify({
     logger: loggerConfig,
@@ -122,7 +145,10 @@ export async function buildServer(
         ? error.statusCode
         : undefined;
     if (statusCode === 429) {
-      const rateLimitError = new ApiError(ERROR_CODES.RATE_LIMITED, "Too many requests.");
+      const rateLimitError = new ApiError(
+        ERROR_CODES.RATE_LIMITED,
+        "Too many requests.",
+      );
       return reply
         .status(rateLimitError.statusCode)
         .send(rateLimitError.toResponse(request.id));
@@ -130,9 +156,17 @@ export async function buildServer(
     // Driver error details and reducer messages can contain private input/state.
     // The request logger already supplies the correlation ID; never serialize
     // arbitrary errors (including their message, stack, detail or cause).
-    request.log.error({ code: ERROR_CODES.INTERNAL_ERROR }, "Unhandled API request error");
-    const apiError = new ApiError(ERROR_CODES.INTERNAL_ERROR, "An internal error occurred.");
-    return reply.status(apiError.statusCode).send(apiError.toResponse(request.id));
+    request.log.error(
+      { code: ERROR_CODES.INTERNAL_ERROR },
+      "Unhandled API request error",
+    );
+    const apiError = new ApiError(
+      ERROR_CODES.INTERNAL_ERROR,
+      "An internal error occurred.",
+    );
+    return reply
+      .status(apiError.statusCode)
+      .send(apiError.toResponse(request.id));
   });
 
   if (ownsDatabasePool) {
@@ -234,12 +268,44 @@ export async function buildServer(
   await app.register(authRoutes, {
     prefix: "/api/v1",
     authService,
+    tokenService,
+    origin,
+  });
+  await app.register(tokenRoutes, {
+    prefix: "/api/v1",
+    tokenService,
+    authService,
     origin,
   });
   await app.register(matchRoutes, {
     prefix: "/api/v1",
     authService,
     matchService,
+    origin,
+  });
+  await app.register(invitationRoutes, {
+    prefix: "/api/v1",
+    databasePool,
+    authService,
+    matchService,
+    invitationService,
+    registry: gameRegistry,
+    origin,
+  });
+  await app.register(sharedRoutes, {
+    prefix: "/api/v1",
+    databasePool,
+    authService,
+    matchService,
+    registry: gameRegistry,
+    origin,
+  });
+  await app.register(maintenanceRoutes, {
+    prefix: "/api/v1",
+    databasePool,
+    authService,
+    matchService,
+    registry: gameRegistry,
     origin,
   });
 

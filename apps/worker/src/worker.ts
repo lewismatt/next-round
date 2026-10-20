@@ -27,7 +27,12 @@ function isUuid(value: unknown): value is string {
 }
 
 export function safeErrorCode(err: unknown): string {
-  if (err && typeof err === "object" && "code" in err && typeof err.code === "string") {
+  if (
+    err &&
+    typeof err === "object" &&
+    "code" in err &&
+    typeof err.code === "string"
+  ) {
     if (Object.hasOwn(KNOWN_ERROR_CODES, err.code)) {
       return err.code;
     }
@@ -37,7 +42,6 @@ export function safeErrorCode(err: unknown): string {
   }
   return "INTERNAL_ERROR";
 }
-
 
 export interface WorkerOptions {
   connectionString?: string;
@@ -79,6 +83,7 @@ export interface DeadlineSchedulePayload {
 export interface LiveInvalidatePayload {
   scope:
     | { kind: "match"; id: string }
+    | { kind: "chat"; id: string }
     | { kind: "home"; principalId: string }
     | { kind: "notifications"; principalId: string };
   revision: number;
@@ -96,14 +101,25 @@ function isJobWithData<T>(job: unknown): job is BossJob<T> {
   return typeof data === "object" && data !== null;
 }
 
-export function isDeadlineSchedulePayload(payload: unknown): payload is DeadlineSchedulePayload {
+export function isDeadlineSchedulePayload(
+  payload: unknown,
+): payload is DeadlineSchedulePayload {
   if (typeof payload !== "object" || payload === null) return false;
   if (
-    !("matchId" in payload) || !isUuid(payload.matchId) ||
-    !("key" in payload) || typeof payload.key !== "string" || !payload.key.length ||
-    !("generation" in payload) || typeof payload.generation !== "number" || !Number.isSafeInteger(payload.generation) || payload.generation < 0 ||
-    !("dueAt" in payload) || typeof payload.dueAt !== "string" || !Number.isFinite(Date.parse(payload.dueAt)) ||
-    !("eventId" in payload) || !isUuid(payload.eventId)
+    !("matchId" in payload) ||
+    !isUuid(payload.matchId) ||
+    !("key" in payload) ||
+    typeof payload.key !== "string" ||
+    !payload.key.length ||
+    !("generation" in payload) ||
+    typeof payload.generation !== "number" ||
+    !Number.isSafeInteger(payload.generation) ||
+    payload.generation < 0 ||
+    !("dueAt" in payload) ||
+    typeof payload.dueAt !== "string" ||
+    !Number.isFinite(Date.parse(payload.dueAt)) ||
+    !("eventId" in payload) ||
+    !isUuid(payload.eventId)
   ) {
     return false;
   }
@@ -111,7 +127,9 @@ export function isDeadlineSchedulePayload(payload: unknown): payload is Deadline
   return keys.length === 5;
 }
 
-export function isLiveInvalidatePayload(payload: unknown): payload is LiveInvalidatePayload {
+export function isLiveInvalidatePayload(
+  payload: unknown,
+): payload is LiveInvalidatePayload {
   if (typeof payload !== "object" || payload === null) return false;
   if (
     !("revision" in payload) ||
@@ -121,7 +139,11 @@ export function isLiveInvalidatePayload(payload: unknown): payload is LiveInvali
   ) {
     return false;
   }
-  if (!("scope" in payload) || typeof payload.scope !== "object" || payload.scope === null) {
+  if (
+    !("scope" in payload) ||
+    typeof payload.scope !== "object" ||
+    payload.scope === null
+  ) {
     return false;
   }
   const scope = payload.scope;
@@ -129,12 +151,16 @@ export function isLiveInvalidatePayload(payload: unknown): payload is LiveInvali
     return false;
   }
   const scopeKeys = Object.keys(scope);
-  if (scope.kind === "match") {
+  if (scope.kind === "match" || scope.kind === "chat") {
     if (!("id" in scope) || !isUuid(scope.id) || scopeKeys.length !== 2) {
       return false;
     }
   } else if (scope.kind === "home" || scope.kind === "notifications") {
-    if (!("principalId" in scope) || !isUuid(scope.principalId) || scopeKeys.length !== 2) {
+    if (
+      !("principalId" in scope) ||
+      !isUuid(scope.principalId) ||
+      scopeKeys.length !== 2
+    ) {
       return false;
     }
   } else {
@@ -178,7 +204,10 @@ export class WorkerRunner {
 
     const reconcileIntervalMs =
       options.reconcileIntervalMs !== undefined
-        ? parsePositiveIntegerInterval(options.reconcileIntervalMs, "reconcileIntervalMs")
+        ? parsePositiveIntegerInterval(
+            options.reconcileIntervalMs,
+            "reconcileIntervalMs",
+          )
         : parsePositiveIntegerInterval(
             process.env.LIVE_RECONCILE_INTERVAL_MS,
             "LIVE_RECONCILE_INTERVAL_MS",
@@ -276,7 +305,9 @@ export class WorkerRunner {
             await this.drainOverdueAndOutbox();
           });
         } catch (err) {
-          console.error(`[worker] Error in periodic reconciliation: ${safeErrorCode(err)}`);
+          console.error(
+            `[worker] Error in periodic reconciliation: ${safeErrorCode(err)}`,
+          );
         } finally {
           this.isReconciling = false;
           this.notifyWaitersIfIdle();
@@ -419,7 +450,9 @@ export class WorkerRunner {
           generation: data.generation,
         });
       } catch (err) {
-        console.error(`[worker:deadline] Deadline processing failed: ${safeErrorCode(err)}`);
+        console.error(
+          `[worker:deadline] Deadline processing failed: ${safeErrorCode(err)}`,
+        );
         throw err;
       }
     });
@@ -478,7 +511,9 @@ export class WorkerRunner {
    * Selects overdue pending deadline rows in bounded batches and delegates
    * reconciliation to MatchService.processDeadline.
    */
-  public async reconcileDeadlines(batchSize = DEFAULT_BATCH_SIZE): Promise<number> {
+  public async reconcileDeadlines(
+    batchSize = DEFAULT_BATCH_SIZE,
+  ): Promise<number> {
     this.lastReconcileAt = new Date().toISOString();
     this.reconcileCount += 1;
 
@@ -502,7 +537,9 @@ export class WorkerRunner {
       );
       rows = result.rows;
     } catch (err) {
-      console.error(`[worker:reconcile] Error checking overdue deadlines: ${safeErrorCode(err)}`);
+      console.error(
+        `[worker:reconcile] Error checking overdue deadlines: ${safeErrorCode(err)}`,
+      );
       throw err;
     }
 
@@ -516,7 +553,9 @@ export class WorkerRunner {
         });
         totalApplied += applied;
       } catch (err) {
-        console.error(`[worker:reconcile] Error reconciling deadline: ${safeErrorCode(err)}`);
+        console.error(
+          `[worker:reconcile] Error reconciling deadline: ${safeErrorCode(err)}`,
+        );
       }
     }
     return totalApplied;
@@ -526,7 +565,9 @@ export class WorkerRunner {
    * Claim and deliver pending outbox batches using SKIP LOCKED per Master Spec §4.
    * Leases rows with fencing on ack/release using monotonic attempts.
    */
-  public async processOutboxBatch(batchSize = DEFAULT_BATCH_SIZE): Promise<number> {
+  public async processOutboxBatch(
+    batchSize = DEFAULT_BATCH_SIZE,
+  ): Promise<number> {
     let rows: Array<{
       id: string;
       topic: string;
@@ -572,7 +613,9 @@ export class WorkerRunner {
       );
       rows = result.rows;
     } catch (err) {
-      console.error(`[worker:outbox] Error claiming outbox batch: ${safeErrorCode(err)}`);
+      console.error(
+        `[worker:outbox] Error claiming outbox batch: ${safeErrorCode(err)}`,
+      );
       throw err;
     }
 
@@ -589,7 +632,9 @@ export class WorkerRunner {
   /**
    * Drains both overdue deadlines and pending outbox rows in batches until drained.
    */
-  public async drainOverdueAndOutbox(maxBatches = 10): Promise<{ deadlines: number; outbox: number }> {
+  public async drainOverdueAndOutbox(
+    maxBatches = 10,
+  ): Promise<{ deadlines: number; outbox: number }> {
     let totalDeadlines = 0;
     let totalOutbox = 0;
 
@@ -643,10 +688,9 @@ export class WorkerRunner {
         if (!isLiveInvalidatePayload(row.safe_payload)) {
           throw new Error("INVALID_PAYLOAD");
         }
-        await this.pool.query(
-          "SELECT pg_notify('next_round_live', $1)",
-          [JSON.stringify(row.safe_payload)],
-        );
+        await this.pool.query("SELECT pg_notify('next_round_live', $1)", [
+          JSON.stringify(row.safe_payload),
+        ]);
       } else {
         throw new Error("UNKNOWN_TOPIC");
       }
@@ -663,7 +707,9 @@ export class WorkerRunner {
       );
 
       if (ackResult.rowCount === 0) {
-        console.warn(`[worker:outbox] Lease fencing triggered on ack for outbox row id=${row.id}`);
+        console.warn(
+          `[worker:outbox] Lease fencing triggered on ack for outbox row id=${row.id}`,
+        );
         return false;
       }
       return true;

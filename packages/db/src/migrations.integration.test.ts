@@ -288,6 +288,111 @@ describe.skipIf(!testDatabaseUrl)(
         await boss.stop({ graceful: true, timeout: 10_000 });
       }
     }, 60_000);
+    it("commits and rolls back application writes with pg-boss enqueue", async () => {
+      await migrateDatabase({ connectionString });
+      await client.query(`
+        CREATE TABLE next_round.f0_transaction_proof (
+          id uuid PRIMARY KEY
+        )
+      `);
+      const queue = "f0-transaction";
+      const boss = new PgBoss({
+        connectionString,
+        schema: "pgboss",
+        max: 3,
+        migrate: false,
+        schedule: false,
+        supervise: false,
+      });
+      boss.on("error", () => undefined);
+      const transactionDb = {
+        async executeSql(text: string, values?: unknown[]) {
+          const result = await client.query(text, values as unknown[]);
+          return { rows: result.rows };
+        },
+      };
+      try {
+        await boss.start();
+        await boss.createQueue(queue);
+
+        const committedId = randomUUID();
+        await client.query("BEGIN");
+        await client.query(
+          "INSERT INTO next_round.f0_transaction_proof (id) VALUES ($1)",
+          [committedId],
+        );
+        const committedJob = await boss.send(
+          queue,
+          { proofId: committedId, outcome: "commit" },
+          { db: transactionDb },
+        );
+        expect(committedJob).toEqual(expect.any(String));
+        await client.query("COMMIT");
+        expect(
+          (
+            await client.query(
+              "SELECT id FROM next_round.f0_transaction_proof WHERE id = $1",
+              [committedId],
+            )
+          ).rows,
+        ).toEqual([{ id: committedId }]);
+        expect(await boss.findJobs(queue, { id: committedJob! })).toHaveLength(
+          1,
+        );
+
+        const rolledBackId = randomUUID();
+        await client.query("BEGIN");
+        await client.query(
+          "INSERT INTO next_round.f0_transaction_proof (id) VALUES ($1)",
+          [rolledBackId],
+        );
+        const rolledBackJob = await boss.send(
+          queue,
+          { proofId: rolledBackId, outcome: "rollback" },
+          { db: transactionDb },
+        );
+        expect(rolledBackJob).toEqual(expect.any(String));
+        await client.query("ROLLBACK");
+        expect(
+          (
+            await client.query(
+              "SELECT id FROM next_round.f0_transaction_proof WHERE id = $1",
+              [rolledBackId],
+            )
+          ).rows,
+        ).toHaveLength(0);
+        expect(await boss.findJobs(queue, { id: rolledBackJob! })).toHaveLength(
+          0,
+        );
+        // Negative control: omitting the adapter lets the independently pooled
+        // job survive an application rollback, proving the assertion detects decoupling.
+        const uncoupledId = randomUUID();
+        await client.query("BEGIN");
+        await client.query(
+          "INSERT INTO next_round.f0_transaction_proof (id) VALUES ($1)",
+          [uncoupledId],
+        );
+        const uncoupledJob = await boss.send(queue, {
+          proofId: uncoupledId,
+          outcome: "uncoupled-control",
+        });
+        expect(uncoupledJob).toEqual(expect.any(String));
+        await client.query("ROLLBACK");
+        expect(
+          (
+            await client.query(
+              "SELECT id FROM next_round.f0_transaction_proof WHERE id = $1",
+              [uncoupledId],
+            )
+          ).rows,
+        ).toHaveLength(0);
+        expect(await boss.findJobs(queue, { id: uncoupledJob! })).toHaveLength(
+          1,
+        );
+      } finally {
+        await boss.stop({ graceful: true, timeout: 10_000 });
+      }
+    }, 60_000);
 
     it("serializes concurrent runners behind the session lock and applies pending SQL once", async () => {
       const migrationsDirectory = await copyMigrations();
