@@ -75,3 +75,23 @@ section on the work tracker mirrors this file for triage discussion.
   with the F1/F2 authentication and invitation acceptance work.
 - BL-021 and BL-022 are wording corrections for the Sprint 3 summary and the
   Sprint 3 evidence document.
+
+## Next-phase fold-in triage (Larry docs pass, 2026-10-20)
+
+Every open item now has a named home in the remaining phases, so the nits land
+with the work that touches their surface instead of drifting. No state changes:
+each item stays `Open` until its fix actually lands.
+
+- **Sprint 5 (F3 crossword):** BL-025 (obsolete lifecycle notice — same web
+  shell surface F3 builds in), BL-026 and BL-027 (acceptance-script timezone
+  and teardown fixes, while F3 extends those scripts), BL-024 (bounded-worker
+  verification guidance for the F3 matrix runs).
+- **Sprint 6 (F4 stabilization & hardening):** BL-012, BL-013, BL-016, BL-017,
+  BL-018, BL-019 (the auth/session/invitation hardening bundle — the surface a
+  contract review reads end to end), BL-004 and BL-023 (worker reliability:
+  outbox dead-letter, expired rate-bucket cleanup), BL-009 (prompt outbox
+  dispatch), BL-011 (HTTP parser-error contract).
+- **Standalone maintenance (no sprint):** BL-006 (amend spec §8 to the
+  runtime's `APP_ORIGIN` — runtime, Compose and README already agree), BL-007
+  (trace the deprecated pg driver-property caller before any pg major
+  upgrade), BL-008 (CI action majors and runner-image review).
