@@ -72,12 +72,14 @@ FROM next_round.outbox
 WHERE delivered_at IS NULL AND dead_lettered_at IS NULL;
 ```
 
-After repairing the cause, an operator can deliberately retry a parked effect
-by resetting its attempts, dead-letter/error markers, lease and `available_at`
-in one reviewed SQL update. Match deadline and live invalidation effects retain
-their deduplication identity. The periodic sweep discovers the retry even though
-the insert trigger does not fire on updates. This is an operator procedure, not
-a new administrative API.
+After repairing the cause, stop all worker processes and wait for them to exit
+before resetting any attempt counter. This prevents an old in-flight claim from
+matching a reused attempt number. An operator can then deliberately retry a parked
+effect by resetting its attempts, dead-letter/error markers, lease and
+`available_at` in one reviewed SQL update, and restart the workers. Match deadline
+and live invalidation effects retain their deduplication identity. Startup and
+periodic sweeps discover the retry even though the insert trigger does not fire
+on updates. This is an operator procedure, not a new administrative API.
 
 Each recovery sweep deletes at most 500 expired rate-budget rows and 500 expired
 nonaccepted guest invitations, using expiry indexes and bounded row locking.
