@@ -1133,6 +1133,11 @@ export const server: GameServer<CrosswordStateV1, CrosswordView> =
               ...state,
               turn: updatedTurn,
               privateFeedback,
+              // An accepted wrong guess is a voluntary gameplay action, so
+              // it clears the actor's timeout-removal flag (Spec §9 C4).
+              timeoutRemovalEligible: state.timeoutRemovalEligible.filter(
+                (id) => id !== actorMemberId,
+              ),
             };
             if (
               settings.wrongGuessesPerTurn !== null &&

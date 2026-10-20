@@ -708,6 +708,63 @@ describe("crossword rules (Master Spec §9 C2-C4)", () => {
     expect(acted.value.state.timeoutRemovalEligible).toEqual([]);
   });
 
+  it("clears the removal flag when the flagged member's next action is an accepted wrong guess", () => {
+    const members = [
+      member("m1"),
+      member("m2", { joinOrdinal: 2 }),
+      member("m3", { joinOrdinal: 3 }),
+    ];
+    const { ctx, state } = startState({
+      mode: "quick",
+      settings: QUICK_SETTINGS,
+      members,
+    });
+    const passed = apply(ctx, state, {
+      kind: "action",
+      type: "pass",
+      payload: {},
+    });
+    const timedOut = apply(ctx, passed.value.state, {
+      kind: "deadline",
+      deadline: { key: "turn", generation: 2, dueAt: ctx.now },
+    });
+    const timedOutState = timedOut.value.state;
+    expect(timedOutState.timeoutRemovalEligible).toEqual(["m2"]);
+    expect(timedOutState.currentMemberId).toBe("m3");
+
+    const thirdPassed = apply(asActor(ctx, "m3"), timedOutState, {
+      kind: "action",
+      type: "pass",
+      payload: {},
+    });
+    expect(thirdPassed.value.state.currentMemberId).toBe("m1");
+    expect(thirdPassed.value.state.timeoutRemovalEligible).toEqual(["m2"]);
+
+    const hostPassed = apply(asActor(ctx, "m1"), thirdPassed.value.state, {
+      kind: "action",
+      type: "pass",
+      payload: {},
+    });
+    expect(hostPassed.value.state.currentMemberId).toBe("m2");
+    expect(hostPassed.value.state.timeoutRemovalEligible).toEqual(["m2"]);
+    expect(server.authority(ctx, hostPassed.value.state, "m1")
+      .removableMemberIds).toEqual(["m2"]);
+
+    // The wrong guess is accepted (it consumes wrong budget and records
+    // private feedback), so it is a voluntary gameplay action under C4 and
+    // must clear the flag exactly like the pass above does.
+    const guessed = apply(asActor(ctx, "m2"), hostPassed.value.state, {
+      kind: "action",
+      type: "submit_word",
+      payload: { wordId: "1A", answer: "XXXXX" },
+    });
+    const next = guessed.value.state;
+    expect(next.turn?.wrong).toBe(1);
+    expect(next.privateFeedback.m2?.lastWrongGuess).toBe("XXXXX");
+    expect(next.timeoutRemovalEligible).toEqual([]);
+    expect(server.authority(ctx, next, "m1").removableMemberIds).toEqual([]);
+  });
+
   it("ends the obligation of a disabled current player without points", () => {
     const members = [member("m1"), member("m2", { joinOrdinal: 2 })];
     const { ctx, state } = startState({

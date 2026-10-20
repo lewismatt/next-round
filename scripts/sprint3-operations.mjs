@@ -17,6 +17,9 @@ const name = `s3_restore_${randomUUID().replaceAll("-", "")}`;
 const restoredUrl = new URL(source);
 restoredUrl.pathname = `/${name}`;
 const admin = createDatabasePool({ connectionString: source, max: 2 });
+admin.on("error", (error) => {
+  process.stderr.write(`admin pool error: ${error.message}\n`);
+});
 const tables = [
   { name: "principals", order: "t.id::text" },
   { name: "matches", order: "t.id::text" },
@@ -31,6 +34,25 @@ const origin = "http://127.0.0.1:3000";
 let created = false,
   child,
   restoredPool;
+
+/**
+ * Ends a pool and waits until every removed client socket has emitted its
+ * end event. Pool.end() resolves before the sockets finish closing, and
+ * dropping the database in that window terminates a still-closing client,
+ * which the pool then reports as an unhandled 'error' event (57P01) after
+ * the pass line (BL-027). The login-budget fixture drains the same way.
+ */
+async function settlePool(pool) {
+  if (!pool) return;
+  const disconnected = [];
+  pool.on("remove", (client) => {
+    disconnected.push(
+      new Promise((resolve) => client.once("end", resolve)),
+    );
+  });
+  await pool.end();
+  await Promise.all(disconnected);
+}
 
 async function fingerprint(pool, table) {
   const { rows } = await pool.query(
@@ -144,6 +166,9 @@ try {
     connectionString: restoredUrl.href,
     max: 2,
   });
+  restoredPool.on("error", (error) => {
+    process.stderr.write(`restored pool error: ${error.message}\n`);
+  });
   const ledger = await restoredPool.query(
     "SELECT position FROM next_round.schema_migrations",
   );
@@ -208,7 +233,7 @@ try {
     child.kill("SIGTERM");
     await exit;
   }
-  await restoredPool?.end();
+  await settlePool(restoredPool);
   if (created) await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);
-  await admin.end();
+  await settlePool(admin);
 }
