@@ -79,6 +79,19 @@ project ownership or the preserved upstream terms.
   - Pure validators and reducers are verified with deterministic unit tests (`vitest`).
   - Transactional lifecycle paths, concurrency, and recovery are verified against real PostgreSQL instances, not mocks.
   - End-to-end user journeys are verified via Playwright.
+  - **Bounded workers for full local runs (BL-024)**: the harness transport-gate
+    tests (for example the subscription-gate and replay-timeout cases in
+    `packages/game-harness/src/client.test.ts`) assert tight wall-clock bounds
+    against an in-process scripted transport. At Vitest's default parallelism,
+    running the unit suite at the same time as the PostgreSQL integration
+    matrices can starve the event loop and trip those bounds spuriously. For a
+    full local verification (unit suite plus database matrices), bound the
+    workers and record the exact command in the verification notes:
+    ```bash
+    pnpm vitest run --maxWorkers=2
+    ```
+    Do not "fix" a gate failure by widening the timeouts or suppressing the
+    test; re-run bounded first. CI keeps the default parallelism.
 
 ## Workflow
 
