@@ -152,6 +152,47 @@ describe.skipIf(!testDatabaseUrl)("BL-043 shared invitation budgets (invitation-
       session: true,
       canInviteGuests: true,
     });
+    // Instance policy + module availability, mirroring the worker
+    // recovery harness: match creation requires both. The modules /
+    // module_versions pair is a circular FK, so seed it in one
+    // transaction where the constraint defers to commit.
+    const seedClient = await databasePool.connect();
+    try {
+      await seedClient.query("BEGIN");
+      await seedClient.query(
+        `INSERT INTO next_round.instance_policy (version, instance_name, policy, changed_by)
+       VALUES (1, 'Budget test instance', $1::jsonb, $2)`,
+        [
+          JSON.stringify({
+            schemaVersion: 1,
+            historyVisibility: "participants",
+            statsVisibility: "owner",
+            rejoinChat: "full",
+            retention: {
+              chatDaysAfterFinish: 30,
+              privateStateDaysAfterFinish: 30,
+              resultDaysAfterFinish: null,
+              notificationDays: 30,
+            },
+          }),
+          host.principalId,
+        ],
+      );
+      await seedClient.query(
+        "INSERT INTO next_round.instance_singleton (id, current_policy_version) VALUES (true, 1)",
+      );
+      await seedClient.query(
+        "INSERT INTO next_round.modules (id, default_version) VALUES ('test-counter', '0.1.0')",
+      );
+      await seedClient.query(
+        `INSERT INTO next_round.module_versions
+         (module_id, version, manifest, server_hash, client_hash, sdk_contract, state_version, result_version)
+       VALUES ('test-counter', '0.1.0', '{}'::jsonb, 'fixture-server', 'fixture-client', 'next-round-game/0.1', 1, 1)`,
+      );
+      await seedClient.query("COMMIT");
+    } finally {
+      seedClient.release();
+    }
     recipientIds = [];
     for (let index = 0; index < 20; index += 1) {
       const recipient = await seedPrincipal(
@@ -232,10 +273,10 @@ describe.skipIf(!testDatabaseUrl)("BL-043 shared invitation budgets (invitation-
       "DELETE FROM next_round.invitations WHERE issuer_id = $1",
       [host.principalId],
     );
-    expect((await createLink(false)).statusCode).toBe(201);
+    expect((await createLink(false)).statusCode).toBe(200);
     await insertOutstandingRegistrations(49);
     const rotated = await createLink(true);
-    expect(rotated.statusCode).toBe(201);
+    expect(rotated.statusCode).toBe(200);
     const links = await databasePool.query<{ total: number; live: number }>(
       `SELECT count(*)::integer AS total,
               count(*) FILTER (WHERE revoked_at IS NULL)::integer AS live

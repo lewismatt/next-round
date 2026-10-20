@@ -144,6 +144,47 @@ describe.skipIf(!testDatabaseUrl)("BL-039 admin health surface", () => {
     const matchService = new MatchService(databasePool, registry);
     const authService = new AuthService(databasePool, undefined, matchService);
     const hostSession = await authService.authenticate(member.rawToken);
+    // Instance policy + module availability, mirroring the worker
+    // recovery harness: match creation requires both. The modules /
+    // module_versions pair is a circular FK, so seed it in one
+    // transaction where the constraint defers to commit.
+    const seedClient = await databasePool.connect();
+    try {
+      await seedClient.query("BEGIN");
+      await seedClient.query(
+        `INSERT INTO next_round.instance_policy (version, instance_name, policy, changed_by)
+       VALUES (1, 'Health test instance', $1::jsonb, $2)`,
+        [
+          JSON.stringify({
+            schemaVersion: 1,
+            historyVisibility: "participants",
+            statsVisibility: "owner",
+            rejoinChat: "full",
+            retention: {
+              chatDaysAfterFinish: 30,
+              privateStateDaysAfterFinish: 30,
+              resultDaysAfterFinish: null,
+              notificationDays: 30,
+            },
+          }),
+          member.principalId,
+        ],
+      );
+      await seedClient.query(
+        "INSERT INTO next_round.instance_singleton (id, current_policy_version) VALUES (true, 1)",
+      );
+      await seedClient.query(
+        "INSERT INTO next_round.modules (id, default_version) VALUES ('test-counter', '0.1.0')",
+      );
+      await seedClient.query(
+        `INSERT INTO next_round.module_versions
+         (module_id, version, manifest, server_hash, client_hash, sdk_contract, state_version, result_version)
+       VALUES ('test-counter', '0.1.0', '{}'::jsonb, 'fixture-server', 'fixture-client', 'next-round-game/0.1', 1, 1)`,
+      );
+      await seedClient.query("COMMIT");
+    } finally {
+      seedClient.release();
+    }
     const created = await matchService.create(hostSession, {
       commandId: randomUUID(),
       moduleId: "test-counter",
