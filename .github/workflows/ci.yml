@@ -12,15 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js 24 LTS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24.22.0"
 
       - name: Setup pnpm 12.14.0
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: "12.14.0"
 
@@ -78,15 +78,15 @@ jobs:
       DATABASE_DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/next_round
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js 24 LTS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24.22.0"
 
       - name: Setup pnpm 12.14.0
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: "12.14.0"
 
@@ -126,7 +126,7 @@ jobs:
       IMAGE_TAG: next-round-app:ci-${{ github.sha }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build deployment image (target app)
         run: docker build --file deploy/Dockerfile --target app --tag "$IMAGE_TAG" .
@@ -162,10 +162,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js 24 LTS
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24.22.0"
 
