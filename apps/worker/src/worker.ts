@@ -16,6 +16,7 @@ const { Pool } = pg;
 const DEFAULT_RECONCILE_INTERVAL_MS = 10_000;
 const DEFAULT_BATCH_SIZE = 50;
 const OUTBOX_LEASE_DURATION_MS = 30_000;
+const OUTBOX_MAX_ATTEMPTS = 8;
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PG_SQLSTATE_REGEX = /^[0-9A-Z]{5}$/;
@@ -46,6 +47,7 @@ export function safeErrorCode(err: unknown): string {
 
 export interface WorkerOptions {
   connectionString?: string;
+  databaseDirectUrl?: string;
   schema?: string;
   reconcileIntervalMs?: number;
   pool?: pg.Pool;
@@ -179,6 +181,11 @@ export class WorkerRunner {
   private boss: PgBoss | null = null;
   private pool: pg.Pool;
   private ownsPool: boolean;
+  private listener: pg.Client | null = null;
+  private listenerEnabled = false;
+  private wakeupPending = false;
+  private wakeupDraining = false;
+  private reconnectTimer: NodeJS.Timeout | null = null;
   private reconcileTimer: NodeJS.Timeout | null = null;
   private running = false;
   private stopped = false;
@@ -193,6 +200,7 @@ export class WorkerRunner {
   private readonly skipRetentionCheck: boolean;
   private readonly config: {
     connectionString: string;
+    listenerConnectionString: string;
     schema: string;
     reconcileIntervalMs: number;
   };
@@ -217,6 +225,9 @@ export class WorkerRunner {
 
     this.config = {
       connectionString,
+      listenerConnectionString:
+        options.databaseDirectUrl ??
+        (options.connectionString ? connectionString : process.env.DATABASE_DIRECT_URL ?? connectionString),
       schema: options.schema || process.env.PGBOSS_SCHEMA || "pgboss",
       reconcileIntervalMs,
     };
@@ -266,6 +277,76 @@ export class WorkerRunner {
     }
   }
 
+  private requestOutboxDrain(): void {
+    this.wakeupPending = true;
+    if (!this.running || this.wakeupDraining) return;
+    this.wakeupDraining = true;
+    void this.withInFlight(async () => {
+      try {
+        do {
+          this.wakeupPending = false;
+          while (this.running && (await this.dispatchOutboxBatch()).claimed > 0) {
+            // Drain committed backlog without waiting for the recovery interval.
+          }
+        } while (this.running && this.wakeupPending);
+      } catch (err) {
+        console.error(`[worker:outbox] Wakeup drain failed: ${safeErrorCode(err)}`);
+      } finally {
+        this.wakeupDraining = false;
+      }
+    });
+  }
+
+  private async connectOutboxListener(): Promise<void> {
+    if (this.stopped || !this.listenerEnabled) return;
+    const listener = new pg.Client({ connectionString: this.config.listenerConnectionString });
+    this.listener = listener;
+    const reconnect = () => {
+      if (this.listener !== listener || this.stopped || !this.listenerEnabled) return;
+      this.listener = null;
+      void listener.end().catch(() => {});
+      if (this.reconnectTimer) return;
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        void this.connectOutboxListener().catch(() => {
+          reconnect();
+        });
+      }, 1000);
+    };
+    listener.on("error", (err) => {
+      console.error(`[worker:listen] ${safeErrorCode(err)}`);
+      reconnect();
+    });
+    listener.on("end", reconnect);
+    listener.on("notification", () => this.requestOutboxDrain());
+    try {
+      await listener.connect();
+      await listener.query("LISTEN next_round_outbox");
+      this.requestOutboxDrain();
+    } catch (err) {
+      reconnect();
+      throw err;
+    }
+  }
+
+  private async parkExhaustedOutbox(): Promise<void> {
+    const result = await this.pool.query<{ id: string }>(
+      `WITH exhausted AS (
+         SELECT id FROM next_round.outbox
+          WHERE delivered_at IS NULL AND dead_lettered_at IS NULL
+            AND attempts >= $1
+            AND (leased_until IS NULL OR leased_until < clock_timestamp())
+          ORDER BY available_at LIMIT 50 FOR UPDATE SKIP LOCKED
+       )
+       UPDATE next_round.outbox o SET dead_lettered_at = clock_timestamp(),
+         leased_until = NULL, last_error_code = COALESCE(last_error_code, 'ATTEMPTS_EXHAUSTED')
+       FROM exhausted WHERE o.id = exhausted.id RETURNING o.id`,
+      [OUTBOX_MAX_ATTEMPTS],
+    );
+    for (const row of result.rows) {
+      console.error(`[worker:outbox] Dead-lettered exhausted outbox row id=${row.id}`);
+    }
+  }
   /**
    * Initialize pg-boss, register queue workers, and start periodic reconciliation.
    */
@@ -289,11 +370,13 @@ export class WorkerRunner {
     }
 
     try {
+      this.listenerEnabled = true;
       await boss.start();
       console.log(
         `[worker:pg-boss] Started successfully with schema "${this.config.schema}"`,
       );
 
+      await this.connectOutboxListener();
       await this.registerHandlers();
       await this.drainOverdueAndOutbox();
 
@@ -317,6 +400,7 @@ export class WorkerRunner {
       }, this.config.reconcileIntervalMs);
 
       this.running = true;
+      this.requestOutboxDrain();
       this.startedAt = Date.now();
       console.log(
         `[worker] Running. Periodic reconciliation scheduled every ${this.config.reconcileIntervalMs}ms`,
@@ -327,6 +411,12 @@ export class WorkerRunner {
         this.reconcileTimer = null;
       }
       this.running = false;
+      this.listenerEnabled = false;
+      clearTimeout(this.reconnectTimer ?? undefined);
+      this.reconnectTimer = null;
+      const listener = this.listener;
+      this.listener = null;
+      await listener?.end().catch(() => {});
       try {
         await boss.stop({ graceful: false, timeout: 1000 });
       } catch {
@@ -346,9 +436,14 @@ export class WorkerRunner {
       return;
     }
     this.stopped = true;
-
     const wasRunning = this.running;
     this.running = false;
+    this.listenerEnabled = false;
+    clearTimeout(this.reconnectTimer ?? undefined);
+    this.reconnectTimer = null;
+    const listener = this.listener;
+    this.listener = null;
+    await listener?.end().catch(() => {});
 
     if (this.reconcileTimer) {
       clearInterval(this.reconcileTimer);
@@ -469,6 +564,7 @@ export class WorkerRunner {
     }
 
     await this.withInFlight(async () => {
+      await this.parkExhaustedOutbox();
       const { rows } = await this.pool.query<{
         id: string;
         topic: string;
@@ -483,6 +579,8 @@ export class WorkerRunner {
              FROM next_round.outbox
             WHERE id = $1
               AND delivered_at IS NULL
+              AND dead_lettered_at IS NULL
+              AND attempts < ${OUTBOX_MAX_ATTEMPTS}
               AND available_at <= clock_timestamp()
               AND (leased_until IS NULL OR leased_until < clock_timestamp())
             FOR UPDATE SKIP LOCKED
@@ -570,6 +668,13 @@ export class WorkerRunner {
   public async processOutboxBatch(
     batchSize = DEFAULT_BATCH_SIZE,
   ): Promise<number> {
+    return (await this.dispatchOutboxBatch(batchSize)).delivered;
+  }
+
+  private async dispatchOutboxBatch(
+    batchSize = DEFAULT_BATCH_SIZE,
+  ): Promise<{ delivered: number; claimed: number }> {
+    await this.parkExhaustedOutbox();
     let rows: Array<{
       id: string;
       topic: string;
@@ -594,6 +699,8 @@ export class WorkerRunner {
              FROM next_round.outbox
             WHERE delivered_at IS NULL
               AND available_at <= clock_timestamp()
+              AND dead_lettered_at IS NULL
+              AND attempts < ${OUTBOX_MAX_ATTEMPTS}
               AND (leased_until IS NULL OR leased_until < clock_timestamp())
             ORDER BY available_at ASC, created_at ASC
             LIMIT $1
@@ -628,7 +735,7 @@ export class WorkerRunner {
         deliveredCount += 1;
       }
     }
-    return deliveredCount;
+    return { delivered: deliveredCount, claimed: rows.length };
   }
 
   /**
@@ -647,10 +754,24 @@ export class WorkerRunner {
     }
 
     for (let i = 0; i < maxBatches; i += 1) {
-      const delivered = await this.processOutboxBatch();
-      totalOutbox += delivered;
-      if (delivered === 0) break;
+      const result = await this.dispatchOutboxBatch();
+      totalOutbox += result.delivered;
+      if (result.claimed === 0) break;
     }
+    await this.pool.query(
+      `DELETE FROM next_round.rate_buckets WHERE ctid IN (
+         SELECT ctid FROM next_round.rate_buckets
+          WHERE expires_at <= statement_timestamp() ORDER BY expires_at
+          LIMIT 500 FOR UPDATE SKIP LOCKED
+       )`,
+    );
+    await this.pool.query(
+      `DELETE FROM next_round.invitations WHERE id IN (
+         SELECT id FROM next_round.invitations
+          WHERE kind = 'guest' AND status <> 'accepted' AND expires_at <= statement_timestamp()
+          ORDER BY expires_at LIMIT 500 FOR UPDATE SKIP LOCKED
+       )`,
+    );
 
     return { deadlines: totalDeadlines, outbox: totalOutbox };
   }
@@ -704,6 +825,7 @@ export class WorkerRunner {
                 leased_until = NULL
           WHERE id = $1
             AND delivered_at IS NULL
+            AND dead_lettered_at IS NULL
             AND attempts = $2`,
         [row.id, row.attempts],
       );
@@ -716,19 +838,26 @@ export class WorkerRunner {
       }
       return true;
     } catch (err) {
-      console.error(
-        `[worker:outbox] Delivery failed for outbox row id=${row.id}: ${safeErrorCode(err)}`,
-      );
+      // Only the winning fenced transition emits a terminal diagnostic.
       try {
-        await this.pool.query(
+        const released = await this.pool.query(
           `UPDATE next_round.outbox
               SET leased_until = NULL,
+                  last_error_code = $3,
+                  dead_lettered_at = CASE WHEN attempts >= $4 THEN clock_timestamp() ELSE NULL END,
                   available_at = clock_timestamp() + (LEAST(POWER(2, LEAST(attempts, 6)) * 1000, 60000) || ' milliseconds')::interval
             WHERE id = $1
               AND delivered_at IS NULL
-              AND attempts = $2`,
-          [row.id, row.attempts],
+              AND dead_lettered_at IS NULL
+              AND attempts = $2
+            RETURNING dead_lettered_at`,
+          [row.id, row.attempts, safeErrorCode(err), OUTBOX_MAX_ATTEMPTS],
         );
+        if (released.rows[0]?.dead_lettered_at) {
+          console.error(
+            `[worker:outbox] Dead-lettered outbox row id=${row.id}: ${safeErrorCode(err)}`,
+          );
+        }
       } catch (releaseErr) {
         console.error(
           `[worker:outbox] Fatal error releasing lease for outbox row id=${row.id}: ${safeErrorCode(releaseErr)}`,

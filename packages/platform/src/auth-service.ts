@@ -98,6 +98,12 @@ export interface LoginResult {
   expiresAt: string;
 }
 
+interface RedemptionRecovery {
+  session: AuthenticatedSession;
+  rawSessionToken: string;
+  rawCsrfToken: string;
+}
+
 export interface AuthenticatedSession {
   id: string;
   principal: PrincipalView;
@@ -489,6 +495,7 @@ export class AuthService {
     password: string,
     displayNameInput: string,
     commandId: string,
+    recovery?: RedemptionRecovery,
   ): Promise<
     LoginResult & {
       destination: { matchId: string; invitationId: string } | null;
@@ -508,6 +515,12 @@ export class AuthService {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const replay = await this.recoverRedemption(client, "auth.registration.redeem", commandId,
+        token, [usernameInput, password, displayNameInput], recovery);
+      if (replay) {
+        await client.query("COMMIT");
+        return { ...this.recoveredLogin(recovery!), destination: replay.destination ?? null };
+      }
       const pending = await client.query<{
         issuer_id: string;
         match_id: string | null;
@@ -595,6 +608,8 @@ export class AuthService {
          VALUES($1,$2,$3,0,$4,$5)`,
         [principalId, tokenHash, csrfHash, expiresAt, absolute],
       );
+      await this.storeRedemption(client, principalId, "auth.registration.redeem", commandId,
+        token, [usernameInput, password, displayNameInput], rawSessionToken, destination);
       await client.query(
         `INSERT INTO next_round.audit_log(actor_id,action,target_type,target_id,safe_metadata)
          VALUES($1,'registration.redeemed','invitation',$2,$3::jsonb)`,
@@ -627,8 +642,8 @@ export class AuthService {
         error.code === "23505"
       ) {
         throw new ApiError(
-          ERROR_CODES.RULE_REJECTED,
-          "Registration could not be completed.",
+          ERROR_CODES.TOKEN_INVALID,
+          "Token is invalid.",
         );
       }
       throw error;
@@ -640,11 +655,17 @@ export class AuthService {
   async redeemSignInToken(
     token: string,
     commandId: string,
+    recovery?: RedemptionRecovery,
   ): Promise<LoginResult> {
     const tokenHash = hashSessionToken(token);
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const replay = await this.recoverRedemption(client, "auth.signin.redeem", commandId, token, [], recovery);
+      if (replay) {
+        await client.query("COMMIT");
+        return this.recoveredLogin(recovery!);
+      }
       const found = await client.query<{
         principal_id: string;
         issuer_id: string;
@@ -675,6 +696,8 @@ export class AuthService {
       if (!account.rowCount || consumed.rowCount !== 1)
         throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
       const result = await this.createSession(client, account.rows[0]!);
+      await this.storeRedemption(client, candidate.principal_id, "auth.signin.redeem", commandId,
+        token, [], result.rawSessionToken, null);
       await client.query(
         `INSERT INTO next_round.audit_log(actor_id,action,target_type,target_id,safe_metadata)
          VALUES($1,'signin_token.redeemed','principal',$2,$3::jsonb)`,
@@ -698,6 +721,7 @@ export class AuthService {
     token: string,
     password: string,
     commandId: string,
+    recovery?: RedemptionRecovery,
   ): Promise<void> {
     if (!validatePassword(password).valid)
       throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Password is invalid.");
@@ -706,6 +730,11 @@ export class AuthService {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const replay = await this.recoverRedemption(client, "auth.reset.redeem", commandId, token, [password], recovery);
+      if (replay) {
+        await client.query("COMMIT");
+        return;
+      }
       const found = await client.query<{
         principal_id: string;
         issuer_id: string;
@@ -728,10 +757,14 @@ export class AuthService {
       );
       if (consumed.rowCount !== 1)
         throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
-      await client.query(
-        `UPDATE next_round.accounts SET password_hash=$2,updated_at=now() WHERE principal_id=$1`,
+      const updated = await client.query(
+        `UPDATE next_round.accounts a SET password_hash=$2,updated_at=now()
+          FROM next_round.principals p
+          WHERE a.principal_id=$1 AND p.id=a.principal_id AND p.disabled_at IS NULL`,
         [candidate.principal_id, passwordHash],
       );
+      if (updated.rowCount !== 1)
+        throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
       await client.query(
         `UPDATE next_round.principals SET auth_epoch=auth_epoch+1,updated_at=now() WHERE id=$1`,
         [candidate.principal_id],
@@ -754,6 +787,8 @@ export class AuthService {
           JSON.stringify({ commandId }),
         ],
       );
+      await this.storeRedemption(client, candidate.principal_id, "auth.reset.redeem", commandId,
+        token, [password], null, null);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -761,6 +796,55 @@ export class AuthService {
     } finally {
       client.release();
     }
+  }
+
+  private redemptionHash(token: string, fields: string[]): Buffer {
+    // The bearer is the HMAC key, so the receipt cannot be used to guess passwords.
+    return crypto.createHmac("sha256", token).update(JSON.stringify(fields)).digest();
+  }
+
+  private recoveredLogin(recovery: RedemptionRecovery): LoginResult {
+    return { principal: recovery.session.principal, permissions: recovery.session.permissions,
+      rawSessionToken: recovery.rawSessionToken, rawCsrfToken: recovery.rawCsrfToken,
+      expiresAt: recovery.session.expiresAt };
+  }
+
+  private async recoverRedemption(client: TransactionClient, scope: string, commandId: string,
+    token: string, fields: string[], recovery?: RedemptionRecovery): Promise<{
+      destination: { matchId: string; invitationId: string } | null;
+    } | null> {
+    if (!recovery) return null;
+    const prior = await client.query<{ request_hash: Buffer; safe_receipt: {
+      sessionId: string | null; destination: { matchId: string; invitationId: string } | null;
+    } }>(`SELECT request_hash,safe_receipt FROM next_round.command_receipts
+      WHERE principal_id=$1 AND scope=$2 AND command_id=$3`,
+      [recovery.session.principal.id, scope, commandId]);
+    const row = prior.rows[0];
+    if (!row) return null;
+    await lockPrincipals(client, [recovery.session.principal.id]);
+    await recheckSession(client, recovery.session, { registered: true });
+    this.verifyCsrf(recovery.session, recovery.rawCsrfToken);
+    if (!timingSafeEqualBuffers(row.request_hash, this.redemptionHash(token, fields)))
+      throw new ApiError(ERROR_CODES.IDEMPOTENCY_CONFLICT, "Command was already used.");
+    if (row.safe_receipt.sessionId && row.safe_receipt.sessionId !== recovery.session.id)
+      throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+    return { destination: row.safe_receipt.destination };
+  }
+
+  private async storeRedemption(client: TransactionClient, principalId: string, scope: string,
+    commandId: string, token: string, fields: string[], rawSessionToken: string | null,
+    destination: { matchId: string; invitationId: string } | null): Promise<void> {
+    const prior = await client.query(`SELECT 1 FROM next_round.command_receipts
+      WHERE principal_id=$1 AND scope=$2 AND command_id=$3`, [principalId, scope, commandId]);
+    if (prior.rowCount)
+      throw new ApiError(ERROR_CODES.IDEMPOTENCY_CONFLICT, "Command was already used.");
+    const session = rawSessionToken ? await client.query<{ id: string }>(
+      "SELECT id FROM next_round.sessions WHERE token_hash=$1", [hashSessionToken(rawSessionToken)]) : null;
+    await client.query(`INSERT INTO next_round.command_receipts
+      (principal_id,scope,command_id,request_hash,match_id,committed_revision,safe_receipt)
+      VALUES($1,$2,$3,$4,NULL,NULL,$5::jsonb)`,
+      [principalId, scope, commandId, this.redemptionHash(token, fields),
+        JSON.stringify({ sessionId: session?.rows[0]?.id ?? null, destination })]);
   }
 
   private async createSession(

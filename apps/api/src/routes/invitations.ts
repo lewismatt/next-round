@@ -287,9 +287,9 @@ export const invitationRoutes: FastifyPluginAsync<
     requireJsonMutation(request, options.origin);
     await tokenService.checkRedemptionLimit(request.ip);
     const body = parseGuest(request.body);
-    const rawSession =
-      request.cookies[SESSION_COOKIE_NAME] ??
-      request.cookies[SESSION_DEV_COOKIE_NAME];
+    const rawSession = request.cookies[
+      new URL(options.origin).protocol === "https:" ? SESSION_COOKIE_NAME : SESSION_DEV_COOKIE_NAME
+    ];
     let existingSession: AuthenticatedSession | undefined;
     if (rawSession) {
       try {

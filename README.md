@@ -269,6 +269,33 @@ the bridge. The platform mounts the pinned `/games/{id}/{version}/client.js`,
 owns credentials and lifecycle commands, refreshes after stale revisions without
 replaying intent, and renders final projections independently of private state.
 
+Receipt consumers must distinguish command scopes. `game.resource.import`
+receipts deliberately have null `match_id` and `committed_revision`: imports
+version resources without changing a match. Match receipt queries must select
+their own scope rather than treating those columns as universally populated.
+Server packages importing Node built-ins declare `types: ["node"]` and the
+workspace's pinned `@types/node` in their own package.
+
+#### Second-game contract review: simultaneous trivia
+
+This paper review maps a private-answer trivia game to SDK `next-round-game/0.1`;
+it is not an implemented game or a compatibility acceptance test.
+
+| Requirement | Existing contract and game-author responsibility |
+| --- | --- |
+| Private question bank and answers | Import immutable server-private resources. `view` returns the current question and only the viewer's submission; never copy the resource or answer digest into a view or invalidation. |
+| Simultaneous submissions | `needsActionFrom` contains all enabled members still awaiting submission. Each accepted submission uses the shared transaction/revision path. A stale submission requires an authoritative refresh and explicit retry of user intent; the client cannot auto-replay it. |
+| One answer per member per round | Reducer state records answers by member ID and round generation. Duplicate command receipts replay before transition; a new command cannot replace an already accepted answer. |
+| Round timeout and answer reveal | One stable round deadline survives individual submissions unchanged. At expiry, the deadline event closes the round, scores answers and exposes only the now-public explanation. An action at an overdue deadline receives the platform's reconciled revision. |
+| Disconnect, disabled player and late join | Disconnect never leaves. `principal_status` removes disabled obligations without invented answers; the module chooses and documents whether late joiners start next round. All-disabled suspension must preserve round progress explicitly. |
+| Results after private-state pruning | `final` stores per-member scores, outcome, eligibility and public attribution; `resultView` needs no answer bank or retained submissions. `career` derives metrics from the final result. |
+| Version and failure privacy | Pin exact module/assets and immutable resource version. Bump the SDK minor for a breaking contract change; use safe rule codes rather than embedding submitted answers in errors. |
+
+No contract change is required by this design. The serialized revision protocol
+does require explicit conflict UX for simultaneous submissions. A future game
+must prove that UX, private views and timeout races through real transactions
+before broader compatibility is claimed.
+
 ---
 
 ## Quickstart & Local Development

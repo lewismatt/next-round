@@ -154,7 +154,14 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
 
   afterEach(async () => {
     try {
+      const disconnected: Array<Promise<void>> = [];
+      databasePool?.on("remove", (client) => {
+        const { promise, resolve } = Promise.withResolvers<void>();
+        client.once("end", resolve);
+        disconnected.push(promise);
+      });
       await databasePool?.end();
+      await Promise.all(disconnected);
       if (adminPool) {
         await adminPool.query(
           "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
@@ -600,4 +607,102 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
       await worker.stop();
     }
   }, 60_000);
+  it("parks finite failures and crash-exhausted claims across competing workers", async () => {
+    const a = new WorkerRunner({ connectionString, pool: databasePool, registry });
+    const b = new WorkerRunner({ connectionString, pool: databasePool, registry });
+    const id = randomUUID();
+    await databasePool.query(
+      `INSERT INTO next_round.outbox (id, topic, aggregate_id, dedupe_key, safe_payload)
+       VALUES ($1::uuid, 'unknown.private-secret', 'test', $1::text, '{"secret":"never logged"}')`, [id],
+    );
+    for (let attempt = 1; attempt <= 8; attempt += 1) {
+      await Promise.all([a.handleOutbox({ outboxId: id }), b.handleOutbox({ outboxId: id })]);
+      const result = await databasePool.query("SELECT attempts, dead_lettered_at, last_error_code FROM next_round.outbox WHERE id=$1", [id]);
+      expect(result.rows[0].attempts).toBe(attempt);
+      expect(Boolean(result.rows[0].dead_lettered_at)).toBe(attempt === 8);
+      expect(result.rows[0].last_error_code).toBe("INTERNAL_ERROR");
+      await databasePool.query("UPDATE next_round.outbox SET available_at=clock_timestamp() WHERE id=$1", [id]);
+    }
+    await a.handleOutbox({ outboxId: id });
+    expect((await databasePool.query("SELECT attempts FROM next_round.outbox WHERE id=$1", [id])).rows[0].attempts).toBe(8);
+    await databasePool.query("UPDATE next_round.outbox SET dead_lettered_at=NULL, leased_until=clock_timestamp()-interval '1 second' WHERE id=$1", [id]);
+    await b.processOutboxBatch();
+    const parked = (await databasePool.query("SELECT attempts, dead_lettered_at FROM next_round.outbox WHERE id=$1", [id])).rows[0];
+    expect(parked.attempts).toBe(8);
+    expect(parked.dead_lettered_at).not.toBeNull();
+  });
+
+  it("dispatches committed inserts promptly without the periodic sweep and ignores rollbacks", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 600_000 });
+    const client = await databasePool.connect();
+    try {
+      await worker.start();
+      const id = randomUUID();
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO next_round.outbox (id, topic, aggregate_id, dedupe_key, safe_payload)
+         VALUES ($1::uuid, 'live.invalidate', 'test', $1::text, $2)`,
+        [id, JSON.stringify({ scope: { kind: "home", principalId: memberA.principalId }, revision: 1 })],
+      );
+      expect((await databasePool.query("SELECT id FROM next_round.outbox WHERE id=$1", [id])).rows).toHaveLength(0);
+      await client.query("COMMIT");
+      await expect.poll(async () => (await databasePool.query(
+        "SELECT delivered_at IS NOT NULL AS delivered FROM next_round.outbox WHERE id=$1", [id],
+      )).rows[0].delivered, { timeout: 5000 }).toBe(true);
+      const rolledBack = randomUUID();
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO next_round.outbox (id, topic, aggregate_id, dedupe_key, safe_payload)
+         VALUES ($1::uuid, 'unknown', 'test', $1::text, '{}')`, [rolledBack],
+      );
+      await client.query("ROLLBACK");
+      expect((await databasePool.query("SELECT id FROM next_round.outbox WHERE id=$1", [rolledBack])).rows).toHaveLength(0);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("bounds global expiry cleanup and preserves live rate budgets", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry });
+    await databasePool.query(
+      `INSERT INTO next_round.rate_buckets (key_hash, window_start, expires_at)
+       SELECT decode(md5(n::text), 'hex'), clock_timestamp(), clock_timestamp()-interval '1 day'
+       FROM generate_series(1, 601) n`,
+    );
+    await databasePool.query(
+      `INSERT INTO next_round.rate_buckets (key_hash, window_start, expires_at)
+       VALUES (decode(md5('live'), 'hex'), clock_timestamp(), clock_timestamp()+interval '1 day')`,
+    );
+    await worker.drainOverdueAndOutbox();
+    expect((await databasePool.query("SELECT count(*)::integer AS count FROM next_round.rate_buckets")).rows[0].count).toBe(102);
+    await worker.drainOverdueAndOutbox();
+    expect((await databasePool.query("SELECT count(*)::integer AS count FROM next_round.rate_buckets")).rows[0].count).toBe(1);
+  });
+  it("continues past a failed-only batch and collects only expired unaccepted guests", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry });
+    await databasePool.query(
+      `INSERT INTO next_round.outbox (topic, aggregate_id, dedupe_key, safe_payload)
+       SELECT 'unknown', 'test', 'failed-'||n, '{}' FROM generate_series(1, 51) n`,
+    );
+    await databasePool.query(
+      `INSERT INTO next_round.invitations (kind, issuer_id, status, expires_at)
+       VALUES ('guest', $1, 'pending', clock_timestamp()-interval '1 day'),
+              ('guest', $1, 'accepted', clock_timestamp()-interval '1 day'),
+              ('guest', $1, 'pending', clock_timestamp()+interval '1 day'),
+              ('registration', $1, 'pending', clock_timestamp()-interval '1 day')`,
+      [memberA.principalId],
+    );
+    await worker.drainOverdueAndOutbox();
+    expect((await databasePool.query("SELECT count(*)::integer AS count FROM next_round.outbox WHERE attempts=1")).rows[0].count).toBe(51);
+    const invitations = await databasePool.query(
+      "SELECT kind, status FROM next_round.invitations ORDER BY kind, status",
+    );
+    expect(invitations.rows).toEqual([
+      { kind: "guest", status: "accepted" },
+      { kind: "guest", status: "pending" },
+      { kind: "registration", status: "pending" },
+    ]);
+  });
 });

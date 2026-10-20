@@ -37,6 +37,20 @@ let primaryError;
 let environment;
 let environment2;
 let origin;
+// Pool.end() can resolve before removed clients' sockets emit end. Match the
+// restore runner's drain so DROP cannot terminate a still-closing idle client.
+async function settlePool(pool) {
+  if (!pool) return;
+  const disconnected = [];
+  pool.on("remove", (client) => {
+    const { promise, resolve } = Promise.withResolvers();
+    client.once("end", resolve);
+    disconnected.push(promise);
+  });
+  await pool.end();
+  await Promise.all(disconnected);
+}
+
 function launch(code, extra = {}) {
   const child = spawn(process.execPath, ["--input-type=module", "-e", code], {
     cwd: root,
@@ -544,10 +558,10 @@ try {
     environment2?.reset();
   });
   await cleanup(() => Promise.all(children.map(stop)));
-  await cleanup(() => pool?.end());
+  await cleanup(() => settlePool(pool));
   if (created)
     await cleanup(() => admin.query(`DROP DATABASE "${name}" WITH (FORCE)`));
-  await cleanup(() => admin.end());
+  await cleanup(() => settlePool(admin));
   if (cleanupError) {
     if (primaryError)
       console.error(

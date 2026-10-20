@@ -65,6 +65,7 @@ import {
 import type { CrosswordCustomInput } from "./crossword-setup.js";
 import { LiveClient } from "./live.js";
 import type { LiveBinding } from "./live.js";
+import { AdminAccess, AdminModule, HistoryMatches } from "./page-views.js";
 
 const TOKEN_PATHS: Record<string, true> = {
   "/invite": true,
@@ -240,7 +241,6 @@ function modeLabel(mode: string): string {
   return `${mode.charAt(0).toUpperCase()}${mode.slice(1)} game`;
 }
 function invitationTitle(preview: InvitationPreview): string {
-  if (preview.moduleId === "test-counter") return "Test Counter";
   return preview.title === preview.moduleId ? "Game" : preview.title;
 }
 
@@ -740,7 +740,6 @@ function HomePage({
   }
 
   function gameTitle(moduleId: string): string {
-    if (moduleId === "test-counter") return "Test Counter";
     return home.games.find((game) => game.id === moduleId)?.name ?? "Game";
   }
 
@@ -1020,9 +1019,6 @@ function HistoryPage({
     };
   }, [session.principal.id, session.principal.kind]);
 
-  function gameTitle(moduleId: string): string {
-    return games.find((game) => game.id === moduleId)?.name ?? "Game";
-  }
 
   return (
     <Shell session={session} onSignOut={onSignOut}>
@@ -1033,33 +1029,7 @@ function HistoryPage({
           per-match points stay with each result; standings count only
           career-eligible play.
         </p>
-        {error && (
-          <p className="error-message" role="alert">
-            {error}
-          </p>
-        )}
-        {loading && <p role="status">Loading your history…</p>}
-        <section className="section" aria-labelledby="history-matches-heading">
-          <h2 id="history-matches-heading" className="section-heading">
-            Finished matches
-          </h2>
-          <div className="card-grid">
-            {finished.map((match) => (
-              <MatchCardView
-                key={match.id}
-                match={match}
-                title={gameTitle(match.moduleId)}
-                action={() =>
-                  navigate(`/matches/${encodeURIComponent(match.id)}`)
-                }
-                actionLabel="View result"
-              />
-            ))}
-            {!loading && finished.length === 0 && (
-              <p className="status-message">No finished matches yet.</p>
-            )}
-          </div>
-        </section>
+        <HistoryMatches finished={finished} games={games} loading={loading} error={error} />
         {games
           .filter((game) => game.capabilities.careerStats)
           .map((game) => (
@@ -1239,19 +1209,10 @@ function AdminPage({
     }
   }
 
-  if (!session.permissions.isAdmin) {
-    return (
-      <Shell session={session} onSignOut={onSignOut}>
-        <main className="app-main">
-          <h1 className="page-title">Admin</h1>
-          <p className="status-message">Administrator access is required.</p>
-        </main>
-      </Shell>
-    );
-  }
 
   return (
     <Shell session={session} onSignOut={onSignOut}>
+      <AdminAccess isAdmin={session.permissions.isAdmin}>
       <main className="app-main">
         <h1 className="page-title">Admin</h1>
         <p className="page-intro">
@@ -1271,44 +1232,9 @@ function AdminPage({
           </h2>
           <div className="card-grid">
             {adminGames.map((game) => (
-              <article className="card" key={game.id}>
-                <h3>{game.id}</h3>
-                <p className="card-meta">
-                  {game.enabled ? "Enabled" : "Disabled"} ·{" "}
-                  {game.referenceCounts.total} matches ({" "}
-                  {game.referenceCounts.lobby} waiting,{" "}
-                  {game.referenceCounts.active} in progress,{" "}
-                  {game.referenceCounts.finished} finished)
-                </p>
-                <div className="field">
-                  <label htmlFor={`default-${game.id}`}>Default version</label>
-                  <select
-                    id={`default-${game.id}`}
-                    value={game.defaultVersion}
-                    disabled={busy === game.id}
-                    onChange={(event) =>
-                      void changeDefault(game, event.target.value)
-                    }
-                  >
-                    {game.versions.map((version) => (
-                      <option key={version.version} value={version.version}>
-                        {version.version}
-                        {version.hasClientAssets ? "" : " (client missing)"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="inline-actions">
-                  <button
-                    className="button"
-                    type="button"
-                    disabled={busy === game.id}
-                    onClick={() => void toggleEnabled(game)}
-                  >
-                    {game.enabled ? "Disable module" : "Enable module"}
-                  </button>
-                </div>
-              </article>
+              <AdminModule key={game.id} game={game} busy={busy === game.id}
+                onDefault={(game, version) => void changeDefault(game, version)}
+                onToggle={(game) => void toggleEnabled(game)} />
             ))}
             {!loading && adminGames.length === 0 && (
               <p className="status-message">No game modules are installed.</p>
@@ -1394,6 +1320,7 @@ function AdminPage({
             </section>
           ))}
       </main>
+      </AdminAccess>
     </Shell>
   );
 }
@@ -2152,9 +2079,20 @@ function GameRenderer({
   );
 }
 
-type CounterResultView = {
+type SavedResultView = {
   outcome: string;
-  data: { count?: number; target?: number; winners?: string[] };
+  data: {
+    count?: number;
+    target?: number;
+    completedWords?: number;
+    totalWords?: number;
+    preset?: string;
+    attribution?: {
+      title?: string;
+      author?: string;
+      rights?: { attribution?: string; license?: string; sourceUrl?: string | null };
+    };
+  };
   participants: Array<{ memberId: string; score: number; win: boolean }>;
 };
 
@@ -2165,7 +2103,7 @@ function ResultView({
   result: Json;
   members: MatchSnapshot["members"];
 }) {
-  const projection = result as CounterResultView;
+  const projection = result as SavedResultView;
   const names = new Map(
     members.map((member) => [member.id, member.displayName]),
   );
@@ -2187,6 +2125,31 @@ function ResultView({
             {projection.data.target}
           </p>
         )}
+      {typeof projection.data?.completedWords === "number" &&
+        typeof projection.data.totalWords === "number" && (
+          <p>
+            <strong>Completed words:</strong> {projection.data.completedWords} /{" "}
+            {projection.data.totalWords}
+          </p>
+        )}
+      {typeof projection.data?.preset === "string" && (
+        <p><strong>Preset:</strong> {projection.data.preset}</p>
+      )}
+      {typeof projection.data?.attribution?.title === "string" && (
+        <p><strong>Puzzle:</strong> {projection.data.attribution.title}</p>
+      )}
+      {typeof projection.data?.attribution?.author === "string" && (
+        <p><strong>Author:</strong> {projection.data.attribution.author}</p>
+      )}
+      {typeof projection.data?.attribution?.rights?.attribution === "string" && (
+        <p><strong>Attribution:</strong> {projection.data.attribution.rights.attribution}</p>
+      )}
+      {typeof projection.data?.attribution?.rights?.license === "string" && (
+        <p><strong>License:</strong> {projection.data.attribution.rights.license}</p>
+      )}
+      {typeof projection.data?.attribution?.rights?.sourceUrl === "string" && (
+        <p><strong>Source:</strong> {projection.data.attribution.rights.sourceUrl}</p>
+      )}
       <h3>Scores</h3>
       <table className="result-score-table">
         <thead>
@@ -2635,7 +2598,20 @@ function MatchPage({
     }
   }
 
-  const title = snapshot?.moduleId === "test-counter" ? "Test Counter" : "Game";
+  const view = snapshot?.game;
+  const puzzleTitle =
+    snapshot?.moduleId === "crossword" &&
+    view !== null &&
+    typeof view === "object" &&
+    !Array.isArray(view) &&
+    typeof view?.title === "string"
+      ? view.title
+      : null;
+  const savedTitle = (result as SavedResultView | null)?.data?.attribution?.title;
+  const title =
+    puzzleTitle ??
+    (typeof savedTitle === "string" ? savedTitle : null) ??
+    (snapshot?.moduleId === "test-counter" ? "Test Counter" : "Game");
   if (snapshotError && !snapshot && !result)
     return (
       <Shell session={session} onSignOut={onSignOut}>

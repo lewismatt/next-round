@@ -23,6 +23,15 @@ export function registerCrosswordModule(
   clientRoot = bundledClientRoot,
 ): void {
   if (registry.has(manifest.id, manifest.version)) return;
-  if (!fs.existsSync(path.join(clientRoot, "client.js"))) return;
+  if (!fs.existsSync(path.join(clientRoot, "client.js"))) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      code: "MODULE_CLIENT_MISSING",
+      moduleId: manifest.id,
+      moduleVersion: manifest.version,
+      message: "Crossword registration skipped: build the browser client before deployment.",
+    }));
+    return;
+  }
   registry.register(manifest, server, { clientRoot, isDefault: true });
 }

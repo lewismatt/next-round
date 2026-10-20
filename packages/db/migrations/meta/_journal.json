@@ -15,6 +15,13 @@
       "when": 1792347726681,
       "tag": "0001_deferred_foreign_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792347727681,
+      "tag": "0002_worker_reliability",
+      "breakpoints": true
     }
   ]
 }

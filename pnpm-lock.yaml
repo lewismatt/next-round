@@ -264,6 +264,9 @@ importers:
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.3.4(@types/node@24.10.8)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@types/node':
+        specifier: 24.10.8
+        version: 24.10.8
       '@types/react':
         specifier: 19.0.10
         version: 19.0.10
@@ -377,6 +380,9 @@ importers:
         specifier: 12.38.0
         version: 12.38.0(@opentelemetry/api@1.9.1)
     devDependencies:
+      '@types/node':
+        specifier: 24.10.8
+        version: 24.10.8
       '@types/pg':
         specifier: 8.11.11
         version: 8.11.11
@@ -409,6 +415,9 @@ importers:
         specifier: 8.22.0
         version: 8.22.0
     devDependencies:
+      '@types/node':
+        specifier: 24.10.8
+        version: 24.10.8
       '@types/ws':
         specifier: 8.18.1
         version: 8.18.1
@@ -444,6 +453,9 @@ importers:
         specifier: 1.5.4
         version: 1.5.4
     devDependencies:
+      '@types/node':
+        specifier: 24.10.8
+        version: 24.10.8
       '@types/qrcode':
         specifier: 1.5.5
         version: 1.5.5

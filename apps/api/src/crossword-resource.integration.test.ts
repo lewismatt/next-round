@@ -252,6 +252,32 @@ describe.skipIf(!testDatabaseUrl)("crossword resource and exposure flow", () => 
     if (staticRoot) await rm(staticRoot, { recursive: true, force: true });
   }, 60_000);
 
+  it("distinguishes an empty enabled catalog from absent and disabled games", async () => {
+    const empty = await app.inject({
+      url: "/api/v1/games/crossword/resources",
+      headers: headers(member),
+    });
+    expect(empty.statusCode).toBe(200);
+    expect(empty.json().data).toEqual([]);
+    for (const suffix of ["", "/resources"]) {
+      const absent = await app.inject({
+        url: `/api/v1/games/absent${suffix}`,
+        headers: headers(member),
+      });
+      expect(absent.statusCode).toBe(404);
+      expect(absent.json().error.code).toBe("NOT_FOUND");
+    }
+    await databasePool.query("UPDATE next_round.modules SET enabled = false WHERE id = 'crossword'");
+    for (const suffix of ["", "/resources"]) {
+      const disabled = await app.inject({
+        url: `/api/v1/games/crossword${suffix}`,
+        headers: headers(member),
+      });
+      expect(disabled.statusCode).toBe(404);
+      expect(disabled.json().error.code).toBe("NOT_FOUND");
+    }
+  });
+
   async function importDocument(
     session: SessionFixture,
     document: unknown,
