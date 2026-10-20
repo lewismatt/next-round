@@ -303,7 +303,7 @@ Admin bootstrap uses an env secret provided locally, not an open “first visito
 
 | Method / path | Request | Response / authorization |
 | --- | --- | --- |
-| GET /invitations | ?status=pending | Current registered user's incoming existing-member invites; no other users' bearer tokens. |
+| GET /invitations | ?status=pending | Current registered user's incoming existing-member invites, including current `matchRevision` for revisioned acceptance; no other users' bearer tokens. |
 | POST /invitations/registration | \{commandId,matchId?:UUID\} | \{id,url,expiresAt\}; admin or canInviteRegistrations; one use, 7 days; match must be invitable by caller. |
 | POST /matches/:id/invitations | \{commandId,recipientPrincipalId\} | \{id,expiresAt\}; registered member/host with match invite access; existing enabled registered recipient; 7 days. |
 | POST /invitations/:id/accept | \{commandId,expectedRevision\} | CommandReceipt; intended recipient, atomically consumes invite and joins/rejoins match. |
@@ -311,7 +311,7 @@ Admin bootstrap uses an env secret provided locally, not an open “first visito
 | DELETE /invitations/:id | None | 204; inviter or admin; revocation is idempotent. |
 | POST /matches/:id/guest-invitations | \{commandId\} | \{id,url,expiresAt\}; canInviteGuests plus active match invite access; G1 approved 15 minutes, one use. |
 | POST /guest-invitations/redeem | \{token,displayName,commandId\} | \{principal,csrfToken,expiresAt,matchId\}; atomic guest principal/session and join; no partially consumed invite if join fails. |
-| POST /match-links/resolve | \{token\} | \{matchId,title,moduleId,phase,requiresSignIn\}; only safe invitation preview. No membership, state, participant list or chat. |
+| POST /match-links/resolve | \{token\} | \{matchId,title,moduleId,phase,revision,requiresSignIn\}; only safe invitation preview and current revision for joining. No membership, state, participant list or chat. |
 | POST /matches/:id/link | \{commandId,rotate?:boolean\} | \{url\}; host creates/rotates reusable registered-member join link; no guest/registration authority. |
 | DELETE /matches/:id/link | None | 204; host/admin revokes reusable link. |
 
