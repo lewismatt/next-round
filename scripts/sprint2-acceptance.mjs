@@ -227,10 +227,21 @@ try {
   // Give log collection its own CI budget; the snapshot timestamps above remain
   // the recovery measurement, and no further mutations run until collection ends.
   const periodicSweepSamples = await until(() => {
-    const samples = sweepSamples.filter(sample =>
-      sample.time >= missedStartedAt && sample.invalidationsEmitted > 0);
-    return [n1.child.pid, n2.child.pid].every(pid =>
-      samples.some(sample => sample.pid === pid)) && samples;
+    // BL-048: report, per node, only the FIRST emitting sweep at or after
+    // the missed change. That sweep is by construction the recovering
+    // cycle for its node; later emitting samples belong to later cycles
+    // and must not dilute the provenance of the reported set.
+    const firstEmittingByPid = new Map();
+    for (const sample of sweepSamples) {
+      if (sample.time < missedStartedAt || sample.invalidationsEmitted <= 0) continue;
+      const current = firstEmittingByPid.get(sample.pid);
+      if (!current || sample.time < current.time) {
+        firstEmittingByPid.set(sample.pid, sample);
+      }
+    }
+    const samples = [n1.child.pid, n2.child.pid].map(pid =>
+      firstEmittingByPid.get(pid));
+    return samples.every(Boolean) && samples;
   }, "periodic sweep measurements on both nodes", 60000);
   const listenerAfter = await listeners();
   assert.deepEqual(listenerAfter, listenerBefore, "missed wakeup recovery must retain both listener sessions");
