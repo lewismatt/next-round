@@ -47,8 +47,10 @@ Active and lobby matches are never retention targets. Disabled principals are no
 Apply reviewed migration `0002_worker_reliability` before starting this worker.
 Each worker opens one dedicated `LISTEN next_round_outbox` connection in addition
 to its query and pg-boss pools. Transactional insert notifications wake the
-already-running worker; the 10000 ms recovery sweep still handles missed wakeups,
-retry availability and process restarts. Budget the extra connection when sizing
+already-running worker. `DATABASE_DIRECT_URL` selects the dedicated listener
+connection when configured (otherwise `DATABASE_URL`). The 10000 ms recovery
+sweep still handles missed wakeups, retry availability and process restarts.
+Budget the extra connection when sizing
 PostgreSQL. Notifications contain no row payload or private data.
 
 Outbox claims use 30-second leases and attempt fencing. After eight attempts a
