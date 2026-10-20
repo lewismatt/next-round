@@ -23,6 +23,7 @@ export interface MatchLinkPreview {
   title: string;
   moduleId: string;
   phase: string;
+  revision: number;
   requiresSignIn: true;
 }
 
@@ -504,7 +505,12 @@ export class InvitationService {
 
   async listIncoming(session: AuthenticatedSession) {
     const result = await this.pool.query(
-      'SELECT id, issuer_id AS "issuerId", match_id AS "matchId", expires_at AS "expiresAt" FROM next_round.invitations WHERE recipient_id=$1 AND kind=\'member\' AND status=\'pending\' AND expires_at>clock_timestamp() ORDER BY created_at',
+      `SELECT i.id, i.issuer_id AS "issuerId", i.match_id AS "matchId",
+              m.revision::integer AS "matchRevision", i.expires_at AS "expiresAt"
+         FROM next_round.invitations i JOIN next_round.matches m ON m.id=i.match_id
+        WHERE i.recipient_id=$1 AND i.kind='member' AND i.status='pending'
+          AND i.expires_at>clock_timestamp()
+        ORDER BY i.created_at`,
       [session.principal.id],
     );
     return result.rows;
@@ -591,8 +597,10 @@ export class InvitationService {
       title: string;
       module_id: string;
       phase: string;
+      revision: number;
     }>(
-      `SELECT m.id AS match_id, m.module_id AS title, m.module_id, m.phase
+      `SELECT m.id AS match_id, m.module_id AS title, m.module_id, m.phase,
+              m.revision::integer AS revision
          FROM next_round.match_links l JOIN next_round.matches m ON m.id=l.match_id
         WHERE l.token_hash=$1 AND l.revoked_at IS NULL AND m.phase <> 'finished'`,
       [tokenHash(token)],
@@ -605,6 +613,7 @@ export class InvitationService {
       title: row.title,
       moduleId: row.module_id,
       phase: row.phase,
+      revision: row.revision,
       requiresSignIn: true,
     };
   }
@@ -629,24 +638,23 @@ export class InvitationService {
         "SELECT host_member_id FROM next_round.matches WHERE id=$1 FOR UPDATE",
         [matchId],
       );
-      if (
-        !match.rows[0] ||
-        !(await this.matchService.canInviteInTransaction(
-          client,
-          matchId,
-          session.principal.id,
-        )) ||
-        !match.rows[0].host_member_id ||
-        !(
+      const account = await client.query<{ role: string }>(
+        "SELECT role FROM next_round.accounts WHERE principal_id=$1",
+        [session.principal.id],
+      );
+      const isAdmin = account.rows[0]?.role === "admin";
+      const isHost =
+        match.rows[0]?.host_member_id &&
+        (
           await client.query(
             "SELECT 1 FROM next_round.match_members WHERE id=$1 AND principal_id=$2 AND status='active'",
             [match.rows[0].host_member_id, session.principal.id],
           )
-        ).rowCount
-      ) {
+        ).rowCount === 1;
+      if (!match.rows[0] || (!isAdmin && !isHost)) {
         throw new ApiError(
           ERROR_CODES.FORBIDDEN,
-          "Only the host can revoke this match link.",
+          "Only the host or an administrator can revoke this match link.",
         );
       }
       await client.query(

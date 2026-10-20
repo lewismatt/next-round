@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? "http://localhost:3001";
 
 export default defineConfig({
   plugins: [
@@ -44,6 +45,18 @@ export default defineConfig({
     },
   },
   server: {
+    host: "127.0.0.1",
     port: 3000,
+    proxy: {
+      "/api": {
+        target: apiProxyTarget,
+        changeOrigin: false,
+        ws: true,
+      },
+      "/games": {
+        target: apiProxyTarget,
+        changeOrigin: false,
+      },
+    },
   },
 });

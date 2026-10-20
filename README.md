@@ -9,20 +9,22 @@ Next Round is a self-hosted, open-source platform for turn-based games with frie
 
 ## Current implementation
 
-This is a development preview. Bootstrap/session APIs, manifest validation,
-private match snapshots, and revisioned create/join/start/leave/action commands
-with retry receipts are implemented. Registered users can join instance-visible
-matches; invitation and guest admission are not wired into these routes yet.
-Final actions and departures write raw results, participant projections and
-eligible registered-player career contributions in the same transaction.
-Deadline processing and durable worker effects are implemented: commands reconcile
-due deadlines using database time, and worker startup/sweeps recover overdue
-deadlines and committed outbox rows. Production `/api/v1/live` uses a dedicated
-PostgreSQL listener and per-node recovery sweeps. Module defaults and disable
-state are durable; referenced versions must retain their server code and assets.
-The playable shell is still a preview. The harness example below also needs the
-remaining invitation/guest admission routes for its full target workflow.
-F1-01–05 have merged subsets, not full acceptance.
+This is a development build, not a released crossword product. The platform
+implements bootstrap/password sessions, shared PostgreSQL credential budgets,
+invitation/guest admission, chat, notifications, revisioned match commands,
+private views, final results and career projections. State, deadlines, receipts
+and worker effects commit transactionally; native WebSocket invalidations and
+per-node PostgreSQL recovery sweeps drive authorized snapshot refreshes.
+
+The basic browser shell supports sign-in, Home, match creation/admission,
+immutable pinned game clients through `GameBridge`, shared panels, explicit
+leave and results. Test Counter remains internal/operator-disabled by default.
+The development CLI supervises real API/worker processes and exercises both
+solo and group games. [Sprint 4 evidence](docs/sprint4-evidence.md) distinguishes
+the browser journey, login budgets and composed H1–H6 evidence from integration.
+Full production Home/History/Admin polish and crossword belong to F3. The
+remaining self-service session/profile routes and open security/operations nits
+are not claimed complete; see [the backlog](docs/BACKLOG.md).
 
 See the [review and remaining acceptance work](docs/reviews/2026-10-19.md).
 The [work tracker](https://app.notion.com/p/3fd972a22c7581eca2f7fe7fb46d593b)
@@ -110,15 +112,11 @@ through `addSession`. `connectWs()` subscribes and loads that match's authorized
 snapshot without an explicit listener or a second join; invalidations and reconnects
 refresh it until access is revoked.
 
-The API currently implements instance setup, session authentication, game manifest
-validation, match lifecycle and action commands, caller-private views, and
-command idempotency receipts. Lifecycle commands require an expected revision;
-join currently admits registered users to instance-visible matches. Deadline
-jobs, reconciliation, notifications and PostgreSQL invalidation wakeups are
-implemented. `/api/v1/live` authenticates before upgrade and sends authorized
-metadata-only invalidations. Each API node reconciles its own subscriptions,
-including missed wakeups and listener recovery. Full platform acceptance remains
-open beyond these transport and lifecycle paths.
+The client uses production invitation/guest admission, private snapshots,
+revisioned lifecycle/action commands and safe result projections. Its native
+WebSocket transport receives metadata-only invalidations and refetches each
+caller's authorized view; reconnect never sends leave. Browser code must not
+import this Node-only package.
 
 After building, a service fixture can use the compiled client against its API:
 
@@ -132,9 +130,10 @@ try {
     displayName: "Harness host",
     password: process.env.HARNESS_PASSWORD, // Existing fixture account; never committed.
   });
-  const { matchId } = await host.createMatch(
-    "test-counter", "solo", { target: 2, turnSeconds: null }
-  );
+  const { matchId } = await host.createMatch("test-counter", "solo", {
+    target: 2,
+    turnSeconds: null,
+  });
   await host.startMatch(matchId, (await host.getSnapshot(matchId)).revision);
   await host.connectWs();
   const original = {
@@ -180,14 +179,62 @@ fixture controls when recovery happens.
 client, allowing a response-loss retry scenario. It does not inject a database
 failure or prove commit atomicity. `delayRoute` delays the matching HTTP route.
 Notify suppression and listener disconnect require `serverFaults` callbacks wired
-to real isolated test services; without them those methods throw. Clock controls
-are local injectable services, never production endpoints. Neither reset nor
-disconnect deletes server data or sends a leave command.
+to real isolated test services; without them those methods throw. An optional
+`testClock` must control the actual injected test service; no pretend local or
+no-op system clock is supplied. The CLI's deadline-expiry control operates only
+on its disposable database, never through a production endpoint. Neither reset
+nor disconnect deletes server data or sends a leave command.
 
 The Node transport pins `ws@8.22.0` (already used by the API plugin) and
 `@types/ws@8.18.1`. It needs cookie/Origin upgrade headers that the browser
 WebSocket constructor does not expose. Browser code still uses native WebSockets
 and must not import this package.
+
+### Real development CLI and browser fixture
+
+After `pnpm build`, use a disposable PostgreSQL 18 or 17 instance whose role can
+create databases and roles:
+
+```sh
+TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55418/next_round \
+  node scripts/sprint4-cli.mjs --scenario
+
+TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55418/next_round \
+  SPRINT4_PORT=3100 APP_ORIGIN=http://127.0.0.1:3000 \
+  node scripts/sprint4-cli.mjs --fixture
+# In a second terminal:
+VITE_API_PROXY_TARGET=http://127.0.0.1:3100 pnpm --filter @next-round/web dev
+```
+
+The fixture prints local-only credentials, a started match and a guest link.
+Open the web address, sign in as the printed host/peer, or open the guest link.
+Ctrl-C stops the supervised processes and drops the isolated database. Never
+point test-service controls at production data.
+
+Without a flag, the CLI accepts newline-delimited JSON on stdin; `--help`
+documents registered/guest provisioning, create/join/start/action/finish/leave,
+WS subscribe/disconnect/reconnect, retained-intent replay, post-commit response
+loss, process restart and deadline expiry. `pnpm test:sprint4` composes the real
+two-process recovery/version checks, shared-service scenarios and failing
+private-view negative control with the CLI/game scenarios.
+
+### Minimal game-author example
+
+Use `games/test-counter/src/manifest.ts`, `server.ts` and `client.ts` together as
+the small working example. The manifest declares exact settings/action/state/
+view/result schemas and solo/group bounds. The pure synchronous server hooks
+receive `RuleContext`, state and an event, returning a transition with desired
+deadline identities, obligations, facts and an optional final result. They never
+open a database, socket or file. Notes preserve a current obligation's key and
+generation; actor changes emit a fresh generation; all-disabled play suspends
+without inventing a result and reactivation restores an enabled actor.
+
+The client exports `client.mount(element, bridge)`, reads only its authorized
+snapshot, subscribes to updates, issues one UUID per explicit action, and
+unsubscribes/removes its DOM on unmount. Shared chat/participants open through
+the bridge. The platform mounts the pinned `/games/{id}/{version}/client.js`,
+owns credentials and lifecycle commands, refreshes after stale revisions without
+replaying intent, and renders final projections independently of private state.
 
 ---
 

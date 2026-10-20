@@ -82,7 +82,7 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
   }
 
   async function authenticated(fixture: SessionFixture): Promise<AuthenticatedSession> {
-    return new AuthService(databasePool, undefined).authenticate(
+    return new AuthService(databasePool, undefined, new MatchService(databasePool, registry)).authenticate(
       fixture.cookie.split("=", 2)[1],
     );
   }

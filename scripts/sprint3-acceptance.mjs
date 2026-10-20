@@ -238,13 +238,11 @@ try {
     accounts.find((account) => account.username === username);
   environment = new HarnessEnvironment({
     baseUrl: one.url,
-    useSystemClock: true,
     timeoutMs: 10000,
     provisionRegistered,
   });
   environment2 = new HarnessEnvironment({
     baseUrl: two.url,
-    useSystemClock: true,
     timeoutMs: 10000,
     provisionRegistered,
   });

@@ -26,14 +26,14 @@ function cursorDecode(
     const item = JSON.parse(decoded) as { t?: unknown; id?: unknown };
     if (
       typeof item.t !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(item.t) ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}(?:\d{3})?Z$/.test(item.t) ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         String(item.id),
       )
     )
       throw invalid();
     const date = new Date(item.t);
-    if (!Number.isFinite(date.getTime()) || date.toISOString() !== item.t)
+    if (!Number.isFinite(date.getTime()) || date.toISOString() !== `${item.t.slice(0, 23)}Z`)
       throw invalid();
     return { createdAt: item.t, id: item.id as string };
   } catch {
@@ -61,6 +61,64 @@ export class SharedService {
     private readonly pool: DatabasePool,
     private readonly registry: GameRegistry,
   ) {}
+
+  async listMatches(
+    session: AuthenticatedSession,
+    scope = "mine",
+    phase?: string,
+    cursor?: string,
+    limit?: string,
+  ) {
+    if (
+      !["mine", "open"].includes(scope) ||
+      (phase !== undefined && !["lobby", "active", "finished"].includes(phase))
+    ) throw invalid();
+    const marker = cursorDecode(cursor);
+    const size = pageSize(limit);
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await lockPrincipals(client, [session.principal.id]);
+      await recheckSession(client, session, { registered: scope === "open" });
+      const result = await client.query<{
+        id: string; module_id: string; module_version: string; mode: string;
+        phase: string; revision: string; created_at: Date; cursor_time: string;
+      }>(
+        `SELECT m.id,m.module_id,m.module_version,m.mode,m.phase,m.revision,m.created_at,
+                to_char(m.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
+           FROM next_round.matches m
+           LEFT JOIN next_round.match_members mm ON mm.match_id=m.id AND mm.principal_id=$1
+          WHERE ($2::text IS NULL OR m.phase=$2)
+            AND ($3::timestamptz IS NULL OR (m.created_at,m.id)<($3::timestamptz,$4::uuid))
+            AND (
+              ($5='mine' AND (mm.status='active' OR (m.phase='finished' AND mm.id IS NOT NULL)))
+              OR ($5='open' AND m.visibility='instance' AND m.phase IN ('lobby','active')
+                  AND m.state IS NOT NULL AND (mm.id IS NULL OR mm.status='left'))
+            )
+          ORDER BY m.created_at DESC,m.id DESC LIMIT $6`,
+        [session.principal.id, phase ?? null, marker?.createdAt ?? null,
+          marker?.id ?? null, scope, size + 1],
+      );
+      const rows = result.rows.slice(0, size);
+      const last = rows.at(-1);
+      await client.query("COMMIT");
+      return {
+        data: rows.map((row) => ({
+          id: row.id, moduleId: row.module_id, moduleVersion: row.module_version,
+          mode: row.mode, phase: row.phase, revision: Number(row.revision),
+          createdAt: row.created_at.toISOString(),
+        })),
+        nextCursor: result.rows.length > size && last
+          ? cursorEncode(last.cursor_time, last.id) : null,
+        serverNow: now(),
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 
   async listChat(
     session: AuthenticatedSession,

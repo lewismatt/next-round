@@ -164,6 +164,12 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
         currentActorMemberId: null,
         deadlineGeneration: 0,
       };
+      for (const member of ctx.members) {
+        initialState.scores[member.id] = 0;
+        initialState.notes[member.id] = "";
+        initialState.markers[member.id] = privateMarker(member.id);
+        initialState.turnOrder.push(member.id);
+      }
 
       return {
         ok: true,
@@ -203,7 +209,12 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
       }
 
       const currentActorMemberId =
-        state.currentActorMemberId ?? (ctx.phase === "active" ? turnOrder[0] : null);
+        state.currentActorMemberId ??
+        (ctx.phase === "active" ? rotateActor(turnOrder, null, ctx.members) : null);
+      const deadlineGeneration =
+        ctx.phase === "active" && state.currentActorMemberId === null && currentActorMemberId !== null
+          ? state.deadlineGeneration + 1
+          : state.deadlineGeneration;
 
       const nextState: CounterState = {
         ...state,
@@ -212,6 +223,7 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
         notes,
         markers,
         currentActorMemberId,
+        deadlineGeneration,
       };
 
       return {
@@ -221,8 +233,8 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
           phase: ctx.phase ?? "lobby",
           hostMemberId: ctx.hostMemberId,
           deadlines:
-            ctx.phase === "active"
-              ? computeDeadline(ctx.now, state.turnSeconds, state.deadlineGeneration)
+            ctx.phase === "active" && currentActorMemberId
+              ? computeDeadline(ctx.now, state.turnSeconds, deadlineGeneration)
               : [],
           needsActionFrom:
             ctx.phase === "active" && currentActorMemberId ? [currentActorMemberId] : [],
@@ -458,14 +470,14 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
 
     if (event.kind === "leave") {
       const remainingOrder = state.turnOrder.filter((id) => id !== event.memberId);
-      const activeMembers = ctx.members.filter(
-        (m) => m.id !== event.memberId && m.status === "active" && !m.disabled
+      const remainingMembers = ctx.members.filter(
+        (m) => m.id !== event.memberId && m.status === "active"
       );
       const hostMemberId = ctx.hostMemberId === event.memberId
-        ? activeMembers[0]?.id ?? null
+        ? remainingMembers[0]?.id ?? null
         : ctx.hostMemberId;
 
-      if (activeMembers.length === 0) {
+      if (remainingMembers.length === 0) {
         const final: FinalResult = {
           outcome: "abandoned",
           data: {
@@ -517,7 +529,7 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
           phase: ctx.phase ?? "lobby",
           hostMemberId,
           deadlines:
-            ctx.phase === "active"
+            ctx.phase === "active" && nextActor !== null
               ? computeDeadline(ctx.now, state.turnSeconds, nextGen)
               : [],
           needsActionFrom: ctx.phase === "active" && nextActor ? [nextActor] : [],
@@ -528,44 +540,31 @@ export const server: GameServer<CounterState, CounterView> = defineGameServer<
     }
 
     if (event.kind === "principal_status") {
-      const { memberId, disabled } = event;
-      if (disabled && state.currentActorMemberId === memberId && ctx.phase === "active") {
-        const nextActor = rotateActor(state.turnOrder, memberId, ctx.members);
-        const nextGen = state.deadlineGeneration + 1;
-        const nextState: CounterState = {
-          ...state,
-          currentActorMemberId: nextActor,
-          deadlineGeneration: nextGen,
-        };
-
-        return {
-          ok: true,
-          value: {
-            state: nextState,
-            phase: "active",
-            hostMemberId: ctx.hostMemberId,
-            deadlines: computeDeadline(ctx.now, state.turnSeconds, nextGen),
-            needsActionFrom: nextActor ? [nextActor] : [],
-            facts: [],
-            final: null,
-          },
-        };
+      let nextActor = state.currentActorMemberId;
+      let nextGen = state.deadlineGeneration;
+      if (
+        ctx.phase === "active" &&
+        ((event.disabled && nextActor === event.memberId) ||
+          (!event.disabled && nextActor === null))
+      ) {
+        nextActor = rotateActor(state.turnOrder, nextActor, ctx.members);
+        nextGen += 1;
       }
-
       return {
         ok: true,
         value: {
-          state,
+          state: nextActor === state.currentActorMemberId ? state : {
+            ...state,
+            currentActorMemberId: nextActor,
+            deadlineGeneration: nextGen,
+          },
           phase: ctx.phase ?? "lobby",
           hostMemberId: ctx.hostMemberId,
           deadlines:
-            ctx.phase === "active"
-              ? computeDeadline(ctx.now, state.turnSeconds, state.deadlineGeneration)
+            ctx.phase === "active" && nextActor !== null
+              ? computeDeadline(ctx.now, state.turnSeconds, nextGen)
               : [],
-          needsActionFrom:
-            ctx.phase === "active" && state.currentActorMemberId
-              ? [state.currentActorMemberId]
-              : [],
+          needsActionFrom: ctx.phase === "active" && nextActor ? [nextActor] : [],
           facts: [],
           final: null,
         },

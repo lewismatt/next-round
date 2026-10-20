@@ -16,6 +16,8 @@ import type { HarnessFaultInjector, SimulatedClient, SimulatedSession } from "./
 
 export interface HttpClientOptions {
   baseUrl: string;
+  /** Public browser origin when connecting directly behind a local dev proxy. */
+  origin?: string;
   faults?: HarnessFaultInjector;
   timeoutMs?: number;
   onError?: (error: Error) => void;
@@ -94,7 +96,10 @@ export async function requestData<T>(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const headers: Record<string, string> = { Origin: origin, Accept: "application/json" };
+    const headers: Record<string, string> = {
+      Origin: validateBaseUrl(options.origin ?? origin).origin,
+      Accept: "application/json",
+    };
     if (session) headers.Cookie = session.cookie;
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
@@ -210,7 +215,10 @@ export class HttpSimulatedClient implements SimulatedClient {
     let socket: WebSocket;
     try {
       socket = new WebSocket(url, LIVE_SUBPROTOCOL, {
-        headers: { Origin: this.options.baseUrl, Cookie: this.session.cookie },
+        headers: {
+          Origin: validateBaseUrl(this.options.origin ?? this.options.baseUrl).origin,
+          Cookie: this.session.cookie,
+        },
         maxPayload: 16 * 1024,
         handshakeTimeout: timeoutMs(this.options),
       });
@@ -583,6 +591,16 @@ export class HttpSimulatedClient implements SimulatedClient {
     return receipt;
   }
 
+  async finishMatch(matchId: string, expectedRevision: number, commandId: string = randomUUID()): Promise<CommandReceipt> {
+    const receipt = await this.mutate<CommandReceipt>(
+      `/matches/${encodeURIComponent(matchId)}/finish`,
+      { commandId, expectedRevision },
+      matchId,
+    );
+    this.receipts.push(receipt);
+    return receipt;
+  }
+
   act(matchId: string, action: { type: string; payload: Json; commandId?: string; expectedRevision: number }): Promise<CommandReceipt> {
     return this.replayCommand(matchId, { commandId: action.commandId ?? randomUUID(), expectedRevision: action.expectedRevision, type: action.type, payload: action.payload });
   }
@@ -616,5 +634,20 @@ export class HttpSimulatedClient implements SimulatedClient {
     this.receipts.push(receipt);
     this.revokeMatch(matchId);
     return receipt;
+  }
+
+  async getResult(matchId: string): Promise<Json> {
+    if (this.sessionRevoked) throw new Error("Harness session access is unavailable.");
+    try {
+      const { data } = await requestData<Json>(
+        this.options,
+        this.session,
+        `/matches/${encodeURIComponent(matchId)}/result`,
+      );
+      return data;
+    } catch (error) {
+      this.handleAccessError(error, matchId);
+      throw error;
+    }
   }
 }
