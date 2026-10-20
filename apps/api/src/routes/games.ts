@@ -120,6 +120,21 @@ export const gameManifestRoutes: FastifyPluginAsync<GameManifestRoutesOptions> =
       );
     }
     const { gameId } = request.params as { gameId: string };
+    await options.authService.authorizeGame(session);
+    const moduleResult = await options.databasePool.query<{
+      enabled: boolean;
+      default_version: string;
+    }>(
+      "SELECT enabled, default_version FROM next_round.modules WHERE id = $1",
+      [gameId],
+    );
+    const moduleRow = moduleResult.rows[0];
+    if (!moduleRow?.enabled) {
+      throw new ApiError(ERROR_CODES.NOT_FOUND, "Game module was not found.");
+    }
+    if (!options.registry.getVersion(gameId, moduleRow.default_version)) {
+      throw new ApiError(ERROR_CODES.MODULE_UNAVAILABLE, "Game module is unavailable.");
+    }
     const query = request.query as { cursor?: string; limit?: string };
     const limit = query.limit === undefined ? undefined : Number(query.limit);
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {

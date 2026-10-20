@@ -5,6 +5,7 @@ import type { DatabasePool } from "@next-round/db";
 import { lockPrincipals, recheckSession } from "./transaction-authority.js";
 import type { AuthenticatedSession } from "./auth-service.js";
 import type { MatchService } from "./match-service.js";
+import { chargeInvitationMint } from "./invitation-budget.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 const MINUTE = 60 * 1000;
@@ -110,6 +111,7 @@ export class TokenService {
           ERROR_CODES.IDEMPOTENCY_CONFLICT,
           "This command was already used; issued credentials cannot be recovered.",
         );
+      await chargeInvitationMint(client, actor.principal.id);
       const expiresAt = new Date(Date.now() + 7 * DAY).toISOString();
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO next_round.invitations(kind,issuer_id,match_id,token_hash,status,expires_at)

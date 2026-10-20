@@ -58,9 +58,9 @@ export const liveRoutes: FastifyPluginAsync<LiveRoutesOptions> = async (
           );
         }
         // 4. Authenticate from session cookie before upgrade (no token in query string)
-        const rawSessionToken =
-          request.cookies[SESSION_COOKIE_NAME] ??
-          request.cookies[SESSION_DEV_COOKIE_NAME];
+        const rawSessionToken = request.cookies[
+          new URL(origin).protocol === "https:" ? SESSION_COOKIE_NAME : SESSION_DEV_COOKIE_NAME
+        ];
         if (!rawSessionToken) {
           throw new ApiError(ERROR_CODES.AUTH_REQUIRED, "Authentication is required.");
         }

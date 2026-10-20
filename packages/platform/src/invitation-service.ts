@@ -7,6 +7,7 @@ import { generateCsrfToken, generateOpaqueSessionToken } from "./auth.js";
 import type { AuthenticatedSession } from "./auth-service.js";
 import type { MatchService } from "./match-service.js";
 import { lockPrincipals, recheckSession } from "./transaction-authority.js";
+import { chargeInvitationMint } from "./invitation-budget.js";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const GUEST_INVITE_TTL_MS = 15 * 60 * 1000;
@@ -383,6 +384,7 @@ export class InvitationService {
             "Invitation recipient is unavailable.",
           );
       }
+      await chargeInvitationMint(client, session.principal.id);
       const token = randomBytes(32).toString("base64url");
       const expiry = new Date(
         Date.now() + (guest ? GUEST_INVITE_TTL_MS : INVITE_TTL_MS),
@@ -576,6 +578,7 @@ export class InvitationService {
         "UPDATE next_round.match_links SET revoked_at=clock_timestamp() WHERE match_id=$1 AND revoked_at IS NULL",
         [matchId],
       );
+      await chargeInvitationMint(client, session.principal.id);
       const token = randomBytes(32).toString("base64url");
       await client.query(
         "INSERT INTO next_round.match_links(match_id,token_hash,issued_by) VALUES($1,$2,$3)",

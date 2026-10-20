@@ -189,7 +189,10 @@ export const rateBuckets = nextRound.table(
     count: integer("count").notNull().default(1),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
-  (table) => [primaryKey({ columns: [table.keyHash, table.windowStart] })]
+  (table) => [
+    primaryKey({ columns: [table.keyHash, table.windowStart] }),
+    index("rate_buckets_expires_at_idx").on(table.expiresAt),
+  ]
 );
 
 /**
@@ -440,6 +443,8 @@ export const invitations = nextRound.table(
     check("invitations_status_check", sql`${table.status} IN ('pending', 'accepted', 'declined', 'revoked')`),
     index("invitations_recipient_status_idx").on(table.recipientId, table.status),
     index("invitations_issuer_status_idx").on(table.issuerId, table.status),
+    index("invitations_guest_expiry_idx").on(table.expiresAt)
+      .where(sql`${table.kind} = 'guest' AND ${table.status} <> 'accepted'`),
   ]
 );
 
@@ -552,12 +557,14 @@ export const outbox = nextRound.table(
     attempts: integer("attempts").notNull().default(0),
     leasedUntil: timestamp("leased_until", { withTimezone: true }),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index("outbox_available_at_pending_idx")
       .on(table.availableAt)
-      .where(sql`${table.deliveredAt} IS NULL`),
+      .where(sql`${table.deliveredAt} IS NULL AND ${table.deadLetteredAt} IS NULL`),
   ]
 );
 

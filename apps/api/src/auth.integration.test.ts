@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createDatabasePool } from "@next-round/db";
+import { LIVE_SUBPROTOCOL } from "@next-round/contracts";
 import type { DatabasePool } from "@next-round/db";
 import { migrateDatabase } from "@next-round/db/migrate";
 import type { FastifyInstance } from "fastify";
@@ -83,7 +84,14 @@ describe.skipIf(!testDatabaseUrl)("F1-01 bootstrap and registered sessions", () 
 
   afterEach(async () => {
     await app?.close();
+    const disconnected: Array<Promise<void>> = [];
+    databasePool?.on("remove", (client) => {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      client.once("end", resolve);
+      disconnected.push(promise);
+    });
     await databasePool?.end();
+    await Promise.all(disconnected);
     if (adminPool) {
       await adminPool.query(
         "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
@@ -94,6 +102,122 @@ describe.skipIf(!testDatabaseUrl)("F1-01 bootstrap and registered sessions", () 
     }
     await rm(staticRoot, { recursive: true, force: true });
   }, 60_000);
+
+  it("recovers exact redemptions only with valid sessions and keeps receipts secret-free", async () => {
+    await app.inject({ method: "POST", url: "/api/v1/setup", headers: jsonHeaders(), payload: setupBody(randomUUID()) });
+    const admin = (await databasePool.query<{ id: string }>("SELECT id FROM next_round.principals")).rows[0].id;
+    const digest = (token: string) => createHash("sha256").update(token).digest();
+    const token = randomBytes(32).toString("hex");
+    await databasePool.query(`INSERT INTO next_round.invitations(kind,issuer_id,token_hash,expires_at)
+      VALUES('registration',$1,$2,now()+interval '1 day')`, [admin, digest(token)]);
+    const body = { token, commandId: randomUUID(), username: "new_member", password, displayName: "New member" };
+    const post = (url: string, payload: unknown, cookie?: string) =>
+      app.inject({ method: "POST", url: `/api/v1${url}`, headers: { ...jsonHeaders(), ...(cookie ? { cookie } : {}) }, payload: JSON.stringify(payload) });
+    const registered = await post("/auth/register", body);
+    expect(registered.statusCode).toBe(201);
+    const cookies = cookieHeader(registered.headers["set-cookie"]);
+    const principalId = registered.json().data.principal.id;
+    expect((await post("/auth/register", body)).json().error.code).toBe("TOKEN_INVALID");
+    const replay = await post("/auth/register", body, cookies);
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json().data).toEqual(registered.json().data);
+    expect((await post("/auth/register", { ...body, displayName: "Different" }, cookies)).json().error.code).toBe("IDEMPOTENCY_CONFLICT");
+
+    const qr = randomBytes(32).toString("hex");
+    await databasePool.query(`INSERT INTO next_round.auth_tokens(kind,token_hash,principal_id,issuer_id,expires_at)
+      VALUES('signin',$1,$2,$3,now()+interval '15 minutes')`, [digest(qr), principalId, admin]);
+    const qrBody = { token: qr, commandId: randomUUID() };
+    const qrRace = await Promise.all([post("/auth/qr/redeem", qrBody), post("/auth/qr/redeem", qrBody)]);
+    expect(qrRace.map((response) => response.statusCode).sort()).toEqual([200, 410]);
+    const signedIn = qrRace.find((response) => response.statusCode === 200)!;
+    expect(signedIn.statusCode).toBe(200);
+    const qrCookies = cookieHeader(signedIn.headers["set-cookie"]);
+    expect((await post("/auth/qr/redeem", qrBody, cookies)).json().error.code).toBe("TOKEN_INVALID");
+    expect((await post("/auth/qr/redeem", qrBody, qrCookies)).json().data).toEqual(signedIn.json().data);
+    await databasePool.query("DELETE FROM next_round.rate_buckets");
+    const reset = randomBytes(32).toString("hex");
+    await databasePool.query(`INSERT INTO next_round.auth_tokens(kind,token_hash,principal_id,issuer_id,expires_at)
+      VALUES('reset',$1,$2,$3,now()+interval '30 minutes')`, [digest(reset), principalId, admin]);
+    const resetBody = { token: reset, password: `${password}!`, commandId: randomUUID() };
+    await databasePool.query("UPDATE next_round.principals SET disabled_at=now() WHERE id=$1", [principalId]);
+    expect((await post("/auth/reset/redeem", resetBody)).json().error.code).toBe("TOKEN_INVALID");
+    const unused = await databasePool.query("SELECT used_at FROM next_round.auth_tokens WHERE token_hash=$1", [digest(reset)]);
+    expect(unused.rows[0].used_at).toBeNull();
+    await databasePool.query("UPDATE next_round.principals SET disabled_at=NULL WHERE id=$1", [principalId]);
+    expect((await post("/auth/reset/redeem", resetBody)).statusCode).toBe(204);
+    expect((await post("/auth/reset/redeem", resetBody, qrCookies)).json().error.code).toBe("TOKEN_INVALID");
+    const login = await post("/auth/login", { username: body.username, password: resetBody.password });
+    expect(login.statusCode).toBe(200);
+    expect((await post("/auth/reset/redeem", resetBody, cookieHeader(login.headers["set-cookie"]))).statusCode).toBe(204);
+    const receipts = await databasePool.query("SELECT safe_receipt FROM next_round.command_receipts WHERE scope LIKE 'auth.%'");
+    expect(receipts.rows).toHaveLength(3);
+    const stored = JSON.stringify(receipts.rows);
+    await databasePool.query("DELETE FROM next_round.rate_buckets");
+    const missingAccountReset = randomBytes(32).toString("hex");
+    await databasePool.query(`INSERT INTO next_round.auth_tokens(kind,token_hash,principal_id,issuer_id,expires_at)
+      VALUES('reset',$1,$2,$3,now()+interval '30 minutes')`, [digest(missingAccountReset), principalId, admin]);
+    await databasePool.query("DELETE FROM next_round.accounts WHERE principal_id=$1", [principalId]);
+    expect((await post("/auth/reset/redeem", { token: missingAccountReset, password, commandId: randomUUID() })).json().error.code).toBe("TOKEN_INVALID");
+    expect((await databasePool.query("SELECT used_at FROM next_round.auth_tokens WHERE token_hash=$1", [digest(missingAccountReset)])).rows[0].used_at).toBeNull();
+    const takenToken = randomBytes(32).toString("hex");
+    await databasePool.query(`INSERT INTO next_round.invitations(kind,issuer_id,token_hash,expires_at)
+      VALUES('registration',$1,$2,now()+interval '1 day')`, [admin, digest(takenToken)]);
+    const taken = await post("/auth/register", { ...body, token: takenToken, username: "initial_admin", commandId: randomUUID() });
+    const invalid = await post("/auth/register", { ...body, token: "invalid", commandId: randomUUID() });
+    expect(taken.json().error.code).toBe("TOKEN_INVALID");
+    expect(taken.json().error.message).toBe(invalid.json().error.message);
+    for (const secret of [token, qr, reset, password, registered.json().data.csrfToken]) expect(stored).not.toContain(secret);
+  }, 120_000);
+
+  it("does not rotate CSRF on session reads with missing or stale proof", async () => {
+    await app.inject({ method: "POST", url: "/api/v1/setup", headers: jsonHeaders(), payload: setupBody(randomUUID()) });
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/login", headers: jsonHeaders(), payload: { username: "initial_admin", password } });
+    const cookies = cookieHeader(login.headers["set-cookie"]);
+    const before = await databasePool.query("SELECT csrf_hash FROM next_round.sessions");
+    const sessionOnly = cookies.split("; ").filter((value) => !value.startsWith("next-round-csrf=")).join("; ");
+    for (const cookie of [sessionOnly, `${sessionOnly}; next-round-csrf=stale`]) {
+      const response = await app.inject({ url: "/api/v1/auth/session", headers: { cookie } });
+      expect(response.statusCode).toBe(403);
+      expect(response.headers["set-cookie"]).toBeUndefined();
+    }
+    expect((await databasePool.query("SELECT csrf_hash FROM next_round.sessions")).rows).toEqual(before.rows);
+    expect((await app.inject({ url: "/api/v1/auth/session", headers: { cookie: cookies } })).statusCode).toBe(200);
+  }, 120_000);
+
+  it("rejects development cookies on HTTPS and enforces cluster-shared invitation budgets", async () => {
+    await app.close();
+    const secureOrigin = "https://table.example";
+    app = await buildServer({ logger: false, cookieSecret: randomBytes(32).toString("hex"),
+      staticRoot, databasePool, setupToken, origin: secureOrigin });
+    const headers = { origin: secureOrigin, "content-type": "application/json" };
+    await app.inject({ method: "POST", url: "/api/v1/setup", headers, payload: setupBody(randomUUID()) });
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/login", headers, payload: { username: "initial_admin", password } });
+    expect(login.statusCode).toBe(200);
+    const cookies = cookieHeader(login.headers["set-cookie"]);
+    const forged = cookies.replaceAll("__Host-next-round", "next-round");
+    expect((await app.inject({ url: "/api/v1/auth/session", headers: { cookie: forged } })).statusCode).toBe(401);
+    expect((await app.inject({ url: "/api/v1/auth/session", headers: { cookie: cookies } })).statusCode).toBe(200);
+    const deniedLive = await app.inject({ url: "/api/v1/live", headers: {
+      origin: secureOrigin, cookie: forged, "sec-websocket-protocol": LIVE_SUBPROTOCOL,
+    } });
+    expect(deniedLive.statusCode).toBe(401);
+    const mintHeaders = { ...headers, cookie: cookies, "x-csrf-token": login.json().data.csrfToken };
+    const results = await Promise.all(Array.from({ length: 21 }, () => app.inject({
+      method: "POST", url: "/api/v1/invitations/registration", headers: mintHeaders, payload: { commandId: randomUUID() },
+    })));
+    expect(results.filter((result) => result.statusCode === 201)).toHaveLength(20);
+    expect(results.filter((result) => result.statusCode === 429)).toHaveLength(1);
+    expect(Number(results.find((result) => result.statusCode === 429)!.headers["retry-after"])).toBeGreaterThan(0);
+    await databasePool.query("DELETE FROM next_round.rate_buckets");
+    const issuerId = login.json().data.principal.id;
+    await databasePool.query(`INSERT INTO next_round.invitations(kind,issuer_id,expires_at)
+      SELECT 'registration',$1,now()+interval '1 day' FROM generate_series(1,30)`, [issuerId]);
+    const capped = await app.inject({ method: "POST", url: "/api/v1/invitations/registration",
+      headers: mintHeaders, payload: { commandId: randomUUID() } });
+    expect(capped.statusCode).toBe(429);
+    expect(Number(capped.headers["retry-after"])).toBeGreaterThan(0);
+    expect((await databasePool.query("SELECT count(*)::integer AS count FROM next_round.invitations")).rows[0].count).toBe(50);
+  }, 120_000);
 
   it("serializes setup, authenticates without email, revokes logout, and preserves one admin", async () => {
     const before = await app.inject({ method: "GET", url: "/api/v1/setup" });

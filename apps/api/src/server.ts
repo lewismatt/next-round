@@ -134,6 +134,7 @@ export async function buildServer(
     trustProxy,
     genReqId: () => randomUUID(),
   });
+  app.decorate("authCookieOrigin", origin);
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiError) {
@@ -160,6 +161,23 @@ export async function buildServer(
       return reply
         .status(rateLimitError.statusCode)
         .send(rateLimitError.toResponse(request.id));
+    }
+    const parserCode =
+      typeof error === "object" && error !== null && "code" in error
+        ? error.code
+        : undefined;
+    if (
+      typeof parserCode === "string" &&
+      parserCode.startsWith("FST_ERR_CTP_") &&
+      (statusCode === 400 || statusCode === 413 || statusCode === 415)
+    ) {
+      // Never echo parser messages: malformed JSON can contain credentials,
+      // token-bearing input or private guesses.
+      const invalidBody = new ApiError(
+        ERROR_CODES.INVALID_REQUEST,
+        "The request body is not valid JSON or exceeds the supported limits.",
+      );
+      return reply.status(statusCode).send(invalidBody.toResponse(request.id));
     }
     // Driver error details and reducer messages can contain private input/state.
     // The request logger already supplies the correlation ID; never serialize

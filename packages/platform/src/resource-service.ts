@@ -226,6 +226,11 @@ export async function persistMatchFacts(
  * document and returns the private data, the public catalog metadata and the
  * importer's exposure facts. The importer is always recorded as exposed, even
  * for a duplicate identity.
+ *
+ * Receipt scope `game.resource.import` is not a match command: match_id and
+ * committed_revision are intentionally NULL. Consumers must select by scope,
+ * not assume every command receipt identifies a match/revision. The safe
+ * receipt is admin-only and excludes the imported document.
  */
 export async function importModuleResource(
   pool: DatabasePool,

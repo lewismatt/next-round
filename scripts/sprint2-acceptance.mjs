@@ -222,12 +222,16 @@ try {
   const missedStartedAt = Date.now();
   receipt = await request(n2, b, `/matches/${matchId}/actions`, { commandId: randomUUID(), expectedRevision: receipt.committedRevision, type: "add", payload: { amount: 1 } });
   const missed = await Promise.all([refreshed(c1, receipt.committedRevision), refreshed(c2, receipt.committedRevision)]);
-  const missedCompletedAt = Date.now();
-  await until(() => [n1.child.pid, n2.child.pid].every(pid => sweepSamples.some(sample =>
-    sample.pid === pid && sample.time >= missedStartedAt && sample.time <= missedCompletedAt &&
-    sample.invalidationsEmitted > 0)), "periodic sweep measurements on both nodes");
-  const periodicSweepSamples = sweepSamples.filter(sample =>
-    sample.time >= missedStartedAt && sample.time <= missedCompletedAt && sample.invalidationsEmitted > 0);
+  // Frames are emitted before the sweep COMMIT and its log entry. On a loaded
+  // runner that entry can therefore be timestamped after both refetches finish.
+  // Give log collection its own CI budget; the snapshot timestamps above remain
+  // the recovery measurement, and no further mutations run until collection ends.
+  const periodicSweepSamples = await until(() => {
+    const samples = sweepSamples.filter(sample =>
+      sample.time >= missedStartedAt && sample.invalidationsEmitted > 0);
+    return [n1.child.pid, n2.child.pid].every(pid =>
+      samples.some(sample => sample.pid === pid)) && samples;
+  }, "periodic sweep measurements on both nodes", 60000);
   const listenerAfter = await listeners();
   assert.deepEqual(listenerAfter, listenerBefore, "missed wakeup recovery must retain both listener sessions");
   for (const entry of missed) assert.equal(entry.snapshot.game.count, 2);

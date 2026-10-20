@@ -165,6 +165,27 @@ it("GH-1 L-2: closes an oversized WebSocket message with 1009", async () => {
   }
 });
 
+describe("HTTP parser error privacy", () => {
+  it.each([
+    { payload: "", status: 400 },
+    { payload: '{"password":"private-parser-input",', status: 400 },
+    { payload: JSON.stringify({ guess: "x".repeat(1024 * 1024) }), status: 413 },
+  ])("returns a safe client error for rejected JSON ($status)", async ({ payload, status }) => {
+    const app = await server();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/logout",
+      headers: { "content-type": "application/json" },
+      payload,
+    });
+    expect(response.statusCode).toBe(status);
+    expect(response.json().error).toMatchObject({ code: "INVALID_REQUEST" });
+    expect(response.json().error.requestId).toEqual(expect.any(String));
+    expect(response.body).not.toContain("private-parser-input");
+    expect(response.body.length).toBeLessThan(1024);
+  });
+});
+
 it("keeps unhandled driver and reducer errors out of logs and responses", async () => {
   const app = await server();
   const privateValue = "private-reducer-state-and-guess";

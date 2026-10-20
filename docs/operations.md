@@ -42,6 +42,50 @@ The supported scopes are:
 
 Active and lobby matches are never retention targets. Disabled principals are not deleted by these scopes.
 
+## Outbox delivery and expiry maintenance
+
+Apply reviewed migration `0002_worker_reliability` before starting this worker.
+Each worker opens one dedicated `LISTEN next_round_outbox` connection in addition
+to its query and pg-boss pools. Transactional insert notifications wake the
+already-running worker. `DATABASE_DIRECT_URL` selects the dedicated listener
+connection when configured (otherwise `DATABASE_URL`). The 10000 ms recovery
+sweep still handles missed wakeups, retry availability and process restarts.
+Budget the extra connection when sizing
+PostgreSQL. Notifications contain no row payload or private data.
+
+Outbox claims use 30-second leases and attempt fencing. After eight attempts a
+failed row is parked with `dead_lettered_at` and a sanitized `last_error_code`.
+Parked rows remain durable and are excluded from dispatch. Diagnose the code and
+schema before replaying an effect; changing application code does not itself
+unpark a row. Never delete a row to hide a failed effect.
+
+Inspect failures and pending age with operator database access:
+
+```sql
+SELECT id, topic, attempts, dead_lettered_at, last_error_code
+FROM next_round.outbox
+WHERE dead_lettered_at IS NOT NULL
+ORDER BY dead_lettered_at;
+
+SELECT min(created_at) AS oldest_pending_at
+FROM next_round.outbox
+WHERE delivered_at IS NULL AND dead_lettered_at IS NULL;
+```
+
+After repairing the cause, stop all worker processes and wait for them to exit
+before resetting any attempt counter. This prevents an old in-flight claim from
+matching a reused attempt number. An operator can then deliberately retry a parked
+effect by resetting its attempts, dead-letter/error markers, lease and
+`available_at` in one reviewed SQL update, and restart the workers. Match deadline
+and live invalidation effects retain their deduplication identity. Startup and
+periodic sweeps discover the retry even though the insert trigger does not fire
+on updates. This is an operator procedure, not a new administrative API.
+
+Each recovery sweep deletes at most 500 expired rate-budget rows and 500 expired
+nonaccepted guest invitations, using expiry indexes and bounded row locking.
+Accepted guest invitations remain available for session-bound receipt recovery.
+Cleanup never deletes current rolling-window budget rows.
+
 ## Evidence record
 
 Record evidence after running the checks. Do not fill this table from expected behavior or code inspection.

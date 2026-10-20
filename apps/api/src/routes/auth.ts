@@ -25,6 +25,12 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 const CSRF_COOKIE_NAME = "__Host-next-round-csrf";
 const CSRF_DEV_COOKIE_NAME = "next-round-csrf";
 
+declare module "fastify" {
+  interface FastifyInstance {
+    authCookieOrigin: string;
+  }
+}
+
 export interface AuthRoutesOptions {
   authService: AuthService;
   tokenService: TokenService;
@@ -102,14 +108,28 @@ export async function requireSession(
   requireCsrf: boolean,
 ): Promise<AuthenticatedSession> {
   const rawSessionToken =
-    request.cookies[SESSION_COOKIE_NAME] ??
-    request.cookies[SESSION_DEV_COOKIE_NAME];
+    request.cookies[cookieSettings(request.server.authCookieOrigin).sessionName];
   const session = await service.authenticate(rawSessionToken);
   if (requireCsrf) {
     const header = request.headers["x-csrf-token"];
     service.verifyCsrf(session, Array.isArray(header) ? header[0] : header);
   }
   return session;
+}
+
+async function redemptionRecovery(request: FastifyRequest, service: AuthService, origin: string) {
+  const settings = cookieSettings(origin);
+  const rawSessionToken = request.cookies[settings.sessionName];
+  const rawCsrfToken = request.cookies[settings.csrfName];
+  if (!rawSessionToken || !rawCsrfToken) return undefined;
+  try {
+    const session = await service.authenticate(rawSessionToken);
+    service.verifyCsrf(session, rawCsrfToken);
+    return { session, rawSessionToken, rawCsrfToken };
+  } catch (error) {
+    if (error instanceof ApiError) return undefined;
+    throw error;
+  }
 }
 
 export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
@@ -142,6 +162,7 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
       input.password,
       input.displayName,
       input.commandId,
+      await redemptionRecovery(request, authService, origin),
     );
     setAuthCookies(
       reply,
@@ -171,6 +192,7 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
     const result = await authService.redeemSignInToken(
       input.token,
       input.commandId,
+      await redemptionRecovery(request, authService, origin),
     );
     setAuthCookies(
       reply,
@@ -199,6 +221,7 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
       input.token,
       input.password,
       input.commandId,
+      await redemptionRecovery(request, authService, origin),
     );
     return reply.status(204).send();
   });
@@ -233,19 +256,10 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
 
   fastify.get("/auth/session", async (request, reply) => {
     const session = await requireSession(request, authService, false);
-    let rawCsrfToken =
-      request.cookies[CSRF_COOKIE_NAME] ??
-      request.cookies[CSRF_DEV_COOKIE_NAME];
-    try {
-      authService.verifyCsrf(session, rawCsrfToken);
-    } catch (error) {
-      if (!(error instanceof ApiError) || error.code !== ERROR_CODES.FORBIDDEN)
-        throw error;
-      rawCsrfToken = await authService.rotateCsrf(session);
-    }
-    const rawSessionToken =
-      request.cookies[SESSION_COOKIE_NAME] ??
-      request.cookies[SESSION_DEV_COOKIE_NAME];
+    const settings = cookieSettings(origin);
+    const rawCsrfToken = request.cookies[settings.csrfName];
+    authService.verifyCsrf(session, rawCsrfToken);
+    const rawSessionToken = request.cookies[settings.sessionName];
     if (!rawSessionToken || !rawCsrfToken) {
       throw new ApiError(
         ERROR_CODES.AUTH_REQUIRED,
