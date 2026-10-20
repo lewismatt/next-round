@@ -30,6 +30,10 @@ export default defineConfig({
           __dirname,
           "../../games/test-counter/src/client.ts",
         ),
+        "games/crossword/0.1.0/client": path.resolve(
+          __dirname,
+          "../../games/crossword/src/client.ts",
+        ),
       },
       preserveEntrySignatures: "strict",
       external: [

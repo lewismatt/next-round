@@ -2,16 +2,20 @@
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import {
+  AdminGameImportRequestSchema,
   AdminGameParamsSchema,
   AdminGamePatchRequestSchema,
   ApiError,
   ERROR_CODES,
   type GameManifest,
+  type Json,
   parseRequestBody,
 } from "@next-round/contracts";
 import type { DatabasePool } from "@next-round/db";
 import {
   getAdminGames,
+  importModuleResource,
+  listModuleResources,
   patchAdminGame,
   type AuthService,
   type GameRegistry,
@@ -107,6 +111,31 @@ export const gameManifestRoutes: FastifyPluginAsync<GameManifestRoutesOptions> =
     });
   });
 
+  fastify.get("/games/:gameId/resources", async (request, reply) => {
+    const session = await requireSession(request, options.authService, false);
+    if (session.principal.kind !== "registered") {
+      throw new ApiError(
+        ERROR_CODES.FORBIDDEN,
+        "Registered accounts are required to browse the resource catalog.",
+      );
+    }
+    const { gameId } = request.params as { gameId: string };
+    const query = request.query as { cursor?: string; limit?: string };
+    const limit = query.limit === undefined ? undefined : Number(query.limit);
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+      throw new ApiError(ERROR_CODES.INVALID_REQUEST, "The limit is not valid.");
+    }
+    const page = await listModuleResources(options.databasePool, gameId, {
+      cursor: query.cursor ?? null,
+      limit,
+    });
+    return reply.status(200).header("Cache-Control", "no-store").send({
+      data: page.entries,
+      nextCursor: page.nextCursor,
+      serverNow: new Date().toISOString(),
+    });
+  });
+
   fastify.post("/games/:gameId/settings", async (request, reply) => {
     requireJsonMutation(request, options.origin);
     const session = await requireSession(request, options.authService, true);
@@ -195,6 +224,27 @@ export const adminGameRoutes: FastifyPluginAsync<AdminGameRoutesOptions> = async
     }
     const data = await getAdminGames(options.databasePool, options.registry, session);
     return reply.status(200).header("Cache-Control", "no-store").send({
+      data,
+      serverNow: new Date().toISOString(),
+    });
+  });
+
+  fastify.post("/admin/games/:id/import", async (request, reply) => {
+    requireJsonMutation(request, options.origin);
+    const params = parseRequestBody(AdminGameParamsSchema, request.params);
+    const input = parseRequestBody(AdminGameImportRequestSchema, request.body);
+    const session = await requireSession(request, options.authService, true);
+    if (!session.permissions.isAdmin) {
+      throw new ApiError(ERROR_CODES.FORBIDDEN, "Administrator access is required.");
+    }
+    const data = await importModuleResource(
+      options.databasePool,
+      options.registry,
+      session,
+      params.id,
+      { commandId: input.commandId, document: input.document as Json },
+    );
+    return reply.status(201).header("Cache-Control", "no-store").send({
       data,
       serverNow: new Date().toISOString(),
     });
