@@ -291,6 +291,9 @@ importers:
       '@next-round/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@next-round/game-crossword':
+        specifier: workspace:*
+        version: link:../../games/crossword
       '@next-round/game-test-counter':
         specifier: workspace:*
         version: link:../../games/test-counter

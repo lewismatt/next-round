@@ -72,12 +72,17 @@ Date: 2026-10-20. Agent: `omp-s5-20261020`.
 - **Resource-bound matches.** A match pins one resource version and stores an
   immutable snapshot of the private content. Every resource-bound command
   locks the resource identity before the match row, so two overlapping matches
-  on one puzzle cannot both observe an unrecorded exposure.
+  on one puzzle cannot both observe an unrecorded exposure. A hidden resource
+  cannot start a new match, while its identity and facts stay as the truthful
+  exposure record.
 - **API.** `POST /api/v1/admin/games/:id/import` (administrator only, CSRF and
   exact Origin required, 1 MiB document limit, idempotent per `commandId`) and
   `GET /api/v1/games/:gameId/resources` (registered users only, keyset
   pagination, catalog metadata only — never the private data and never the
   solution-derived identity digest).
+- **Worker registration.** The worker registers the same module version, so a
+  database that declares the crossword stays ready when the worker verifies
+  module retention.
 
 ## Executed gates
 

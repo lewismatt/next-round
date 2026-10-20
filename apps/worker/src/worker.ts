@@ -9,6 +9,7 @@ import {
   verifyModuleRetentionReadiness,
 } from "@next-round/platform";
 import { loadTestCounterFixtureIfEnabled } from "./test-counter-fixture.js";
+import { registerCrosswordModule } from "./crossword-fixture.js";
 
 const { Pool } = pg;
 
@@ -240,6 +241,7 @@ export class WorkerRunner {
         this.registry,
         process.env.NEXT_ROUND_ENABLE_TEST_COUNTER === "true",
       );
+      registerCrosswordModule(this.registry);
     }
 
     this.matchService = new MatchService(this.pool, this.registry);

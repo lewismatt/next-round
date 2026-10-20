@@ -32,6 +32,8 @@ const MAX_IMPORT_ERRORS = 25;
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 const IMPORT_SCOPE = "game.resource.import";
+/** Version of the platform's resource contract (import, metadata, data, facts). */
+const RESOURCE_SCHEMA_VERSION = 1;
 
 export interface ImportedResource {
   resourceId: string;
@@ -102,7 +104,7 @@ export async function loadResourceById(
     `SELECT r.identity_id, ri.identity, r.version, r.private_data
        FROM next_round.module_resources r
        JOIN next_round.resource_identities ri ON ri.id = r.identity_id
-      WHERE r.id = $1 AND ri.module_id = $2`,
+      WHERE r.id = $1 AND ri.module_id = $2 AND r.hidden_at IS NULL`,
     [resourceId, moduleId],
   );
   const row = result.rows[0];
@@ -367,7 +369,7 @@ export async function importModuleResource(
           resourceVersion,
           JSON.stringify(metadata),
           JSON.stringify(data),
-          registered.manifest.stateVersion,
+          RESOURCE_SCHEMA_VERSION,
           session.principal.id,
         ],
       );

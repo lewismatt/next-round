@@ -502,6 +502,32 @@ describe.skipIf(!testDatabaseUrl)("crossword resource and exposure flow", () => 
     expect(state.rows[0].state.exclusionReasons).toContain("prior_exposure");
   });
 
+  it("refuses a hidden resource for a new match", async () => {
+    const imported = await importDocument(admin, DOCUMENT);
+    const receipt = parseRequestBody(
+      AdminGameImportResponseSchema,
+      JSON.parse(imported.body),
+    ).data;
+    await databasePool.query(
+      "UPDATE next_round.module_resources SET hidden_at = clock_timestamp() WHERE id = $1",
+      [receipt.resourceId],
+    );
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/v1/matches",
+      headers: headers(member, true),
+      payload: {
+        commandId: randomUUID(),
+        moduleId: "crossword",
+        mode: "solo",
+        settings: SOLO_SETTINGS,
+        resourceId: receipt.resourceId,
+        visibility: "invite",
+      },
+    });
+    expect(created.statusCode).toBe(404);
+  });
+
   it("replays an identical import command and rejects a changed one", async () => {
     const commandId = randomUUID();
     const first = await app.inject({
