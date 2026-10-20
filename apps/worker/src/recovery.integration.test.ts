@@ -664,6 +664,38 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
     }
   }, 60_000);
 
+  it("recovers prompt delivery after its LISTEN backend is terminated (BL-047)", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 600_000 });
+    try {
+      await worker.start();
+      const listenerPids = async () => (await databasePool.query<{ pid: number }>(
+        "SELECT pid FROM pg_stat_activity WHERE datname = current_database() AND query LIKE 'LISTEN%'",
+      )).rows.map((row) => row.pid);
+      const before = await listenerPids();
+      expect(before.length).toBeGreaterThan(0);
+      for (const pid of before) {
+        await databasePool.query("SELECT pg_terminate_backend($1)", [pid]);
+      }
+      await expect.poll(async () => (await listenerPids()).length, { timeout: 15_000 }).toBe(0);
+      const id = randomUUID();
+      await databasePool.query(
+        `INSERT INTO next_round.outbox (id, topic, aggregate_id, dedupe_key, safe_payload)
+         VALUES ($1::uuid, 'live.invalidate', 'test', $1::text, $2)`,
+        [id, JSON.stringify({ scope: { kind: "home", principalId: memberA.principalId }, revision: 1 })],
+      );
+      // The periodic sweep is ten minutes out, so delivery within seconds
+      // can only come from the reconnected listener (catch-up drain/NOTIFY).
+      await expect.poll(async () => (await databasePool.query(
+        "SELECT delivered_at IS NOT NULL AS delivered FROM next_round.outbox WHERE id=$1", [id],
+      )).rows[0].delivered, { timeout: 20_000 }).toBe(true);
+      const after = await listenerPids();
+      expect(after.length).toBeGreaterThan(0);
+      expect(after.some((pid) => !before.includes(pid))).toBe(true);
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
   it("bounds global expiry cleanup and preserves live rate budgets", async () => {
     const worker = new WorkerRunner({ connectionString, pool: databasePool, registry });
     await databasePool.query(
