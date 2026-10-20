@@ -17,9 +17,18 @@ import type { DatabasePool } from "@next-round/db";
 import type { GameEvent, RuleContext, Transition } from "@next-round/game-sdk";
 import type { GameRegistry, RegisteredGameVersion } from "./registry.js";
 import type { AuthenticatedSession } from "./auth-service.js";
-import { lockPrincipals, recheckSession } from "./transaction-authority.js";
+import {
+  lockPrincipals,
+  recheckSession,
+  type TransactionClient,
+} from "./transaction-authority.js";
 import { prepareFinalResult, persistFinalResult } from "./final-results.js";
-import { persistMatchEffects, readDeadlines, validateDeadlines, type StoredDeadline } from "./match-effects.js";
+import {
+  persistMatchEffects,
+  readDeadlines,
+  validateDeadlines,
+  type StoredDeadline,
+} from "./match-effects.js";
 
 type MatchPhase = "lobby" | "active" | "finished";
 
@@ -113,11 +122,17 @@ function notFound(): ApiError {
 }
 
 function moduleUnavailable(): ApiError {
-  return new ApiError(ERROR_CODES.MODULE_UNAVAILABLE, "Game module is not available.");
+  return new ApiError(
+    ERROR_CODES.MODULE_UNAVAILABLE,
+    "Game module is not available.",
+  );
 }
 
 function moduleFailure(): ApiError {
-  return new ApiError(ERROR_CODES.MODULE_FAILURE, "The game module could not process this match.");
+  return new ApiError(
+    ERROR_CODES.MODULE_FAILURE,
+    "The game module could not process this match.",
+  );
 }
 
 const MATCH_ACTION_SCOPE = "match.action";
@@ -145,14 +160,18 @@ function canonicalJson(value: Json): string {
 
 /** Route, normalized command fields, and expectedRevision. Never log this string. */
 function hashMatchAction(matchId: string, input: MatchActionInput): Buffer {
-  return createHash("sha256").update(canonicalJson({
-    route: MATCH_ACTION_ROUTE,
-    matchId: matchId.toLowerCase(),
-    commandId: input.commandId.toLowerCase(),
-    expectedRevision: input.expectedRevision,
-    type: input.type,
-    payload: input.payload,
-  })).digest();
+  return createHash("sha256")
+    .update(
+      canonicalJson({
+        route: MATCH_ACTION_ROUTE,
+        matchId: matchId.toLowerCase(),
+        commandId: input.commandId.toLowerCase(),
+        expectedRevision: input.expectedRevision,
+        type: input.type,
+        payload: input.payload,
+      }),
+    )
+    .digest();
 }
 
 type LifecycleKind = "join" | "start" | "leave";
@@ -161,19 +180,35 @@ function hashLifecycleCommand(
   kind: LifecycleKind,
   matchId: string,
   input: MatchLifecycleCommand,
+  invitationId?: string,
+  targetMemberId?: string,
+  linkIdentity?: string,
 ): Buffer {
-  return createHash("sha256").update(canonicalJson({
-    route: `POST /api/v1/matches/:id/${kind}`,
-    matchId: matchId.toLowerCase(),
-    commandId: input.commandId.toLowerCase(),
-    expectedRevision: input.expectedRevision,
-  })).digest();
+  return createHash("sha256")
+    .update(
+      canonicalJson({
+        route: `POST /api/v1/matches/:id/${kind}`,
+        matchId: matchId.toLowerCase(),
+        commandId: input.commandId.toLowerCase(),
+        expectedRevision: input.expectedRevision,
+        ...(invitationId ? { invitationId } : {}),
+        ...(targetMemberId ? { targetMemberId } : {}),
+        ...(linkIdentity ? { linkIdentity } : {}),
+      }),
+    )
+    .digest();
 }
 
-function sameRequestHash(expected: Buffer, stored: Buffer | Uint8Array | string): boolean {
-  const actual = typeof stored === "string"
-    ? Buffer.from(stored.startsWith("\\x") ? stored.slice(2) : stored, "hex")
-    : Buffer.isBuffer(stored) ? stored : Buffer.from(stored);
+function sameRequestHash(
+  expected: Buffer,
+  stored: Buffer | Uint8Array | string,
+): boolean {
+  const actual =
+    typeof stored === "string"
+      ? Buffer.from(stored.startsWith("\\x") ? stored.slice(2) : stored, "hex")
+      : Buffer.isBuffer(stored)
+        ? stored
+        : Buffer.from(stored);
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
@@ -250,25 +285,35 @@ export class MatchService {
     input: CreateMatchRequest,
   ): Promise<CreateMatchResponse> {
     if (session.principal.kind !== "registered") {
-      throw new ApiError(ERROR_CODES.FORBIDDEN, "Registered accounts are required to create matches.");
+      throw new ApiError(
+        ERROR_CODES.FORBIDDEN,
+        "Registered accounts are required to create matches.",
+      );
     }
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
       await lockPrincipals(client, [session.principal.id]);
       await recheckSession(client, session, { registered: true });
-      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
-        `${session.principal.id}:${MATCH_CREATE_SCOPE}:${input.commandId.toLowerCase()}`,
-      ]);
-      const requestHash = createHash("sha256").update(canonicalJson({
-        route: "POST /api/v1/matches",
-        commandId: input.commandId.toLowerCase(),
-        moduleId: input.moduleId,
-        mode: input.mode,
-        settings: input.settings as Json,
-        resourceId: input.resourceId ?? null,
-        visibility: input.visibility,
-      })).digest();
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        [
+          `${session.principal.id}:${MATCH_CREATE_SCOPE}:${input.commandId.toLowerCase()}`,
+        ],
+      );
+      const requestHash = createHash("sha256")
+        .update(
+          canonicalJson({
+            route: "POST /api/v1/matches",
+            commandId: input.commandId.toLowerCase(),
+            moduleId: input.moduleId,
+            mode: input.mode,
+            settings: input.settings as Json,
+            resourceId: input.resourceId ?? null,
+            visibility: input.visibility,
+          }),
+        )
+        .digest();
       const prior = await client.query<CommandReceiptRow>(
         `SELECT request_hash, match_id, committed_revision::integer AS committed_revision, safe_receipt
            FROM next_round.command_receipts
@@ -276,16 +321,26 @@ export class MatchService {
         [session.principal.id, MATCH_CREATE_SCOPE, input.commandId],
       );
       if (prior.rows[0]) {
-        if (!sameRequestHash(requestHash, prior.rows[0].request_hash) || !prior.rows[0].match_id) {
-          throw new ApiError(ERROR_CODES.IDEMPOTENCY_CONFLICT, "This command was already used with a different request.");
+        if (
+          !sameRequestHash(requestHash, prior.rows[0].request_hash) ||
+          !prior.rows[0].match_id
+        ) {
+          throw new ApiError(
+            ERROR_CODES.IDEMPOTENCY_CONFLICT,
+            "This command was already used with a different request.",
+          );
         }
         const stored = prior.rows[0].safe_receipt;
-        if (!stored || typeof stored !== "object" || Array.isArray(stored)) throw moduleFailure();
+        if (!stored || typeof stored !== "object" || Array.isArray(stored))
+          throw moduleFailure();
         await client.query("COMMIT");
         return stored as unknown as CreateMatchResponse;
       }
 
-      const moduleResult = await client.query<{ version: string; state_version: number }>(
+      const moduleResult = await client.query<{
+        version: string;
+        state_version: number;
+      }>(
         `SELECT mv.version, mv.state_version
            FROM next_round.modules m
            JOIN next_round.module_versions mv
@@ -295,59 +350,101 @@ export class MatchService {
         [input.moduleId],
       );
       const module = moduleResult.rows[0];
-      const registered = module && registeredVersion(this.registry, input.moduleId, module.version);
+      const registered =
+        module &&
+        registeredVersion(this.registry, input.moduleId, module.version);
       if (!registered) throw moduleUnavailable();
       if (input.resourceId) {
-        throw new ApiError(ERROR_CODES.INVALID_REQUEST, "This game does not support resource-based matches.");
+        throw new ApiError(
+          ERROR_CODES.INVALID_REQUEST,
+          "This game does not support resource-based matches.",
+        );
       }
-      const mode = registered.manifest.modes.find((candidate) => candidate.id === input.mode);
-      if (!mode) throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Match mode is not supported.");
-      const settings = parseJsonSchemaValue(registered.manifest.settingsSchema, input.settings);
-      const policyResult = await client.query<{ current_policy_version: number; policy: Json }>(
+      const mode = registered.manifest.modes.find(
+        (candidate) => candidate.id === input.mode,
+      );
+      if (!mode)
+        throw new ApiError(
+          ERROR_CODES.INVALID_REQUEST,
+          "Match mode is not supported.",
+        );
+      const settings = parseJsonSchemaValue(
+        registered.manifest.settingsSchema,
+        input.settings,
+      );
+      const policyResult = await client.query<{
+        current_policy_version: number;
+        policy: Json;
+      }>(
         `SELECT s.current_policy_version::integer, p.policy
            FROM next_round.instance_singleton s
            JOIN next_round.instance_policy p ON p.version = s.current_policy_version
           WHERE s.id = true`,
       );
       const currentPolicy = policyResult.rows[0];
-      if (!currentPolicy) throw new ApiError(ERROR_CODES.SERVICE_UNAVAILABLE, "Instance setup is incomplete.");
+      if (!currentPolicy)
+        throw new ApiError(
+          ERROR_CODES.SERVICE_UNAVAILABLE,
+          "Instance setup is incomplete.",
+        );
 
       const matchId = randomUUID();
       const memberId = randomUUID();
       const eventId = randomUUID();
       const now = await this.databaseNow(client);
-      const members: Member[] = [{
-        id: memberId,
-        principalId: session.principal.id,
-        kind: "registered",
-        displayName: session.principal.displayName,
-        status: "active",
-        joinOrdinal: 1,
-        disabled: false,
-        accessEpoch: 0,
-      }];
-      const matchContext = context({
-        id: matchId,
-        module_version: module.version,
-        mode: input.mode,
-        phase: "lobby",
-        revision: 0,
-        settings,
-        host_member_id: memberId,
-      }, members, now, eventId, { principalId: session.principal.id, memberId });
+      const members: Member[] = [
+        {
+          id: memberId,
+          principalId: session.principal.id,
+          kind: "registered",
+          displayName: session.principal.displayName,
+          status: "active",
+          joinOrdinal: 1,
+          disabled: false,
+          accessEpoch: 0,
+        },
+      ];
+      const matchContext = context(
+        {
+          id: matchId,
+          module_version: module.version,
+          mode: input.mode,
+          phase: "lobby",
+          revision: 0,
+          settings,
+          host_member_id: memberId,
+        },
+        members,
+        now,
+        eventId,
+        { principalId: session.principal.id, memberId },
+      );
       let transition;
       try {
-        transition = registered.server.transition(matchContext, null, { kind: "create" });
+        transition = registered.server.transition(matchContext, null, {
+          kind: "create",
+        });
       } catch {
         throw moduleFailure();
       }
-      if (!transition.ok) throw new ApiError(ERROR_CODES.RULE_REJECTED, "The game did not accept this match.");
-      if (transition.value.phase !== "lobby" || transition.value.final !== null || transition.value.hostMemberId !== memberId) {
+      if (!transition.ok)
+        throw new ApiError(
+          ERROR_CODES.RULE_REJECTED,
+          "The game did not accept this match.",
+        );
+      if (
+        transition.value.phase !== "lobby" ||
+        transition.value.final !== null ||
+        transition.value.hostMemberId !== memberId
+      ) {
         throw moduleFailure();
       }
       let state: Json;
       try {
-        state = parseJsonSchemaValue(registered.manifest.stateSchema, transition.value.state);
+        state = parseJsonSchemaValue(
+          registered.manifest.stateSchema,
+          transition.value.state,
+        );
       } catch {
         throw moduleFailure();
       }
@@ -359,17 +456,30 @@ export class MatchService {
             revision, state, needs_action_from)
          VALUES ($1, $2, $3, $4, $5, 'lobby', $6, NULL, $7::jsonb, $8, $9,
                  $10::jsonb, 0, $11::jsonb, $12::uuid[])`,
-        [matchId, input.moduleId, module.version, module.state_version, input.mode,
-          session.principal.id, JSON.stringify(settings), visibility,
-          currentPolicy.current_policy_version, JSON.stringify(currentPolicy.policy),
-          JSON.stringify(state), transition.value.needsActionFrom],
+        [
+          matchId,
+          input.moduleId,
+          module.version,
+          module.state_version,
+          input.mode,
+          session.principal.id,
+          JSON.stringify(settings),
+          visibility,
+          currentPolicy.current_policy_version,
+          JSON.stringify(currentPolicy.policy),
+          JSON.stringify(state),
+          transition.value.needsActionFrom,
+        ],
       );
       await client.query(
         `INSERT INTO next_round.match_members (id, match_id, principal_id, join_ordinal)
          VALUES ($1, $2, $3, 1)`,
         [memberId, matchId, session.principal.id],
       );
-      await client.query("UPDATE next_round.matches SET host_member_id = $2 WHERE id = $1", [matchId, memberId]);
+      await client.query(
+        "UPDATE next_round.matches SET host_member_id = $2 WHERE id = $1",
+        [matchId, memberId],
+      );
       await client.query(
         `INSERT INTO next_round.member_periods (member_id, access_epoch)
          VALUES ($1, 0)`,
@@ -380,18 +490,46 @@ export class MatchService {
          VALUES ($1, 0, $2, $3, 'create', '{}'::jsonb)`,
         [matchId, eventId, session.principal.id],
       );
-      await this.persistTransition(client, {
-        id: matchId, module_id: input.moduleId, module_version: module.version,
-        state_version: module.state_version, mode: input.mode, phase: "lobby",
-        revision: -1, state: null, settings, host_member_id: memberId,
-      }, members, registered, transition.value, { kind: "create" }, eventId, now,
-      session.principal.id, true);
-      const receipt: CreateMatchResponse = { matchId, revision: 0, commandId: input.commandId };
+      await this.persistTransition(
+        client,
+        {
+          id: matchId,
+          module_id: input.moduleId,
+          module_version: module.version,
+          state_version: module.state_version,
+          mode: input.mode,
+          phase: "lobby",
+          revision: -1,
+          state: null,
+          settings,
+          host_member_id: memberId,
+        },
+        members,
+        registered,
+        transition.value,
+        { kind: "create" },
+        eventId,
+        now,
+        session.principal.id,
+        true,
+      );
+      const receipt: CreateMatchResponse = {
+        matchId,
+        revision: 0,
+        commandId: input.commandId,
+      };
       await client.query(
         `INSERT INTO next_round.command_receipts
            (principal_id, scope, command_id, request_hash, match_id, committed_revision, safe_receipt)
          VALUES ($1, $2, $3, $4, $5, 0, $6::jsonb)`,
-        [session.principal.id, MATCH_CREATE_SCOPE, input.commandId, requestHash, matchId, JSON.stringify(receipt)],
+        [
+          session.principal.id,
+          MATCH_CREATE_SCOPE,
+          input.commandId,
+          requestHash,
+          matchId,
+          JSON.stringify(receipt),
+        ],
       );
       await client.query("COMMIT");
       return receipt;
@@ -407,8 +545,32 @@ export class MatchService {
     matchId: string,
     session: AuthenticatedSession,
     input: MatchLifecycleCommand,
+    linkToken?: string,
   ): Promise<CommandReceipt> {
-    return this.runLifecycleCommand("join", matchId, session, input);
+    return this.runLifecycleCommand(
+      "join",
+      matchId,
+      session,
+      input,
+      undefined,
+      undefined,
+      linkToken,
+    );
+  }
+
+  acceptInvitation(
+    matchId: string,
+    invitationId: string,
+    session: AuthenticatedSession,
+    input: MatchLifecycleCommand,
+  ): Promise<CommandReceipt> {
+    return this.runLifecycleCommand(
+      "join",
+      matchId,
+      session,
+      input,
+      invitationId,
+    );
   }
 
   start(
@@ -419,6 +581,76 @@ export class MatchService {
     return this.runLifecycleCommand("start", matchId, session, input);
   }
 
+  joinInTransaction(
+    client: TransactionClient,
+    matchId: string,
+    session: AuthenticatedSession,
+    input: MatchLifecycleCommand,
+    invitationId: string,
+    invitationKind: "member" | "guest" = "member",
+  ): Promise<CommandReceipt> {
+    return this.runLifecycleCommandOnce(
+      "join",
+      matchId,
+      session,
+      input,
+      invitationId,
+      client,
+      invitationKind,
+    );
+  }
+  async canInviteInTransaction(
+    client: TransactionClient,
+    matchId: string,
+    principalId: string,
+  ): Promise<boolean> {
+    const result = await client.query<{
+      module_id: string;
+      module_version: string;
+      mode: string;
+      phase: MatchPhase;
+      revision: number;
+      state: Json | null;
+      settings: Json;
+      host_member_id: string | null;
+      id: string;
+      principal_id: string;
+      member_id: string;
+      kind: "registered" | "guest";
+      display_name: string;
+      status: Member["status"];
+      join_ordinal: number;
+      disabled: boolean;
+      access_epoch: number;
+    }>(
+      `SELECT m.id, m.module_id, m.module_version, m.mode, m.phase,
+              m.revision::integer AS revision, m.state, m.settings, m.host_member_id,
+              mm.principal_id, mm.id AS member_id, p.kind, p.display_name,
+              mm.status, mm.join_ordinal::integer AS join_ordinal,
+              p.disabled_at IS NOT NULL AS disabled, mm.access_epoch::integer AS access_epoch
+         FROM next_round.matches m
+         JOIN next_round.match_members mm ON mm.match_id = m.id
+         JOIN next_round.principals p ON p.id = mm.principal_id
+        WHERE m.id = $1
+        ORDER BY mm.join_ordinal
+        FOR UPDATE OF m, mm, p`,
+      [matchId],
+    );
+    const inviter = result.rows.find(
+      (row) => row.principal_id.toLowerCase() === principalId.toLowerCase(),
+    );
+    if (
+      !inviter ||
+      inviter.phase === "finished" ||
+      inviter.status !== "active" ||
+      inviter.disabled ||
+      inviter.state === null
+    )
+      return false;
+    registeredVersion(this.registry, inviter.module_id, inviter.module_version);
+    return inviter.kind === "registered";
+  }
+
   leave(
     matchId: string,
     session: AuthenticatedSession,
@@ -427,22 +659,53 @@ export class MatchService {
     return this.runLifecycleCommand("leave", matchId, session, input);
   }
 
+  removeMember(
+    matchId: string,
+    memberId: string,
+    session: AuthenticatedSession,
+    input: MatchLifecycleCommand,
+  ): Promise<CommandReceipt> {
+    return this.runLifecycleCommand(
+      "leave",
+      matchId,
+      session,
+      input,
+      undefined,
+      memberId,
+    );
+  }
+
   private async runLifecycleCommand(
     kind: LifecycleKind,
     matchId: string,
     session: AuthenticatedSession,
     input: MatchLifecycleCommand,
+    invitationId?: string,
+    targetMemberId?: string,
+    linkToken?: string,
   ): Promise<CommandReceipt> {
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return await this.runLifecycleCommandOnce(kind, matchId, session, input);
+        return await this.runLifecycleCommandOnce(
+          kind,
+          matchId,
+          session,
+          input,
+          invitationId,
+          undefined,
+          "member",
+          targetMemberId,
+          linkToken,
+        );
       } catch (error) {
         const code = (error as { code?: string }).code;
         if (code !== "40001" && code !== "40P01") throw error;
-        if (attempt === 2) {
-          throw new ApiError(ERROR_CODES.SERVICE_UNAVAILABLE, "Please retry this command.");
-        }
-        await new Promise((resolve) => setTimeout(resolve, 10 + Math.random() * 30));
+        if (attempt === 2)
+          throw new ApiError(
+            ERROR_CODES.SERVICE_UNAVAILABLE,
+            "Please retry this command.",
+          );
+        await delay(10 + Math.random() * 30);
       }
     }
   }
@@ -452,23 +715,76 @@ export class MatchService {
     matchId: string,
     session: AuthenticatedSession,
     input: MatchLifecycleCommand,
+    invitationId?: string,
+    transactionClient?: TransactionClient,
+    invitationKind: "member" | "guest" = "member",
+    targetMemberId?: string,
+    linkToken?: string,
   ): Promise<CommandReceipt> {
     matchId = matchId.toLowerCase();
     const principalId = session.principal.id.toLowerCase();
-    const client = await this.pool.connect();
+    const client = transactionClient ?? (await this.pool.connect());
+    const ownsTransaction = transactionClient === undefined;
     let committedTimeouts = false;
     try {
-      await client.query("BEGIN");
+      if (ownsTransaction) await client.query("BEGIN");
       const discovered = await client.query<{ principal_id: string }>(
         "SELECT principal_id FROM next_round.match_members WHERE match_id = $1",
         [matchId],
       );
+      const linkHash = linkToken
+        ? createHash("sha256").update(linkToken, "utf8").digest()
+        : undefined;
+      let linkIssuer: string | undefined;
+      if (linkHash) {
+        const linkCandidate = await client.query<{ issued_by: string }>(
+          "SELECT issued_by FROM next_round.match_links WHERE match_id = $1 AND token_hash = $2",
+          [matchId, linkHash],
+        );
+        linkIssuer = linkCandidate.rows[0]?.issued_by.toLowerCase();
+      }
+
+      let invitationIssuer: string | undefined;
+      if (invitationId) {
+        const candidate = await client.query<{ issuer_id: string }>(
+          `SELECT issuer_id FROM next_round.invitations
+            WHERE id = $1 AND kind = $3 AND match_id = $2`,
+          [invitationId, matchId, invitationKind],
+        );
+        invitationIssuer = candidate.rows[0]?.issuer_id.toLowerCase();
+      }
       const lockedPrincipalIds = new Set([
         principalId,
+        ...(invitationIssuer ? [invitationIssuer] : []),
+        ...(linkIssuer ? [linkIssuer] : []),
         ...discovered.rows.map((row) => row.principal_id.toLowerCase()),
       ]);
       await lockPrincipals(client, [...lockedPrincipalIds]);
       const currentSession = await recheckSession(client, session, { matchId });
+      let link:
+        | { id: string; issued_by: string; revoked_at: Date | null }
+        | undefined;
+      if (linkHash) {
+        const lockedLink = await client.query<{
+          id: string;
+          issued_by: string;
+          revoked_at: Date | null;
+        }>(
+          `SELECT id, issued_by, revoked_at FROM next_round.match_links
+            WHERE match_id = $1 AND token_hash = $2
+            FOR UPDATE`,
+          [matchId, linkHash],
+        );
+        link = lockedLink.rows[0];
+        if (
+          !link ||
+          link.revoked_at ||
+          link.issued_by.toLowerCase() !== linkIssuer ||
+          currentSession.kind !== "registered"
+        ) {
+          throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+        }
+      }
       const matchResult = await client.query<LifecycleMatchRow>(
         `SELECT id, module_id, module_version, state_version, mode, phase,
                 revision::integer AS revision, state, settings, host_member_id, visibility
@@ -494,13 +810,47 @@ export class MatchService {
         [matchId],
       );
       const persistedMembers = membersResult.rows;
-      if (persistedMembers.some((member) => !lockedPrincipalIds.has(member.principalId.toLowerCase()))) {
+      if (
+        persistedMembers.some(
+          (member) => !lockedPrincipalIds.has(member.principalId.toLowerCase()),
+        )
+      ) {
         // A join committed after principal discovery. Retry with its principal
         // included so lifecycle hooks never run without holding every member lock.
-        throw Object.assign(new Error("Retry membership discovery"), { code: "40001" });
+        throw Object.assign(new Error("Retry membership discovery"), {
+          code: "40001",
+        });
       }
 
-      const requestHash = hashLifecycleCommand(kind, matchId, input);
+      if (link) {
+        const issuerMember = persistedMembers.find(
+          (candidate) =>
+            candidate.principalId.toLowerCase() ===
+            link!.issued_by.toLowerCase(),
+        );
+        const authorized =
+          issuerMember?.kind === "registered" &&
+          issuerMember.status === "active" &&
+          !issuerMember.disabled &&
+          issuerMember.id === match.host_member_id;
+        if (!authorized) {
+          throw new ApiError(ERROR_CODES.TOKEN_INVALID, "Token is invalid.");
+        }
+      }
+
+      const caller = persistedMembers.find(
+        (member) => member.principalId.toLowerCase() === principalId,
+      );
+
+      const requestHash = hashLifecycleCommand(
+        kind,
+        matchId,
+        input,
+        invitationId,
+        targetMemberId,
+        linkHash?.toString("hex"),
+      );
+
       const receiptResult = await client.query<CommandReceiptRow>(
         `SELECT request_hash, match_id, committed_revision::integer AS committed_revision,
                 safe_receipt
@@ -520,10 +870,45 @@ export class MatchService {
             "This command was already used with a different request.",
           );
         }
+
+        // Caller must exist and not be removed; a removed member cannot replay to regain access.
+        if (!caller || caller.disabled || caller.status === "removed") {
+          throw notFound();
+        }
+
+        // A departed member who voluntarily left has no active membership and can only replay their own leave receipt.
+        if (
+          caller.status === "left" &&
+          (kind !== "leave" || targetMemberId !== undefined)
+        ) {
+          throw notFound();
+        }
+
+        // For targeted invitations, verify recipient identity matches principal.
+        if (invitationId) {
+          const inv = await client.query<{ recipient_id: string | null }>(
+            `SELECT recipient_id FROM next_round.invitations
+              WHERE id = $1 AND kind = $3 AND match_id = $2`,
+            [invitationId, matchId, invitationKind],
+          );
+          const invitationRow = inv.rows[0];
+          if (
+            !invitationRow ||
+            (invitationKind === "member" &&
+              invitationRow.recipient_id?.toLowerCase() !== principalId)
+          ) {
+            throw notFound();
+          }
+        }
+
         const stored = prior.safe_receipt;
-        if (!stored || typeof stored !== "object" || Array.isArray(stored)) throw moduleFailure();
-        const commandId = typeof stored.commandId === "string" ? stored.commandId : input.commandId;
-        await client.query("COMMIT");
+        if (!stored || typeof stored !== "object" || Array.isArray(stored))
+          throw moduleFailure();
+        const commandId =
+          typeof stored.commandId === "string"
+            ? stored.commandId
+            : input.commandId;
+        if (ownsTransaction) await client.query("COMMIT");
         return {
           commandId,
           matchId,
@@ -533,40 +918,115 @@ export class MatchService {
         };
       }
 
-      const caller = persistedMembers.find((member) => member.principalId.toLowerCase() === principalId);
+      let invitation:
+        | { issuer_id: string; recipient_id: string | null; status: string }
+        | undefined;
+      if (invitationId) {
+        const invite = await client.query<{
+          issuer_id: string;
+          recipient_id: string | null;
+          status: string;
+        }>(
+          `SELECT issuer_id, recipient_id, status FROM next_round.invitations
+            WHERE id = $1 AND kind = $3 AND match_id = $2
+              AND expires_at > clock_timestamp()
+            FOR UPDATE`,
+          [invitationId, matchId, invitationKind],
+        );
+        invitation = invite.rows[0];
+        if (
+          !invitation ||
+          invitation.status !== "pending" ||
+          invitation.issuer_id.toLowerCase() !== invitationIssuer ||
+          (invitationKind === "member" &&
+            invitation.recipient_id?.toLowerCase() !== principalId)
+        ) {
+          throw notFound();
+        }
+      }
+
       if (kind !== "join" && caller?.status !== "active") throw notFound();
-      if (kind === "join" && (caller?.status === "removed" ||
-          (!caller && (currentSession.kind !== "registered" || match.visibility !== "instance")))) throw notFound();
+      if (
+        kind === "join" &&
+        ((caller?.status === "removed" && !invitation) ||
+          (caller?.status === "left" &&
+            !invitation &&
+            !link &&
+            (currentSession.kind !== "registered" ||
+              match.visibility !== "instance")) ||
+          (!caller &&
+            !invitation &&
+            !link &&
+            (currentSession.kind !== "registered" ||
+              match.visibility !== "instance")))
+      )
+        throw notFound();
       // Revision conflict takes precedence over closed state on every command path.
       if (match.revision !== input.expectedRevision) {
-        throw new ApiError(ERROR_CODES.STALE_REVISION, "Refresh this match before continuing.", {
-          details: { currentRevision: match.revision },
-        });
+        throw new ApiError(
+          ERROR_CODES.STALE_REVISION,
+          "Refresh this match before continuing.",
+          {
+            details: { currentRevision: match.revision },
+          },
+        );
       }
       if (match.phase === "finished") {
         throw new ApiError(ERROR_CODES.MATCH_CLOSED, "Match is closed.");
       }
       const now = await this.databaseNow(client);
       if (await this.reconcileDue(client, match, persistedMembers, now)) {
-        await client.query("COMMIT");
+        if (ownsTransaction) await client.query("COMMIT");
         committedTimeouts = true;
-        throw new ApiError(ERROR_CODES.STALE_REVISION, "Refresh this match before continuing.", {
-          details: { currentRevision: match.revision },
-        });
+        throw new ApiError(
+          ERROR_CODES.STALE_REVISION,
+          "Refresh this match before continuing.",
+          {
+            details: { currentRevision: match.revision },
+          },
+        );
       }
       if (match.state === null) throw moduleUnavailable();
-      if (currentSession.kind !== "registered" && currentSession.kind !== "guest") throw moduleFailure();
+      if (
+        currentSession.kind !== "registered" &&
+        currentSession.kind !== "guest"
+      )
+        throw moduleFailure();
+      const memberKind =
+        currentSession.kind === "guest" ? "guest" : "registered";
 
-      const registered = registeredVersion(this.registry, match.module_id, match.module_version);
-      const mode = registered.manifest.modes.find((candidate) => candidate.id === match.mode);
+      const registered = registeredVersion(
+        this.registry,
+        match.module_id,
+        match.module_version,
+      );
+      const mode = registered.manifest.modes.find(
+        (candidate) => candidate.id === match.mode,
+      );
       if (!mode) throw moduleFailure();
       let state: Json;
       try {
-        state = parseJsonSchemaValue(registered.manifest.stateSchema, match.state);
+        state = parseJsonSchemaValue(
+          registered.manifest.stateSchema,
+          match.state,
+        );
       } catch {
         throw moduleFailure();
       }
-
+      if (invitation) {
+        const issuerMember = persistedMembers.find(
+          (candidate) =>
+            candidate.principalId.toLowerCase() ===
+            invitation!.issuer_id.toLowerCase(),
+        );
+        const authorized =
+          issuerMember?.kind === "registered" &&
+          issuerMember.status === "active" &&
+          !issuerMember.disabled;
+        if (!authorized) {
+          throw notFound();
+        }
+      }
       const existingMember = persistedMembers.find(
         (member) => member.principalId.toLowerCase() === principalId,
       );
@@ -575,12 +1035,19 @@ export class MatchService {
       let rejoin = false;
       if (kind === "join") {
         if (existingMember?.status === "active") {
-          throw new ApiError(ERROR_CODES.RULE_REJECTED, "You already joined this match.");
+          throw new ApiError(
+            ERROR_CODES.RULE_REJECTED,
+            "You already joined this match.",
+          );
         }
-        if (existingMember?.status === "removed") throw notFound();
+        if (existingMember?.status === "removed" && !invitation)
+          throw notFound();
         if (existingMember) {
           if (!mode.rejoin || (match.phase === "active" && !mode.lateJoin)) {
-            throw new ApiError(ERROR_CODES.MATCH_CLOSED, "This match no longer accepts returning players.");
+            throw new ApiError(
+              ERROR_CODES.MATCH_CLOSED,
+              "This match no longer accepts returning players.",
+            );
           }
           rejoin = true;
           const existingPeriod = await client.query(
@@ -588,43 +1055,96 @@ export class MatchService {
               WHERE member_id = $1 AND access_epoch = $2`,
             [existingMember.id, existingMember.accessEpoch],
           );
-          const accessEpoch = existingPeriod.rowCount ? existingMember.accessEpoch + 1 : existingMember.accessEpoch;
+          const accessEpoch = existingPeriod.rowCount
+            ? existingMember.accessEpoch + 1
+            : existingMember.accessEpoch;
           member = { ...existingMember, accessEpoch, status: "active" };
-          members = persistedMembers.map((candidate) => candidate.id === member!.id ? member! : candidate);
+          members = persistedMembers.map((candidate) =>
+            candidate.id === member!.id ? member! : candidate,
+          );
         } else {
-          if (currentSession.kind !== "registered" || match.visibility !== "instance") throw notFound();
+          if (
+            !invitation &&
+            !link &&
+            (currentSession.kind !== "registered" ||
+              match.visibility !== "instance")
+          )
+            throw notFound();
           if (match.phase === "active" && !mode.lateJoin) {
-            throw new ApiError(ERROR_CODES.MATCH_CLOSED, "This match no longer accepts new players.");
+            throw new ApiError(
+              ERROR_CODES.MATCH_CLOSED,
+              "This match no longer accepts new players.",
+            );
           }
           member = {
             id: randomUUID(),
             principalId,
-            kind: "registered",
+            kind: memberKind,
             displayName: session.principal.displayName,
             status: "active",
-            joinOrdinal: persistedMembers.reduce((maximum, candidate) => Math.max(maximum, candidate.joinOrdinal), 0) + 1,
+            joinOrdinal:
+              persistedMembers.reduce(
+                (maximum, candidate) =>
+                  Math.max(maximum, candidate.joinOrdinal),
+                0,
+              ) + 1,
             disabled: false,
             accessEpoch: 0,
           };
           members = [...persistedMembers, member];
         }
-        const activeCount = persistedMembers.filter((candidate) => candidate.status === "active").length;
+        const activeCount = persistedMembers.filter(
+          (candidate) => candidate.status === "active",
+        ).length;
         if (activeCount >= mode.maxPlayers) {
-          throw new ApiError(ERROR_CODES.CAPACITY_REACHED, "This match is full.");
+          throw new ApiError(
+            ERROR_CODES.CAPACITY_REACHED,
+            "This match is full.",
+          );
         }
       } else {
-        if (!existingMember || existingMember.status !== "active") throw notFound();
-        member = existingMember;
+        if (!existingMember || existingMember.status !== "active")
+          throw notFound();
+        if (targetMemberId) {
+          const target = persistedMembers.find(
+            (candidate) =>
+              candidate.id.toLowerCase() === targetMemberId.toLowerCase(),
+          );
+          if (!target || target.status !== "active") throw notFound();
+          member = target;
+        } else {
+          member = existingMember;
+        }
       }
       if (!member) throw moduleFailure();
 
       // The reducer receives the database time captured after the match lock.
       const eventId = randomUUID();
-      const ctx = context(match, members, now, eventId, { principalId, memberId: member.id });
+      const ctx = context(match, members, now, eventId, {
+        principalId,
+        memberId: targetMemberId ? existingMember!.id : member.id,
+      });
       let transition;
       try {
-        if (kind === "start" && !registered.server.authority(ctx, state, member.id).canStart) {
-          throw new ApiError(ERROR_CODES.FORBIDDEN, "Only the match host can start this match.");
+        if (
+          kind === "start" &&
+          !registered.server.authority(ctx, state, member.id).canStart
+        ) {
+          throw new ApiError(
+            ERROR_CODES.FORBIDDEN,
+            "Only the match host can start this match.",
+          );
+        }
+        if (
+          targetMemberId &&
+          !registered.server
+            .authority(ctx, state, existingMember!.id)
+            .removableMemberIds.includes(member.id)
+        ) {
+          throw new ApiError(
+            ERROR_CODES.FORBIDDEN,
+            "This member is not currently eligible for removal.",
+          );
         }
         transition = registered.server.transition(
           ctx,
@@ -633,25 +1153,50 @@ export class MatchService {
             ? { kind: "join", memberId: member.id, rejoin }
             : kind === "start"
               ? { kind: "start" }
-              : { kind: "leave", memberId: member.id, reason: "left" },
+              : {
+                  kind: "leave",
+                  memberId: member.id,
+                  reason: targetMemberId ? "removed" : "left",
+                },
         );
       } catch (error) {
         if (error instanceof ApiError) throw error;
         throw moduleFailure();
       }
       if (!transition.ok) {
-        throw new ApiError(ERROR_CODES.RULE_REJECTED, "The game did not accept this command.", {
-          details: { ruleCode: `${match.module_id}/RULE_REJECTED` },
-        });
+        throw new ApiError(
+          ERROR_CODES.RULE_REJECTED,
+          "The game did not accept this command.",
+          {
+            details: { ruleCode: `${match.module_id}/RULE_REJECTED` },
+          },
+        );
       }
-      if (!transition.value ||
-          (kind !== "leave" && transition.value.final !== null) ||
-          (kind === "start" && transition.value.phase !== "active") ||
-          (kind === "join" && transition.value.phase !== match.phase)) throw moduleFailure();
       if (
-        kind === "leave" && transition.value.hostMemberId === member.id &&
+        !transition.value ||
+        (kind !== "leave" && transition.value.final !== null) ||
+        (kind === "start" && transition.value.phase !== "active") ||
+        (kind === "join" && transition.value.phase !== match.phase)
+      )
+        throw moduleFailure();
+      if (
+        kind === "leave" &&
+        transition.value.hostMemberId === member.id &&
         transition.value.phase !== "finished"
-      ) throw moduleFailure();
+      )
+        throw moduleFailure();
+      const leaveReason = targetMemberId ? "removed" : "left";
+      if (kind === "leave") {
+        members = persistedMembers.map((candidate) =>
+          candidate.id === member.id
+            ? {
+                ...candidate,
+                status: leaveReason,
+                accessEpoch: candidate.accessEpoch + 1,
+              }
+            : candidate,
+        );
+      }
 
       if (kind === "join") {
         if (rejoin) {
@@ -683,26 +1228,44 @@ export class MatchService {
       } else if (kind === "leave") {
         await client.query(
           `UPDATE next_round.match_members
-              SET status = 'left', departed_at = $3::timestamptz,
+              SET status = $4, departed_at = $3::timestamptz,
                   access_epoch = access_epoch + 1
             WHERE match_id = $1 AND id = $2 AND status = 'active'`,
-          [matchId, member.id, now],
+          [matchId, member.id, now, leaveReason],
         );
         await client.query(
           `UPDATE next_round.member_periods
-              SET departed_at = $3::timestamptz, departure_reason = 'left'
+              SET departed_at = $3::timestamptz, departure_reason = $4
             WHERE member_id = $1 AND access_epoch = $2 AND departed_at IS NULL`,
-          [member.id, member.accessEpoch, now],
+          [member.id, member.accessEpoch, now, leaveReason],
         );
       }
 
       const committedRevision = await this.persistTransition(
-        client, match, members, registered, transition.value,
-        kind === "join" ? { kind: "join", memberId: member.id, rejoin } :
-          kind === "start" ? { kind: "start" } : { kind: "leave", memberId: member.id, reason: "left" },
-        eventId, now, principalId,
+        client,
+        match,
+        members,
+        registered,
+        transition.value,
+        kind === "join"
+          ? { kind: "join", memberId: member.id, rejoin }
+          : kind === "start"
+            ? { kind: "start" }
+            : { kind: "leave", memberId: member.id, reason: leaveReason },
+        eventId,
+        now,
+        principalId,
       );
 
+      if (invitationId) {
+        const consumed = await client.query(
+          `UPDATE next_round.invitations
+              SET status = 'accepted', consumed_by = $2, consumed_at = $3::timestamptz
+            WHERE id = $1 AND status = 'pending'`,
+          [invitationId, principalId, now],
+        );
+        if (!consumed.rowCount) throw notFound();
+      }
       const receipt: CommandReceipt = {
         commandId: input.commandId,
         matchId,
@@ -715,21 +1278,35 @@ export class MatchService {
            (principal_id, scope, command_id, request_hash, match_id,
             committed_revision, safe_receipt)
          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-        [principalId, MATCH_LIFECYCLE_SCOPE, input.commandId, requestHash, matchId,
-          committedRevision, JSON.stringify(receipt)],
+        [
+          principalId,
+          MATCH_LIFECYCLE_SCOPE,
+          input.commandId,
+          requestHash,
+          matchId,
+          committedRevision,
+          JSON.stringify(receipt),
+        ],
       );
-      await client.query("COMMIT");
+      if (ownsTransaction) await client.query("COMMIT");
       return receipt;
     } catch (error) {
-      if (!committedTimeouts) await client.query("ROLLBACK");
+      if (ownsTransaction && !committedTimeouts) await client.query("ROLLBACK");
       throw error;
     } finally {
-      client.release();
+      if (
+        ownsTransaction &&
+        "release" in client &&
+        typeof client.release === "function"
+      )
+        client.release();
     }
   }
 
-
-  async getSnapshot(matchId: string, principalId: string): Promise<MatchSnapshot> {
+  async getSnapshot(
+    matchId: string,
+    principalId: string,
+  ): Promise<MatchSnapshot> {
     const result = await this.pool.query<MatchRow>(
       `SELECT m.id, m.module_id, m.module_version, m.mode, m.phase,
               m.revision::integer AS revision, m.state, m.settings, m.host_member_id,
@@ -759,7 +1336,11 @@ export class MatchService {
     if (!match) throw notFound();
     if (match.state === null) throw moduleUnavailable();
 
-    const registered = registeredVersion(this.registry, match.module_id, match.module_version);
+    const registered = registeredVersion(
+      this.registry,
+      match.module_id,
+      match.module_version,
+    );
     const serverNow = new Date().toISOString();
     const ctx = context(match, match.members, serverNow, randomUUID(), null);
 
@@ -774,7 +1355,11 @@ export class MatchService {
           access: "active",
         }),
       );
-      authority = registered.server.authority(ctx, match.state, match.viewer_member_id);
+      authority = registered.server.authority(
+        ctx,
+        match.state,
+        match.viewer_member_id,
+      );
     } catch {
       throw moduleFailure();
     }
@@ -794,9 +1379,17 @@ export class MatchService {
       capabilities: {
         canStart: authority.canStart,
         canLeave: match.phase !== "finished",
-        canInvite: false,
+        canInvite:
+          match.phase !== "finished" &&
+          match.members.some(
+            (member) =>
+              member.id === match.viewer_member_id &&
+              member.kind === "registered" &&
+              member.status === "active" &&
+              !member.disabled,
+          ),
         canFinish: authority.canFinish,
-        canChat: true,
+        canChat: registered.manifest.capabilities.chat,
         canAct: match.phase === "active",
       },
       game,
@@ -820,7 +1413,11 @@ export class MatchService {
     const match = result.rows[0];
     if (!match) throw notFound();
 
-    const registered = registeredVersion(this.registry, match.module_id, match.module_version);
+    const registered = registeredVersion(
+      this.registry,
+      match.module_id,
+      match.module_version,
+    );
     try {
       return registered.server.resultView(
         context(
@@ -849,8 +1446,14 @@ export class MatchService {
       } catch (error) {
         const code = (error as { code?: string }).code;
         if (code !== "40001" && code !== "40P01") throw error;
-        if (attempt === 2) throw new ApiError(ERROR_CODES.SERVICE_UNAVAILABLE, "Please retry this command.");
-        await new Promise((resolve) => setTimeout(resolve, 10 + Math.random() * 30));
+        if (attempt === 2)
+          throw new ApiError(
+            ERROR_CODES.SERVICE_UNAVAILABLE,
+            "Please retry this command.",
+          );
+        await new Promise((resolve) =>
+          setTimeout(resolve, 10 + Math.random() * 30),
+        );
       }
     }
   }
@@ -872,7 +1475,10 @@ export class MatchService {
         "SELECT principal_id FROM next_round.match_members WHERE match_id = $1",
         [matchId],
       );
-      const principalIds = [principalId, ...candidates.rows.map((row) => row.principal_id)];
+      const principalIds = [
+        principalId,
+        ...candidates.rows.map((row) => row.principal_id),
+      ];
       await lockPrincipals(client, principalIds);
       const matchResult = await client.query<ActionMatchRow>(
         `SELECT m.id, m.module_id, m.module_version, m.state_version, m.mode, m.phase,
@@ -895,10 +1501,16 @@ export class MatchService {
         "SELECT principal_id FROM next_round.match_members WHERE match_id = $1",
         [matchId],
       );
-      if (currentMembers.rows.some((row) => !principalIds.includes(row.principal_id))) {
+      if (
+        currentMembers.rows.some(
+          (row) => !principalIds.includes(row.principal_id),
+        )
+      ) {
         // A join committed between discovery and the match lock. Restart without
         // acquiring a new principal out of order while holding the match lock.
-        throw Object.assign(new Error("Retry membership discovery"), { code: "40001" });
+        throw Object.assign(new Error("Retry membership discovery"), {
+          code: "40001",
+        });
       }
       // An identical retry is already stale against the revision this command committed.
       const requestHash = hashMatchAction(matchId, input);
@@ -924,10 +1536,13 @@ export class MatchService {
         }
         await client.query("COMMIT");
         const stored = prior.safe_receipt;
-        const commandId = stored && typeof stored === "object" && !Array.isArray(stored) &&
+        const commandId =
+          stored &&
+          typeof stored === "object" &&
+          !Array.isArray(stored) &&
           typeof stored.commandId === "string"
-          ? stored.commandId
-          : input.commandId;
+            ? stored.commandId
+            : input.commandId;
         return {
           commandId,
           matchId,
@@ -937,9 +1552,13 @@ export class MatchService {
         };
       }
       if (match.revision !== input.expectedRevision) {
-        throw new ApiError(ERROR_CODES.STALE_REVISION, "Refresh this match before acting.", {
-          details: { currentRevision: match.revision },
-        });
+        throw new ApiError(
+          ERROR_CODES.STALE_REVISION,
+          "Refresh this match before acting.",
+          {
+            details: { currentRevision: match.revision },
+          },
+        );
       }
       if (match.phase === "finished") {
         throw new ApiError(ERROR_CODES.MATCH_CLOSED, "Match is closed.");
@@ -949,13 +1568,21 @@ export class MatchService {
       if (await this.reconcileDue(client, match, deadlineMembers, now)) {
         await client.query("COMMIT");
         committedTimeouts = true;
-        throw new ApiError(ERROR_CODES.STALE_REVISION, "Refresh this match before acting.", {
-          details: { currentRevision: match.revision },
-        });
+        throw new ApiError(
+          ERROR_CODES.STALE_REVISION,
+          "Refresh this match before acting.",
+          {
+            details: { currentRevision: match.revision },
+          },
+        );
       }
       if (match.state === null) throw moduleUnavailable();
 
-      const registered = registeredVersion(this.registry, match.module_id, match.module_version);
+      const registered = registeredVersion(
+        this.registry,
+        match.module_id,
+        match.module_version,
+      );
       const actionSchema = registered.manifest.actionSchemas[input.type];
       if (!actionSchema) {
         throw new ApiError(
@@ -992,8 +1619,15 @@ export class MatchService {
       }
 
       const committedRevision = await this.persistTransition(
-        client, match, members, registered, transition.value,
-        { kind: "action", type: input.type, payload }, eventId, now, principalId,
+        client,
+        match,
+        members,
+        registered,
+        transition.value,
+        { kind: "action", type: input.type, payload },
+        eventId,
+        now,
+        principalId,
       );
 
       const receipt: CommandReceipt = {
@@ -1028,19 +1662,27 @@ export class MatchService {
     }
   }
 
-  private async databaseNow(client: Pick<DatabasePool, "query">): Promise<string> {
-    const result = await client.query<{ now: Date }>("SELECT clock_timestamp() AS now");
+  private async databaseNow(
+    client: Pick<DatabasePool, "query">,
+  ): Promise<string> {
+    const result = await client.query<{ now: Date }>(
+      "SELECT clock_timestamp() AS now",
+    );
     return result.rows[0].now.toISOString();
   }
 
-  private async loadMembers(client: Pick<DatabasePool, "query">, matchId: string): Promise<Member[]> {
+  private async loadMembers(
+    client: Pick<DatabasePool, "query">,
+    matchId: string,
+  ): Promise<Member[]> {
     const result = await client.query<Member>(
       `SELECT mm.id, mm.principal_id AS "principalId", p.kind,
               p.display_name AS "displayName", mm.status,
               mm.join_ordinal::integer AS "joinOrdinal",
               (p.disabled_at IS NOT NULL) AS disabled, mm.access_epoch::integer AS "accessEpoch"
          FROM next_round.match_members mm JOIN next_round.principals p ON p.id = mm.principal_id
-        WHERE mm.match_id = $1 ORDER BY mm.join_ordinal`, [matchId],
+        WHERE mm.match_id = $1 ORDER BY mm.join_ordinal`,
+      [matchId],
     );
     return result.rows;
   }
@@ -1059,21 +1701,43 @@ export class MatchService {
     created = false,
     fired?: StoredDeadline,
   ): Promise<number> {
-    if (!transition || !Array.isArray(transition.deadlines) ||
-        !Array.isArray(transition.needsActionFrom) || !Array.isArray(transition.facts) ||
-        !["lobby", "active", "finished"].includes(transition.phase) ||
-        (match.phase === "active" && transition.phase === "lobby") ||
-        (match.phase === "finished") ||
-        (transition.hostMemberId !== null && !members.some((m) => m.id === transition.hostMemberId)) ||
-        new Set(transition.needsActionFrom).size !== transition.needsActionFrom.length ||
-        transition.needsActionFrom.some((id) => !members.some((m) => m.id === id && m.status === "active" && !m.disabled))) {
+    if (
+      !transition ||
+      !Array.isArray(transition.deadlines) ||
+      !Array.isArray(transition.needsActionFrom) ||
+      !Array.isArray(transition.facts) ||
+      !["lobby", "active", "finished"].includes(transition.phase) ||
+      (match.phase === "active" && transition.phase === "lobby") ||
+      match.phase === "finished" ||
+      (transition.hostMemberId !== null &&
+        !members.some((m) => m.id === transition.hostMemberId)) ||
+      new Set(transition.needsActionFrom).size !==
+        transition.needsActionFrom.length ||
+      transition.needsActionFrom.some(
+        (id) =>
+          !members.some(
+            (m) => m.id === id && m.status === "active" && !m.disabled,
+          ),
+      )
+    ) {
       throw moduleFailure();
     }
     let state: Json;
-    try { state = parseJsonSchemaValue(registered.manifest.stateSchema, transition.state); }
-    catch { throw moduleFailure(); }
+    try {
+      state = parseJsonSchemaValue(
+        registered.manifest.stateSchema,
+        transition.state,
+      );
+    } catch {
+      throw moduleFailure();
+    }
     const final = prepareFinalResult(registered, transition, members);
-    const stored = await validateDeadlines(client, match.id, transition.deadlines, fired);
+    const stored = await validateDeadlines(
+      client,
+      match.id,
+      transition.deadlines,
+      fired,
+    );
     const revision = match.revision + 1;
     if (!Number.isSafeInteger(revision)) throw moduleFailure();
     await client.query(
@@ -1082,20 +1746,61 @@ export class MatchService {
               started_at = CASE WHEN $3 = 'active' THEN COALESCE(started_at, $7::timestamptz) ELSE started_at END,
               finished_at = CASE WHEN $3 = 'finished' THEN $7::timestamptz ELSE finished_at END,
               updated_at = $7::timestamptz WHERE id = $1`,
-      [match.id, JSON.stringify(state), transition.phase, transition.hostMemberId,
-        revision, transition.needsActionFrom, now],
+      [
+        match.id,
+        JSON.stringify(state),
+        transition.phase,
+        transition.hostMemberId,
+        revision,
+        transition.needsActionFrom,
+        now,
+      ],
     );
-    if (!created) await client.query(
-      `INSERT INTO next_round.match_events (match_id, revision, event_id, actor_id, kind, safe_metadata)
+    if (!created)
+      await client.query(
+        `INSERT INTO next_round.match_events (match_id, revision, event_id, actor_id, kind, safe_metadata)
        VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-      [match.id, revision, eventId, actorId, event.kind,
-        JSON.stringify(event.kind === "action" ? { type: event.type } :
-          event.kind === "join" ? { rejoin: event.rejoin } : {})],
+        [
+          match.id,
+          revision,
+          eventId,
+          actorId,
+          event.kind,
+          JSON.stringify(
+            event.kind === "action"
+              ? { type: event.type }
+              : event.kind === "join"
+                ? { rejoin: event.rejoin }
+                : {},
+          ),
+        ],
+      );
+    await persistMatchEffects(
+      client,
+      match.id,
+      revision,
+      eventId,
+      now,
+      members,
+      transition,
+      stored,
+      fired,
     );
-    await persistMatchEffects(client, match.id, revision, eventId, now, members, transition, stored, fired);
-    await persistFinalResult(client, match, registered.manifest.resultVersion, final, revision, now);
+    await persistFinalResult(
+      client,
+      match,
+      registered.manifest.resultVersion,
+      final,
+      revision,
+      now,
+    );
     // Keep the locked in-memory row current when several originally-due identities are consumed.
-    Object.assign(match, { revision, state, phase: transition.phase, host_member_id: transition.hostMemberId });
+    Object.assign(match, {
+      revision,
+      state,
+      phase: transition.phase,
+      host_member_id: transition.hostMemberId,
+    });
     return revision;
   }
 
@@ -1106,7 +1811,8 @@ export class MatchService {
     now: string,
   ): Promise<number> {
     const due = (await readDeadlines(client, match.id)).filter(
-      (row) => row.status === "pending" && Date.parse(row.dueAt) <= Date.parse(now),
+      (row) =>
+        row.status === "pending" && Date.parse(row.dueAt) <= Date.parse(now),
     );
     let applied = 0;
     // Snapshot the due set: do not simulate historical turns for newly-created obligations.
@@ -1118,19 +1824,43 @@ export class MatchService {
         [match.id, deadline.key, deadline.generation],
       );
       if (!pending.rowCount) continue;
-      const registered = registeredVersion(this.registry, match.module_id, match.module_version);
-      const event: GameEvent = { kind: "deadline", deadline: {
-        key: deadline.key, generation: deadline.generation, dueAt: deadline.dueAt,
-      } };
+      const registered = registeredVersion(
+        this.registry,
+        match.module_id,
+        match.module_version,
+      );
+      const event: GameEvent = {
+        kind: "deadline",
+        deadline: {
+          key: deadline.key,
+          generation: deadline.generation,
+          dueAt: deadline.dueAt,
+        },
+      };
       let transition;
       try {
         transition = registered.server.transition(
-          context(match, members, now, deadline.eventId, null), match.state, event,
+          context(match, members, now, deadline.eventId, null),
+          match.state,
+          event,
         );
-      } catch { throw moduleFailure(); }
+      } catch {
+        throw moduleFailure();
+      }
       if (!transition.ok) throw moduleFailure();
-      await this.persistTransition(client, match, members, registered, transition.value,
-        event, deadline.eventId, now, null, false, deadline);
+      await this.persistTransition(
+        client,
+        match,
+        members,
+        registered,
+        transition.value,
+        event,
+        deadline.eventId,
+        now,
+        null,
+        false,
+        deadline,
+      );
       applied += 1;
     }
     return applied;
@@ -1142,20 +1872,31 @@ export class MatchService {
       try {
         await client.query("BEGIN");
         const discovered = await client.query<{ principal_id: string }>(
-          "SELECT principal_id FROM next_round.match_members WHERE match_id = $1", [input.matchId],
+          "SELECT principal_id FROM next_round.match_members WHERE match_id = $1",
+          [input.matchId],
         );
         const principalIds = discovered.rows.map((row) => row.principal_id);
         await lockPrincipals(client, principalIds);
-        const result = await client.query<Omit<ActionMatchRow, "viewer_member_id">>(
+        const result = await client.query<
+          Omit<ActionMatchRow, "viewer_member_id">
+        >(
           `SELECT id, module_id, module_version, state_version, mode, phase,
                   revision::integer AS revision, state, settings, host_member_id
-             FROM next_round.matches WHERE id = $1 FOR UPDATE`, [input.matchId],
+             FROM next_round.matches WHERE id = $1 FOR UPDATE`,
+          [input.matchId],
         );
         const match = result.rows[0];
-        if (!match || match.phase === "finished") { await client.query("COMMIT"); return 0; }
+        if (!match || match.phase === "finished") {
+          await client.query("COMMIT");
+          return 0;
+        }
         const members = await this.loadMembers(client, match.id);
-        if (members.some((member) => !principalIds.includes(member.principalId))) {
-          throw Object.assign(new Error("Retry membership discovery"), { code: "40001" });
+        if (
+          members.some((member) => !principalIds.includes(member.principalId))
+        ) {
+          throw Object.assign(new Error("Retry membership discovery"), {
+            code: "40001",
+          });
         }
         const now = await this.databaseNow(client);
         const requested = await client.query(
@@ -1163,16 +1904,27 @@ export class MatchService {
             AND generation = $3 AND status = 'pending' AND due_at <= $4::timestamptz`,
           [match.id, input.key, input.generation, now],
         );
-        const applied = requested.rowCount ? await this.reconcileDue(client, match, members, now) : 0;
+        const applied = requested.rowCount
+          ? await this.reconcileDue(client, match, members, now)
+          : 0;
         await client.query("COMMIT");
         return applied;
       } catch (error) {
         await client.query("ROLLBACK");
-        const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+        const code =
+          error && typeof error === "object" && "code" in error
+            ? error.code
+            : undefined;
         if (code !== "40001" && code !== "40P01") throw error;
-        if (attempt === 2) throw new ApiError(ERROR_CODES.SERVICE_UNAVAILABLE, "Please retry this command.");
+        if (attempt === 2)
+          throw new ApiError(
+            ERROR_CODES.SERVICE_UNAVAILABLE,
+            "Please retry this command.",
+          );
         await delay(10 + Math.random() * 30);
-      } finally { client.release(); }
+      } finally {
+        client.release();
+      }
     }
   }
 }

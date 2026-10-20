@@ -14,6 +14,8 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "test:sprint2": "node scripts/sprint2-acceptance.mjs",
+    "test:f0": "node scripts/f0-acceptance.mjs",
+    "test:sprint3": "node scripts/sprint3-evidence.mjs",
     "check:browser-bundle": "node scripts/check-browser-bundle.mjs",
     "check:spdx": "node scripts/check-spdx.mjs",
     "lint": "eslint . --max-warnings 0"

@@ -114,6 +114,12 @@ jobs:
       - name: Measure Sprint 2 live recovery across two API processes
         run: pnpm test:sprint2
 
+      - name: Prove F0 transactional job enqueue
+        run: node scripts/f0-acceptance.mjs database-only
+
+      - name: Accept Sprint 3 services and reject the broken fixture
+        run: pnpm test:sprint3
+
   image-argon2:
     name: Deployment image Argon2 runtime
     runs-on: ubuntu-latest

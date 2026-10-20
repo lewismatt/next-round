@@ -98,15 +98,20 @@ export class LiveService {
       process.env.DATABASE_URL ||
       "postgres://postgres:postgres@localhost:5432/next_round";
     this.listenerAppName =
-      options.listenerApplicationName ||
-      `next-round-live:${process.pid}`;
+      options.listenerApplicationName || `next-round-live:${process.pid}`;
     this.reconcileIntervalMs =
       options.reconcileIntervalMs !== undefined
         ? parseLiveReconcileIntervalMs(options.reconcileIntervalMs)
-        : parseLiveReconcileIntervalMs(process.env.LIVE_RECONCILE_INTERVAL_MS, 10000);
-    this.heartbeatSeconds = options.heartbeatSeconds ?? DEFAULT_HEARTBEAT_SECONDS;
-    this.maxSubscriptions = options.maxSubscriptionsPerConnection ?? DEFAULT_MAX_SUBSCRIPTIONS;
-    this.maxBufferedAmount = options.maxBufferedAmount ?? DEFAULT_MAX_BUFFERED_AMOUNT;
+        : parseLiveReconcileIntervalMs(
+            process.env.LIVE_RECONCILE_INTERVAL_MS,
+            10000,
+          );
+    this.heartbeatSeconds =
+      options.heartbeatSeconds ?? DEFAULT_HEARTBEAT_SECONDS;
+    this.maxSubscriptions =
+      options.maxSubscriptionsPerConnection ?? DEFAULT_MAX_SUBSCRIPTIONS;
+    this.maxBufferedAmount =
+      options.maxBufferedAmount ?? DEFAULT_MAX_BUFFERED_AMOUNT;
     this.enableListener = options.enableListener ?? true;
     this.logger =
       options.logger ??
@@ -125,7 +130,9 @@ export class LiveService {
     this.sweepTimer = setInterval(() => {
       this.runSweep().catch(() => {
         this.isDegraded = true;
-        this.logger.warn("Periodic live sweep encountered error; marking degraded");
+        this.logger.warn(
+          "Periodic live sweep encountered error; marking degraded",
+        );
       });
     }, this.reconcileIntervalMs);
 
@@ -172,7 +179,11 @@ export class LiveService {
     }
   }
 
-  public getStatus(): { degraded: boolean; connections: number; listenerConnected: boolean } {
+  public getStatus(): {
+    degraded: boolean;
+    connections: number;
+    listenerConnected: boolean;
+  } {
     return {
       degraded: this.isDegraded,
       connections: this.connections.size,
@@ -197,7 +208,10 @@ export class LiveService {
     client.on("error", () => this.handleListenerDisconnect(client));
     client.on("end", () => this.handleListenerDisconnect(client));
     client.on("notification", (message: DatabaseNotification) => {
-      if (message.channel === "next_round_live" && this.listenerClient === client) {
+      if (
+        message.channel === "next_round_live" &&
+        this.listenerClient === client
+      ) {
         void this.runSweep();
       }
     });
@@ -218,7 +232,9 @@ export class LiveService {
       this.isDegraded = false;
       this.logger.info(
         { application_name: this.listenerAppName },
-        wasDegraded ? "Live listener recovered" : "Dedicated live listener session established",
+        wasDegraded
+          ? "Live listener recovered"
+          : "Dedicated live listener session established",
       );
       if (wasDegraded) void this.runSweep({ forceInvalidateAll: true });
     } catch {
@@ -278,7 +294,10 @@ export class LiveService {
     connection.heartbeatTimer = setInterval(() => {
       if (connection.closed) return;
       if (connection.missedPongs >= 2) {
-        this.logger.warn({ connectionId: id }, "Missed pongs heartbeat timeout; terminating connection");
+        this.logger.warn(
+          { connectionId: id },
+          "Missed pongs heartbeat timeout; terminating connection",
+        );
         this.closeConnection(connection, 1000, "Heartbeat timeout");
         return;
       }
@@ -344,7 +363,11 @@ export class LiveService {
       frame = parseRequestBody(ClientLiveFrameSchema, parsed);
     } catch {
       let fallbackReqId: string = randomUUID();
-      if (typeof parsed === "object" && parsed !== null && "requestId" in parsed) {
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "requestId" in parsed
+      ) {
         fallbackReqId = sanitizeRequestId(parsed.requestId);
       }
       this.sendFrame(connection, {
@@ -423,7 +446,9 @@ export class LiveService {
     }
   }
 
-  public async runSweep(options?: { forceInvalidateAll?: boolean }): Promise<LiveSweepStats> {
+  public async runSweep(options?: {
+    forceInvalidateAll?: boolean;
+  }): Promise<LiveSweepStats> {
     if (this.isStopped) return this.emptyStats();
     this.pendingForceInvalidateAll ||= options?.forceInvalidateAll ?? false;
     this.nextSweepRequested = true;
@@ -460,7 +485,8 @@ export class LiveService {
       this.nextSweepRequested = false;
       try {
         stats = await this.performSweep({ forceInvalidateAll });
-        if (this.listenerConnected || !this.enableListener) this.isDegraded = false;
+        if (this.listenerConnected || !this.enableListener)
+          this.isDegraded = false;
       } catch {
         this.isDegraded = true;
         this.logger.warn("Live reconciliation failed; delivery is degraded");
@@ -469,7 +495,9 @@ export class LiveService {
     return stats;
   }
 
-  private async performSweep(options: { forceInvalidateAll: boolean }): Promise<LiveSweepStats> {
+  private async performSweep(options: {
+    forceInvalidateAll: boolean;
+  }): Promise<LiveSweepStats> {
     const sweepStart = performance.now();
     let dbWaitMs = 0;
     let queryCount = 0;
@@ -497,7 +525,7 @@ export class LiveService {
     const principalIds = new Set<string>();
     const matchIds = new Set<string>();
     let totalSubscriptions = 0;
-    const snapshot = Array.from(this.connections.values(), conn => ({
+    const snapshot = Array.from(this.connections.values(), (conn) => ({
       conn,
       subscriptions: Array.from(conn.subscriptions.values()),
     }));
@@ -593,10 +621,20 @@ export class LiveService {
         sessionRowMap.set(row.session_id, row);
       }
 
-      // 4. Query matches and match memberships if any match or chat scopes are subscribed
-      const matchMap = new Map<string, { revision: number; chat_revision: number }>();
-      const activeMemberSet = new Set<string>(); // key: `${match_id}:${principal_id}`
+      // Guest notification access is limited to the guest's assigned match.
+      for (const sess of sessionRowMap.values()) {
+        if (sess.kind === "guest" && sess.guest_match_id !== null) {
+          matchIds.add(sess.guest_match_id);
+        }
+      }
 
+      // 4. Query matches and match memberships if any match, chat, or guest notification scopes are present
+      const matchMap = new Map<
+        string,
+        { revision: number; chat_revision: number }
+      >();
+      const activeMemberSet = new Set<string>(); // key: `${match_id}:${principal_id}`
+      const retainedMemberSet = new Set<string>(); // key: `${match_id}:${principal_id}`
       if (matchIds.size > 0) {
         const sortedMatchIds = [...matchIds].sort();
 
@@ -637,8 +675,10 @@ export class LiveService {
         queryCount++;
 
         for (const row of memResult.rows) {
+          const membershipKey = `${row.match_id}:${row.principal_id}`;
+          retainedMemberSet.add(membershipKey);
           if (row.status === "active") {
-            activeMemberSet.add(`${row.match_id}:${row.principal_id}`);
+            activeMemberSet.add(membershipKey);
           }
         }
       }
@@ -680,8 +720,11 @@ export class LiveService {
           if (sub.scope.kind === "match") {
             const matchId = sub.scope.id;
             const match = matchMap.get(matchId);
-            const guestOk = sess.kind !== "guest" || sess.guest_match_id === matchId;
-            const isMember = activeMemberSet.has(`${matchId}:${conn.principalId}`);
+            const guestOk =
+              sess.kind !== "guest" || sess.guest_match_id === matchId;
+            const isMember = activeMemberSet.has(
+              `${matchId}:${conn.principalId}`,
+            );
 
             if (match && guestOk && isMember) {
               isAuthorized = true;
@@ -690,8 +733,11 @@ export class LiveService {
           } else if (sub.scope.kind === "chat") {
             const matchId = sub.scope.id;
             const match = matchMap.get(matchId);
-            const guestOk = sess.kind !== "guest" || sess.guest_match_id === matchId;
-            const isMember = activeMemberSet.has(`${matchId}:${conn.principalId}`);
+            const guestOk =
+              sess.kind !== "guest" || sess.guest_match_id === matchId;
+            const isMember = activeMemberSet.has(
+              `${matchId}:${conn.principalId}`,
+            );
 
             if (match && guestOk && isMember) {
               isAuthorized = true;
@@ -699,6 +745,14 @@ export class LiveService {
             }
           } else if (sub.scope.kind === "notifications") {
             if (sess.kind === "registered") {
+              isAuthorized = true;
+              currentRevision = sess.inbox_revision;
+            } else if (
+              sess.guest_match_id !== null &&
+              retainedMemberSet.has(
+                `${sess.guest_match_id}:${conn.principalId}`,
+              )
+            ) {
               isAuthorized = true;
               currentRevision = sess.inbox_revision;
             }
@@ -738,7 +792,10 @@ export class LiveService {
               });
               revocationsEmitted++;
             } else {
-              if (options.forceInvalidateAll || currentRevision > sub.lastDeliveredRevision) {
+              if (
+                options.forceInvalidateAll ||
+                currentRevision > sub.lastDeliveredRevision
+              ) {
                 sub.lastDeliveredRevision = currentRevision;
                 this.sendFrame(conn, {
                   type: "invalidate",
@@ -799,14 +856,23 @@ export class LiveService {
     }
   }
 
-  private sendFrame(connection: LiveConnection, frame: ServerLiveFrame): boolean {
-    if (connection.closed || connection.socket.readyState !== connection.socket.OPEN) {
+  private sendFrame(
+    connection: LiveConnection,
+    frame: ServerLiveFrame,
+  ): boolean {
+    if (
+      connection.closed ||
+      connection.socket.readyState !== connection.socket.OPEN
+    ) {
       return false;
     }
 
     if (connection.socket.bufferedAmount > this.maxBufferedAmount) {
       this.logger.warn(
-        { connectionId: connection.id, bufferedAmount: connection.socket.bufferedAmount },
+        {
+          connectionId: connection.id,
+          bufferedAmount: connection.socket.bufferedAmount,
+        },
         "Slow consumer exceeded buffer threshold; closing connection",
       );
       this.closeConnection(connection, 1013, "Try again later");
@@ -817,7 +883,10 @@ export class LiveService {
       connection.socket.send(JSON.stringify(frame));
       return true;
     } catch {
-      this.logger.warn({ connectionId: connection.id }, "Failed to send frame to WebSocket");
+      this.logger.warn(
+        { connectionId: connection.id },
+        "Failed to send frame to WebSocket",
+      );
       return false;
     }
   }
