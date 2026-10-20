@@ -185,6 +185,9 @@ try {
       VALUES('test-counter','0.1.0',$1::jsonb,'fixture-server','fixture-client','next-round-game/0.1',1,1)`, [JSON.stringify(manifest)]);
     await seed.query("COMMIT");
   } catch (error) { await seed.query("ROLLBACK"); throw error; } finally { seed.release(); }
+  // Start the regular worker first so its next outbox sweep precedes the API
+  // recovery sweeps. Measure a running worker, not its startup drain.
+  const w = await worker();
   const n1 = await api(); const n2 = await api();
   assert.notEqual(n1.child.pid, n2.child.pid);
   const privateProbe = `sprint2-private-token-${randomUUID()}`;
@@ -196,18 +199,20 @@ try {
   const matchId = created.matchId;
   let receipt = await request(n2, b, `/matches/${matchId}/join`, { commandId: randomUUID(), expectedRevision: 0 });
   receipt = await request(n1, a, `/matches/${matchId}/start`, { commandId: randomUUID(), expectedRevision: receipt.committedRevision });
-  // Flush pre-subscription wakeups through the actual worker, not a test publisher.
-  await stop(await worker());
   const c1 = await connect(n1, a, matchId); const c2 = await connect(n2, b, matchId);
   assert.notEqual(c1.snapshots[0].snapshot.game.myMarker, c2.snapshots[0].snapshot.game.myMarker);
   const listenerBefore = await until(async () => { const rows = await listeners(); return rows.length === 2 && rows; }, "two dedicated listeners");
   const before = await request(n1, a, `/matches/${matchId}`);
   const tNormal = performance.now();
   receipt = await request(n1, a, `/matches/${matchId}/actions`, { commandId: randomUUID(), expectedRevision: before.revision, type: "add", payload: { amount: 1 } });
-  const w = await worker();
   const normal = await Promise.all([refreshed(c1, receipt.committedRevision), refreshed(c2, receipt.committedRevision)]);
   assert.ok(c2.frames.some(frame => frame.type === "invalidate" && frame.revision === receipt.committedRevision));
   for (const entry of normal) assert.equal(entry.snapshot.game.count, 1);
+  await until(async () => (await pool.query(
+    `SELECT 1 FROM next_round.outbox WHERE topic='live.invalidate'
+       AND safe_payload @> $1::jsonb AND delivered_at IS NOT NULL`,
+    [JSON.stringify({ scope: { kind: "match", id: matchId }, revision: receipt.committedRevision })],
+  )).rowCount > 0, "regular worker acknowledges the normal wakeup");
   await stop(w);
   // Test-only trigger drops precisely the live wakeup while retaining durable state/revisions.
   await pool.query(`CREATE FUNCTION next_round.sprint2_drop_wakeup() RETURNS trigger LANGUAGE plpgsql AS $$
