@@ -262,9 +262,28 @@ describe.skipIf(!testDatabaseUrl)("BL-043 shared invitation budgets (invitation-
       expect((await inviteGuest()).statusCode).toBe(201);
     }
     // 30 inserted + 20 guest invitations = 50 outstanding: every path caps.
+    // BL-052: clear the hourly buckets before asserting — the 20 guest
+    // mints also fill the rolling-hour budget, so without this the 429s
+    // below could come from either budget and would not isolate
+    // outstanding enforcement on the guest and link paths.
+    await databasePool.query("DELETE FROM next_round.rate_buckets");
     expect((await inviteMember(recipientIds[0])).statusCode).toBe(429);
     expect((await inviteGuest()).statusCode).toBe(429);
     expect((await createLink(false)).statusCode).toBe(429);
+    // The rejections created nothing: the outstanding count is unchanged
+    // and no match link exists.
+    const afterRejections = await databasePool.query<{ total: number }>(
+      `SELECT count(*)::integer AS total
+         FROM next_round.invitations WHERE issuer_id = $1`,
+      [host.principalId],
+    );
+    expect(afterRejections.rows[0].total).toBe(50);
+    const linkCount = await databasePool.query<{ total: number }>(
+      `SELECT count(*)::integer AS total
+         FROM next_round.match_links WHERE match_id = $1`,
+      [matchId],
+    );
+    expect(linkCount.rows[0].total).toBe(0);
 
     // Rotation credit: with one live link inside the 50, rotating it must
     // succeed because the old link is revoked before the count is taken.

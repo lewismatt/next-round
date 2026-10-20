@@ -157,8 +157,10 @@ export interface AdminHealthResponse {
   };
 }
 
-/** A heartbeat older than this reads as stale: roughly three missed
- *  sweeps at the default 10 s reconciliation interval. */
+/** A heartbeat older than this reads as stale: three missed heartbeats
+ *  at the worker's fixed 10 s heartbeat cadence. BL-051: that cadence is
+ *  decoupled from the configurable reconciliation interval, so the
+ *  threshold holds at any supported sweep configuration. */
 const WORKER_STALE_AFTER_SECONDS = 30;
 
 /**

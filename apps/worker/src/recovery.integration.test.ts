@@ -717,6 +717,46 @@ describe.skipIf(!testDatabaseUrl)("Worker recovery and durable effects integrati
     }
   }, 60_000);
 
+  it("keeps the heartbeat fresh on its own cadence when the sweep interval is long (BL-051)", async () => {
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 60_000 });
+    try {
+      await worker.start();
+      const heartbeats = async () => (await databasePool.query<{ worker_id: string; last_seen_at: Date }>(
+        "SELECT worker_id, last_seen_at FROM next_round.worker_heartbeats",
+      )).rows;
+      await expect.poll(async () => (await heartbeats()).length, { timeout: 10_000 }).toBe(1);
+      const first = (await heartbeats())[0];
+      // The next sweep is ~60 s out, so only the decoupled 10 s heartbeat
+      // timer can advance last_seen_at inside this window. On the pre-fix
+      // code the heartbeat moved only on sweeps and this poll times out.
+      await expect.poll(
+        async () => (await heartbeats())[0].last_seen_at.getTime(),
+        { timeout: 20_000 },
+      ).toBeGreaterThan(first.last_seen_at.getTime());
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("prunes heartbeat rows past the retention window at startup (BL-053)", async () => {
+    await databasePool.query(
+      `INSERT INTO next_round.worker_heartbeats (worker_id, started_at, last_seen_at)
+       VALUES ('crashed-old', now() - interval '2 days', now() - interval '25 hours'),
+              ('crashed-recent', now() - interval '3 hours', now() - interval '2 hours')`,
+    );
+    const worker = new WorkerRunner({ connectionString, pool: databasePool, registry, reconcileIntervalMs: 250 });
+    try {
+      await worker.start();
+      const workerIds = (await databasePool.query<{ worker_id: string }>(
+        "SELECT worker_id FROM next_round.worker_heartbeats",
+      )).rows.map((row) => row.worker_id);
+      expect(workerIds).not.toContain("crashed-old");
+      expect(workerIds).toContain("crashed-recent");
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
   it("bounds global expiry cleanup and preserves live rate budgets", async () => {
     const worker = new WorkerRunner({ connectionString, pool: databasePool, registry });
     await databasePool.query(

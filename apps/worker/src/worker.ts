@@ -15,6 +15,14 @@ import { registerCrosswordModule } from "./crossword-fixture.js";
 const { Pool } = pg;
 
 const DEFAULT_RECONCILE_INTERVAL_MS = 10_000;
+/** BL-051: heartbeats run on their own fixed cadence, decoupled from the
+ *  configurable reconciliation interval. The admin health stale threshold
+ *  (30 s) is three missed heartbeats at this cadence, so a healthy worker
+ *  reads fresh whatever LIVE_RECONCILE_INTERVAL_MS is configured to. */
+const HEARTBEAT_INTERVAL_MS = 10_000;
+/** BL-053: heartbeat rows left behind by crashed workers are pruned at
+ *  worker startup once their last heartbeat is older than this window. */
+const HEARTBEAT_RETENTION_INTERVAL = "24 hours";
 const DEFAULT_BATCH_SIZE = 50;
 const OUTBOX_LEASE_DURATION_MS = 30_000;
 const OUTBOX_MAX_ATTEMPTS = 8;
@@ -205,6 +213,7 @@ export class WorkerRunner {
   private wakeupDraining = false;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconcileTimer: NodeJS.Timeout | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private running = false;
   private stopped = false;
   private startedAt: number | null = null;
@@ -374,8 +383,9 @@ export class WorkerRunner {
   /**
    * BL-039: persist a liveness heartbeat so the admin health surface can
    * report worker presence and staleness (spec section 8). Written at
-   * startup and on every reconciliation sweep. Best-effort: a failed
-   * write is logged, never fatal — the next sweep retries.
+   * startup, on every reconciliation sweep, and on a dedicated fixed
+   * 10-second timer (BL-051). Best-effort: a failed write is logged,
+   * never fatal — the next write retries.
    */
   private async recordHeartbeat(): Promise<void> {
     try {
@@ -387,6 +397,25 @@ export class WorkerRunner {
       );
     } catch (err) {
       console.error(`[worker:heartbeat] Write failed: ${safeErrorCode(err)}`);
+    }
+  }
+
+  /**
+   * BL-053: bound the heartbeat table's growth. A gracefully stopped
+   * worker deletes its own row, but a crashed worker's row stays behind;
+   * prune rows whose last heartbeat is older than the retention window.
+   * Runs at startup, so the table self-cleans on every worker boot while
+   * recent crash rows survive as diagnostics. Best-effort, like the
+   * heartbeat write itself.
+   */
+  private async pruneStaleHeartbeats(): Promise<void> {
+    try {
+      await this.pool.query(
+        `DELETE FROM next_round.worker_heartbeats
+          WHERE last_seen_at < clock_timestamp() - interval '${HEARTBEAT_RETENTION_INTERVAL}'`,
+      );
+    } catch (err) {
+      console.error(`[worker:heartbeat] Prune failed: ${safeErrorCode(err)}`);
     }
   }
 
@@ -447,6 +476,12 @@ export class WorkerRunner {
       this.requestOutboxDrain();
       this.startedAt = Date.now();
       await this.recordHeartbeat();
+      await this.pruneStaleHeartbeats();
+      this.heartbeatTimer = setInterval(() => {
+        if (this.running) {
+          void this.recordHeartbeat();
+        }
+      }, HEARTBEAT_INTERVAL_MS);
       console.log(
         `[worker] Running. Periodic reconciliation scheduled every ${this.config.reconcileIntervalMs}ms`,
       );
@@ -454,6 +489,10 @@ export class WorkerRunner {
       if (this.reconcileTimer) {
         clearInterval(this.reconcileTimer);
         this.reconcileTimer = null;
+      }
+      if (this.heartbeatTimer) {
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
       }
       this.running = false;
       this.listenerEnabled = false;
@@ -495,6 +534,11 @@ export class WorkerRunner {
       this.reconcileTimer = null;
     }
 
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+
     if (wasRunning && (this.inFlightWork > 0 || this.isReconciling)) {
       const { promise, resolve } = Promise.withResolvers<void>();
       const timeout = setTimeout(resolve, 10_000);
@@ -523,7 +567,8 @@ export class WorkerRunner {
         [this.workerId],
       );
     } catch {
-      // Best effort: the row ages out of the health view on its own.
+      // Best effort: if this delete fails, the next worker startup prunes
+      // the row once it passes the retention window (BL-053).
     }
 
     if (this.ownsPool) {
