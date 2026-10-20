@@ -35,9 +35,24 @@ Every session MUST execute this 4-step loop:
 4. **Finish with a durable handoff:**
    - Update Page 08 before concluding the turn/session.
    - Record exact exit evidence (commands run, tested commit SHA, database versions, pass/fail results).
+   - Log any non-blocking nits, small bugs, or nags found during the session in [docs/BACKLOG.md](docs/BACKLOG.md) — do not fix unrelated ones inside this change.
    - If acceptance criteria are met and integrated, set chunk to `Done` and promote eligible dependent chunks to `Ready`. If incomplete or blocked, record exact status (`In progress` or `Blocked` with concrete unblock conditions).
    - A merged acceptance subset is not a passed acceptance row. Retain unchecked sentences and missing prerequisite services explicitly; use `Review` for a ready change awaiting integration.
    - Append a structured session handoff entry using the template in Page 08.
+
+## Backlog: Nits, Nags & Small Bugs
+
+Small, non-blocking issues slip through every review. Log them instead of
+losing them:
+
+- When you find a nit, nag, or small bug that is NOT an acceptance blocker,
+  add it to [docs/BACKLOG.md](docs/BACKLOG.md) following the format there.
+- Do NOT fix backlog items inside an unrelated change — log them and move on,
+  unless the fix is a trivially obvious correction in a file you already touch.
+- When your chunk touches an area with an `Accepted` backlog item, fix it
+  opportunistically and mark it `Fixed` with the commit/PR link.
+- [docs/BACKLOG.md](docs/BACKLOG.md) is authoritative. The work tracker's
+  backlog section mirrors it for triage discussion.
 
 ## Inviolable Architectural Invariants
 
