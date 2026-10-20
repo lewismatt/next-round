@@ -206,25 +206,29 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   fastify.post("/auth/login", async (request, reply) => {
     requireJsonMutation(request, origin);
     const input = parseRequestBody(LoginRequestSchema, request.body);
-    const result = await authService.login(input.username, input.password);
-    setAuthCookies(
-      reply,
-      origin,
-      result.rawSessionToken,
-      result.rawCsrfToken,
-      result.expiresAt,
-    );
-    return reply
-      .status(200)
-      .header("Cache-Control", "no-store")
-      .send({
-        data: {
-          principal: result.principal,
-          csrfToken: result.rawCsrfToken,
-          expiresAt: result.expiresAt,
-        },
-        serverNow: serverNow(),
-      });
+      const result = await authService.login(
+        input.username,
+        input.password,
+        request.ip,
+      );
+      setAuthCookies(
+        reply,
+        origin,
+        result.rawSessionToken,
+        result.rawCsrfToken,
+        result.expiresAt,
+      );
+      return reply
+        .status(200)
+        .header("Cache-Control", "no-store")
+        .send({
+          data: {
+            principal: result.principal,
+            csrfToken: result.rawCsrfToken,
+            expiresAt: result.expiresAt,
+          },
+          serverNow: serverNow(),
+        });
   });
 
   fastify.get("/auth/session", async (request, reply) => {

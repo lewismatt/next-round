@@ -129,6 +129,21 @@ export const matchRoutes: FastifyPluginAsync<MatchRoutesOptions> = async (
     });
   });
 
+  fastify.post("/matches/:id/finish", async (request, reply) => {
+    requireJsonMutation(request, options.origin);
+    const session = await requireSession(request, options.authService, true);
+    const input = parseRequestBody(MatchLifecycleCommandSchema, request.body);
+    const receipt = await options.matchService.finish(
+      matchIdFrom(request.params),
+      session,
+      input,
+    );
+    return reply.header("Cache-Control", "no-store").send({
+      data: receipt,
+      serverNow: new Date().toISOString(),
+    });
+  });
+
   fastify.post("/matches/:id/leave", async (request, reply) => {
     requireJsonMutation(request, options.origin);
     const session = await requireSession(request, options.authService, true);

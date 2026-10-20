@@ -1,14 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 import type {
-  CommandReceipt,
   GameBridge,
   GameClient,
   GameMountResult,
+  Json,
   MatchSnapshot,
   Member,
 } from "@next-round/game-client";
 import { defineGameClient } from "@next-round/game-client";
-import type { CounterView } from "./server.js";
+
+interface CounterView {
+  count: number;
+  target: number;
+  turnSeconds: number | null;
+  scores: Record<string, number>;
+  turnOrder: string[];
+  currentActorMemberId: string | null;
+  myMarker: string | null;
+  myNote: string | null;
+  myScore: number | null;
+  [key: string]: Json;
+}
 
 function escapeText(text: string): string {
   return text
@@ -21,7 +33,7 @@ function escapeText(text: string): string {
 
 export function mount(
   element: HTMLElement,
-  bridge: GameBridge<CounterView>
+  bridge: GameBridge<CounterView>,
 ): GameMountResult {
   const root = document.createElement("div");
   root.className = "next-round-counter-game";
@@ -30,152 +42,129 @@ export function mount(
   let currentSnapshot: MatchSnapshot<CounterView> = bridge.getSnapshot();
   let isActing = false;
   let statusMessage = "";
+  let statusIsError = false;
 
   const render = () => {
-    const { phase, revision, mode, game, capabilities, members } = currentSnapshot;
-    const isCurrentActor = game.currentActorMemberId !== null;
-    const canClickAdd = phase === "active" && capabilities.canAct && !isActing;
-
-    const scoresListHtml = Object.entries(game.scores)
-      .map(([memberId, score]) => {
-        const member = members.find((m: Member) => m.id === memberId);
-        const name = member ? member.displayName : memberId;
-        const isActor = memberId === game.currentActorMemberId;
-        return `<li class="counter-score-item${isActor ? " actor" : ""}">
-          <span>${escapeText(name)}${isActor ? " (turn)" : ""}:</span>
-          <strong>${score}</strong>
-        </li>`;
-      })
-      .join("");
+    const { phase, mode, game, capabilities, members } = currentSnapshot;
+    const canAdd = phase === "active" && capabilities.canAct && !isActing;
+    const scoreRows = members.map((member: Member) => {
+      const isActor = member.id === game.currentActorMemberId;
+      const score = game.scores[member.id] ?? 0;
+      return `<li class="counter-score-item${isActor ? " actor" : ""}">
+        <span>${escapeText(member.displayName)}${isActor ? " · current turn" : ""}</span>
+        <strong>${score}</strong>
+      </li>`;
+    }).join("");
+    const currentActor = members.find((member) => member.id === game.currentActorMemberId);
+    const actorText = currentActor ? `Current turn: ${escapeText(currentActor.displayName)}` : "No current turn";
+    const phaseText = phase === "lobby" ? "Waiting to start" : phase === "active" ? "In progress" : "Finished";
+    const modeText = mode === "group" ? "Group" : "Solo";
+    const messageClass = statusIsError ? "counter-error" : "status-message";
+    const statusHtml = statusMessage
+      ? `<p class="${messageClass}" role="${statusIsError ? "alert" : "status"}" aria-live="polite">${escapeText(statusMessage)}</p>`
+      : "";
 
     root.innerHTML = `
-      <div class="counter-panel" style="padding: 1rem; font-family: system-ui, sans-serif;">
-        <header style="margin-bottom: 1rem; border-bottom: 1px solid #ddd; padding-bottom: 0.5rem;">
-          <h2 style="margin: 0 0 0.5rem 0;">Test Counter</h2>
-          <div style="font-size: 0.875rem; color: #555;">
-            <span>Mode: <strong>${escapeText(mode)}</strong></span> |
-            <span>Phase: <strong>${escapeText(phase)}</strong></span> |
-            <span>Revision: <strong>${revision}</strong></span>
-          </div>
-        </header>
-
-        <section style="margin-bottom: 1.5rem; text-align: center;">
-          <div style="font-size: 3rem; font-weight: bold; margin: 0.5rem 0;">
-            ${game.count} / ${game.target}
-          </div>
-          <div style="font-size: 0.9rem; color: #666;">
-            Target count to complete
-          </div>
-          <div style="margin-top: 1rem;">
-            <button
-              id="nr-counter-add-btn"
-              style="padding: 0.75rem 2rem; font-size: 1.25rem; cursor: ${canClickAdd ? "pointer" : "not-allowed"};"
-              ${canClickAdd ? "" : "disabled"}
-            >
-              +1 Add
-            </button>
-          </div>
-          ${
-            statusMessage
-              ? `<p style="color: #c00; font-size: 0.875rem; margin-top: 0.5rem;">${escapeText(statusMessage)}</p>`
-              : ""
-          }
-        </section>
-
-        <section style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-          <div style="border: 1px solid #eee; padding: 0.75rem; border-radius: 4px;">
-            <h4 style="margin: 0 0 0.5rem 0;">Scores</h4>
-            <ul style="list-style: none; padding: 0; margin: 0;">
-              ${scoresListHtml || "<li>No scores yet</li>"}
-            </ul>
-          </div>
-
-          <div style="border: 1px solid #eee; padding: 0.75rem; border-radius: 4px;">
-            <h4 style="margin: 0 0 0.5rem 0;">Your Private State</h4>
-            <p style="margin: 0.25rem 0; font-size: 0.875rem;">Marker: <strong>${escapeText(game.myMarker ?? "None")}</strong></p>
-            <p style="margin: 0.25rem 0; font-size: 0.875rem;">Score: <strong>${game.myScore ?? 0}</strong></p>
-            <div style="margin-top: 0.5rem;">
-              <label for="nr-counter-note-input" style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem;">Private Note (max 80 chars):</label>
-              <div style="display: flex; gap: 0.25rem;">
-                <input
-                  id="nr-counter-note-input"
-                  type="text"
-                  maxlength="80"
-                  value="${escapeText(game.myNote ?? "")}"
-                  style="flex: 1; padding: 0.25rem 0.5rem; font-size: 0.875rem;"
-                />
-                <button id="nr-counter-note-btn" style="padding: 0.25rem 0.5rem; font-size: 0.875rem; cursor: pointer;">
-                  Save
-                </button>
-              </div>
+      <div class="counter-panel">
+        <header class="counter-header">
+          <div>
+            <h2>Test Counter</h2>
+            <div class="counter-details" aria-label="Game status">
+              <span>Mode: <strong>${modeText}</strong></span>
+              <span>Phase: <strong>${phaseText}</strong></span>
             </div>
           </div>
-        </section>
+          <span class="badge">${actorText}</span>
+        </header>
 
-        <footer style="display: flex; gap: 0.5rem; justify-content: flex-end; border-top: 1px solid #eee; padding-top: 0.5rem;">
-          <button id="nr-counter-chat-btn" style="padding: 0.25rem 0.75rem; font-size: 0.875rem;">Chat</button>
-          <button id="nr-counter-participants-btn" style="padding: 0.25rem 0.75rem; font-size: 0.875rem;">Participants</button>
+        <section class="counter-count" aria-label="Shared count">
+          <div class="counter-number" aria-live="polite">${game.count} / ${game.target}</div>
+          <p class="counter-hint">Count to the target together.</p>
+          <button id="nr-counter-add-btn" class="button button-primary counter-primary-action" type="button" aria-label="Add one to the shared count" ${canAdd ? "" : "disabled"}>
+            Add one
+          </button>
+        </section>
+        ${statusHtml}
+
+        <div class="counter-columns">
+          <section class="counter-section" aria-labelledby="nr-counter-scores-heading">
+            <h3 id="nr-counter-scores-heading">Scores</h3>
+            <ul class="counter-scores">${scoreRows || "<li>No scores yet</li>"}</ul>
+          </section>
+          <section class="counter-section" aria-labelledby="nr-counter-private-heading">
+            <h3 id="nr-counter-private-heading">Your private state</h3>
+            <p>Marker: <strong>${escapeText(game.myMarker ?? "None")}</strong></p>
+            <p>Your score: <strong>${game.myScore ?? 0}</strong></p>
+            <form id="nr-counter-note-form">
+              <div class="field">
+                <label for="nr-counter-note-input">Private note (up to 80 characters)</label>
+                <input id="nr-counter-note-input" type="text" maxlength="80" value="${escapeText(game.myNote ?? "")}" autocomplete="off" />
+              </div>
+              <button id="nr-counter-note-btn" class="button" type="submit" ${isActing || phase !== "active" ? "disabled" : ""}>Save private note</button>
+            </form>
+          </section>
+        </div>
+
+        <footer class="counter-footer">
+          <button id="nr-counter-chat-btn" class="button" type="button">Open match chat</button>
+          <button id="nr-counter-participants-btn" class="button" type="button">Open participants</button>
         </footer>
       </div>
     `;
 
-    // Wire action button
-    const addBtn = root.querySelector("#nr-counter-add-btn");
-    if (addBtn) {
-      addBtn.addEventListener("click", async () => {
-        if (!canClickAdd || isActing) return;
-        isActing = true;
-        statusMessage = "";
+    const addButton = root.querySelector<HTMLButtonElement>("#nr-counter-add-btn");
+    addButton?.addEventListener("click", async () => {
+      if (!canAdd || isActing) return;
+      isActing = true;
+      statusMessage = "Updating the shared count…";
+      statusIsError = false;
+      render();
+      try {
+        await bridge.act({
+          type: "add",
+          payload: { amount: 1 },
+          commandId: crypto.randomUUID(),
+          expectedRevision: currentSnapshot.revision,
+        });
+        statusMessage = "Count updated.";
+      } catch (cause: unknown) {
+        statusMessage = cause instanceof Error ? cause.message : "The count could not be updated.";
+        statusIsError = true;
+      } finally {
+        isActing = false;
         render();
+      }
+    });
 
-        try {
-          const commandId = crypto.randomUUID();
-          await bridge.act({
-            type: "add",
-            payload: { amount: 1 },
-            commandId,
-            expectedRevision: currentSnapshot.revision,
-          });
-        } catch (err: unknown) {
-          statusMessage = err instanceof Error ? err.message : "Failed to add count.";
-        } finally {
-          isActing = false;
-          render();
-        }
-      });
-    }
+    const noteForm = root.querySelector<HTMLFormElement>("#nr-counter-note-form");
+    const noteInput = root.querySelector<HTMLInputElement>("#nr-counter-note-input");
+    noteForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!noteInput || isActing || currentSnapshot.phase !== "active") return;
+      const text = noteInput.value.slice(0, 80);
+      isActing = true;
+      statusMessage = "Saving your private note…";
+      statusIsError = false;
+      render();
+      try {
+        await bridge.act({
+          type: "note",
+          payload: { text },
+          commandId: crypto.randomUUID(),
+          expectedRevision: currentSnapshot.revision,
+        });
+        statusMessage = "Private note saved.";
+      } catch (cause: unknown) {
+        statusMessage = cause instanceof Error ? cause.message : "The note could not be saved.";
+        statusIsError = true;
+      } finally {
+        isActing = false;
+        render();
+      }
+    });
 
-    // Wire note button
-    const noteBtn = root.querySelector("#nr-counter-note-btn");
-    const noteInput = root.querySelector("#nr-counter-note-input") as HTMLInputElement | null;
-    if (noteBtn && noteInput) {
-      noteBtn.addEventListener("click", async () => {
-        const text = noteInput.value.slice(0, 80);
-        try {
-          const commandId = crypto.randomUUID();
-          await bridge.act({
-            type: "note",
-            payload: { text },
-            commandId,
-            expectedRevision: currentSnapshot.revision,
-          });
-        } catch (err: unknown) {
-          statusMessage = err instanceof Error ? err.message : "Failed to save note.";
-          render();
-        }
-      });
-    }
-
-    // Wire panels
-    const chatBtn = root.querySelector("#nr-counter-chat-btn");
-    if (chatBtn) {
-      chatBtn.addEventListener("click", () => bridge.openPanel("chat"));
-    }
-
-    const participantsBtn = root.querySelector("#nr-counter-participants-btn");
-    if (participantsBtn) {
-      participantsBtn.addEventListener("click", () => bridge.openPanel("participants"));
-    }
+    root.querySelector<HTMLButtonElement>("#nr-counter-chat-btn")?.addEventListener("click", () => bridge.openPanel("chat"));
+    root.querySelector<HTMLButtonElement>("#nr-counter-participants-btn")?.addEventListener("click", () => bridge.openPanel("participants"));
   };
 
   const unsubscribe = bridge.subscribe((snapshot: MatchSnapshot<CounterView>) => {
@@ -188,13 +177,9 @@ export function mount(
   return {
     unmount() {
       unsubscribe();
-      if (root.parentElement) {
-        root.parentElement.removeChild(root);
-      }
+      root.remove();
     },
   };
 }
 
-export const client: GameClient<CounterView> = defineGameClient<CounterView>({
-  mount,
-});
+export const client: GameClient<CounterView> = defineGameClient<CounterView>({ mount });

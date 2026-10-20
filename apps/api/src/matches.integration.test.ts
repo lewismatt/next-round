@@ -263,7 +263,7 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
   }, 60_000);
 
   async function authenticated(fixture: SessionFixture) {
-    return new AuthService(databasePool, undefined).authenticate(fixture.cookie.split("=", 2)[1]);
+    return new AuthService(databasePool, undefined, new MatchService(databasePool, registry)).authenticate(fixture.cookie.split("=", 2)[1]);
   }
 
   async function waitForLock(fragment: string): Promise<void> {
@@ -279,6 +279,112 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     }
     throw new Error(`Expected database lock wait: ${fragment}`);
   }
+
+  it("lists only authorized Home metadata and paginates tied timestamps without gaps", async () => {
+    const service = new MatchService(databasePool, registry);
+    const actor = await authenticated(memberA);
+    const created = await service.create(actor, {
+      commandId: randomUUID(), moduleId: "test-counter", mode: "group",
+      settings: { target: 10, turnSeconds: null }, visibility: "instance",
+    });
+    await databasePool.query(
+      "UPDATE next_round.matches SET created_at='2026-01-01T00:00:00.000123Z'",
+    );
+    const first = await app.inject({
+      url: "/api/v1/matches?scope=mine&limit=1", headers: headers(memberA),
+    });
+    expect(first.statusCode).toBe(200);
+    const page = first.json();
+    expect(page.nextCursor).toEqual(expect.any(String));
+    const second = await app.inject({
+      url: `/api/v1/matches?scope=mine&limit=1&cursor=${page.nextCursor}`,
+      headers: headers(memberA),
+    });
+    const ids = [page.data[0].id, second.json().data[0].id];
+    expect(ids.sort()).toEqual([matchId, created.matchId].sort());
+    expect(second.json().nextCursor).toBeNull();
+    expectNoPrivateValues(first.body + second.body);
+    const outsiderMine = await app.inject({
+      url: "/api/v1/matches?scope=mine", headers: headers(outsider),
+    });
+    expect(outsiderMine.json().data).toEqual([]);
+    const open = await app.inject({
+      url: "/api/v1/matches?scope=open", headers: headers(outsider),
+    });
+    expect(open.json().data.map((row: { id: string }) => row.id)).toEqual([created.matchId]);
+    expectNoPrivateValues(open.body);
+    await databasePool.query(
+      "UPDATE next_round.match_members SET status='removed' WHERE match_id=$1 AND principal_id=$2",
+      [created.matchId, memberA.principalId],
+    );
+    const removed = await app.inject({
+      url: "/api/v1/matches?scope=open", headers: headers(memberA),
+    });
+    expect(removed.json().data).toEqual([]);
+    const malformed = await app.inject({
+      url: "/api/v1/matches?cursor=not-a-cursor", headers: headers(memberA),
+    });
+    expect(malformed.statusCode).toBe(400);
+  });
+
+  it("permits an enabled nonmember admin to revoke a match link but not an outsider", async () => {
+    await app.inject({
+      method: "POST", url: `/api/v1/matches/${matchId}/link`,
+      headers: headers(memberA, true), payload: { commandId: randomUUID() },
+    });
+    const denied = await app.inject({
+      method: "DELETE", url: `/api/v1/matches/${matchId}/link`,
+      headers: headers(outsider, true), payload: {},
+    });
+    expect(denied.statusCode).toBe(403);
+    await databasePool.query(
+      "UPDATE next_round.accounts SET role='admin' WHERE principal_id=$1",
+      [outsider.principalId],
+    );
+    const revoked = await app.inject({
+      method: "DELETE", url: `/api/v1/matches/${matchId}/link`,
+      headers: headers(outsider, true), payload: {},
+    });
+    expect(revoked.statusCode).toBe(204);
+    const links = await databasePool.query(
+      "SELECT revoked_at FROM next_round.match_links WHERE match_id=$1", [matchId],
+    );
+    expect(links.rows[0].revoked_at).toBeInstanceOf(Date);
+  });
+
+  it("authorizes host finish and replays it without another result or departed membership", async () => {
+    const input = { commandId: randomUUID(), expectedRevision: 3 };
+    const denied = await app.inject({
+      method: "POST", url: `/api/v1/matches/${matchId}/finish`,
+      headers: headers(memberB, true), payload: input,
+    });
+    expect(denied.statusCode).toBe(403);
+    const accepted = await app.inject({
+      method: "POST", url: `/api/v1/matches/${matchId}/finish`,
+      headers: headers(memberA, true), payload: input,
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().data).toMatchObject({ committedRevision: 4, replayed: false });
+    const replay = await app.inject({
+      method: "POST", url: `/api/v1/matches/${matchId}/finish`,
+      headers: headers(memberA, true), payload: input,
+    });
+    expect(replay.json().data).toMatchObject({ committedRevision: 4, replayed: true });
+    const result = await app.inject({
+      url: `/api/v1/matches/${matchId}/result`, headers: headers(memberB),
+    });
+    expect(result.statusCode).toBe(200);
+    expectNoPrivateValues(result.body);
+    const stored = await databasePool.query(
+      "SELECT outcome,finished_revision::integer FROM next_round.match_results WHERE match_id=$1",
+      [matchId],
+    );
+    expect(stored.rows).toEqual([{ outcome: "ended_early", finished_revision: 4 }]);
+    const members = await databasePool.query(
+      "SELECT status FROM next_round.match_members WHERE match_id=$1", [matchId],
+    );
+    expect(members.rows).toEqual([{ status: "active" }, { status: "active" }]);
+  });
 
   it.each(["disable", "reset", "expiry", "logout"])(
     "rejects a preauthenticated action after %s wins the principal lock",
@@ -309,7 +415,7 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
         await waitForLock("ORDER BY id FOR UPDATE");
         await barrier.query("COMMIT");
         expect(await pending).toMatchObject({ code: change === "disable" ? "ACCOUNT_DISABLED" : "SESSION_EXPIRED" });
-        await expect(new AuthService(databasePool, undefined).rotateCsrf(session))
+        await expect(new AuthService(databasePool, undefined, new MatchService(databasePool, registry)).rotateCsrf(session))
           .rejects.toMatchObject({ code: change === "disable" ? "ACCOUNT_DISABLED" : "SESSION_EXPIRED" });
         const stored = await databasePool.query("SELECT revision::integer AS revision FROM next_round.matches WHERE id = $1", [matchId]);
         expect(stored.rows[0].revision).toBe(3);
@@ -327,7 +433,7 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
 
   it.each(["disable", "reset"])("lets an action that owns the principal lock finish before %s", async (change) => {
     await databasePool.query("UPDATE next_round.accounts SET role = 'admin' WHERE principal_id = $1", [memberB.principalId]);
-    const auth = new AuthService(databasePool, undefined);
+    const auth = new AuthService(databasePool, undefined, new MatchService(databasePool, registry));
     const session = await authenticated(memberA);
     const admin = await authenticated(memberB);
     const barrier = await databasePool.connect();
@@ -378,7 +484,7 @@ describe.skipIf(!testDatabaseUrl)("F1-03 authorized match views", () => {
     await databasePool.query("UPDATE next_round.accounts SET role = 'admin' WHERE principal_id = $1", [memberB.principalId]);
     const admin = await authenticated(memberB);
     await databasePool.query("UPDATE next_round.accounts SET role = 'member' WHERE principal_id = $1", [memberB.principalId]);
-    await expect(new AuthService(databasePool, undefined).setUserDisabled(admin, memberA.principalId, true))
+    await expect(new AuthService(databasePool, undefined, new MatchService(databasePool, registry)).setUserDisabled(admin, memberA.principalId, true))
       .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 

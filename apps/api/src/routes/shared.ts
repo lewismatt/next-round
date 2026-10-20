@@ -63,6 +63,22 @@ export const sharedRoutes: FastifyPluginAsync<SharedRoutesOptions> = async (
   const service =
     options.sharedService ??
     new SharedService(options.databasePool, options.registry);
+  fastify.get("/matches", async (request, reply) => {
+    const raw = request.query as Record<string, unknown>;
+    if (
+      Object.keys(raw).some((key) => !["scope", "phase", "cursor", "limit"].includes(key)) ||
+      Object.values(raw).some((value) => typeof value !== "string")
+    ) throw new ApiError(ERROR_CODES.INVALID_REQUEST, "Request is invalid.");
+    return reply.header("Cache-Control", "no-store").send(
+      await service.listMatches(
+        await session(request, options),
+        raw.scope as string | undefined,
+        raw.phase as string | undefined,
+        raw.cursor as string | undefined,
+        raw.limit as string | undefined,
+      ),
+    );
+  });
   fastify.get("/matches/:id/chat", async (request, reply) => {
     const params = request.params as { id: string };
     const q = query(request);

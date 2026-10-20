@@ -8,104 +8,27 @@ export type { HttpClientOptions } from "./client.js";
 
 
 // ============================================================================
-// 1. Clock Control Interface and Implementations (Master Spec §10 F2)
+// 1. Test-Service Clock Control Interface (Master Spec §10 F2)
 // ============================================================================
 
 export interface ClockControl {
-  /** Return current simulated or system time as RFC 3339 UTC string with milliseconds */
+  /** The same clock used by test-service-controlled deadline persistence. */
   now(): string;
-  /** Advance simulated time by milliseconds */
+  /** Advance the test service's clock by milliseconds. */
   advance(ms: number): void;
-  /** Set time explicitly */
+  /** Set the test service's clock explicitly. */
   set(time: string | Date | number): void;
-  /** Reset clock to default start time */
+  /** Reset the test service's clock to its default start time. */
   reset(): void;
-  /** Check if clock is paused */
+  /** Check whether the test service clock is paused. */
   isPaused(): boolean;
-  /** Pause clock advancement */
+  /** Pause the test service clock. */
   pause(): void;
-  /** Resume clock advancement */
+  /** Resume the test service clock. */
   resume(): void;
 }
 
-export class SimulatedClock implements ClockControl {
-  private currentMs: number;
-  private readonly defaultStartMs: number;
-  private paused: boolean = false;
 
-  constructor(initialTimeIso: string = "2026-10-18T12:00:00.000Z") {
-    this.defaultStartMs = Date.parse(initialTimeIso);
-    this.currentMs = this.defaultStartMs;
-  }
-
-  now(): string {
-    return new Date(this.currentMs).toISOString();
-  }
-
-  advance(ms: number): void {
-    if (ms < 0) {
-      throw new Error("Cannot advance clock backwards.");
-    }
-    this.currentMs += ms;
-  }
-
-  set(time: string | Date | number): void {
-    if (typeof time === "string") {
-      this.currentMs = Date.parse(time);
-    } else if (time instanceof Date) {
-      this.currentMs = time.getTime();
-    } else {
-      this.currentMs = time;
-    }
-  }
-
-  reset(): void {
-    this.currentMs = this.defaultStartMs;
-    this.paused = false;
-  }
-
-  isPaused(): boolean {
-    return this.paused;
-  }
-
-  pause(): void {
-    this.paused = true;
-  }
-
-  resume(): void {
-    this.paused = false;
-  }
-}
-
-export class SystemClock implements ClockControl {
-  now(): string {
-    return new Date().toISOString();
-  }
-
-  advance(_ms: number): void {
-    // System clock does not manually advance
-  }
-
-  set(_time: string | Date | number): void {
-    // System clock cannot be manually set
-  }
-
-  reset(): void {
-    // System clock reset is a no-op
-  }
-
-  isPaused(): boolean {
-    return false;
-  }
-
-  pause(): void {
-    // System clock pause is a no-op
-  }
-
-  resume(): void {
-    // System clock resume is a no-op
-  }
-}
 
 // ============================================================================
 // 2. Fault Injection Interfaces and Registry (Master Spec §10 F2, H5, F1-09)
@@ -238,11 +161,6 @@ export class HarnessFaultInjector implements FaultInjector {
     return undefined;
   }
 }
-
-// ============================================================================
-// 3. Simulated Client Interface (Master Spec §10 F2, H1, H2)
-// ============================================================================
-
 export interface SimulatedSession {
   principalId: string;
   kind: "registered" | "guest";
@@ -280,6 +198,7 @@ export interface SimulatedClient {
 
   joinMatch(matchId: string, expectedRevision: number, linkToken?: string, commandId?: string): Promise<CommandReceipt>;
   startMatch(matchId: string, expectedRevision: number, commandId?: string): Promise<CommandReceipt>;
+  finishMatch(matchId: string, expectedRevision: number, commandId?: string): Promise<CommandReceipt>;
   act(
     matchId: string,
     action: {
@@ -297,6 +216,7 @@ export interface SimulatedClient {
 
   leaveMatch(matchId: string, expectedRevision: number, commandId?: string): Promise<CommandReceipt>;
   getSnapshot(matchId: string): Promise<MatchSnapshot>;
+  getResult(matchId: string): Promise<Json>;
   createGuestInvitation(matchId: string, commandId?: string): Promise<{ token: string; commandId: string }>;
   onSnapshot(matchId: string, listener: (snapshot: MatchSnapshot) => void): () => void;
 }
@@ -315,8 +235,11 @@ export interface RegisteredClientInput {
 
 export interface HarnessConfig {
   baseUrl: string;
-  initialTime?: string;
-  useSystemClock?: boolean;
+  /** Public browser origin when the isolated API is behind a dev proxy. */
+  origin?: string;
+
+  /** Optional test-service clock. Production APIs use PostgreSQL time directly. */
+  testClock?: ClockControl;
   timeoutMs?: number;
   onError?: (error: Error) => void;
   /** Seed an account through an isolated test service, then authenticate over HTTP. */
@@ -328,14 +251,12 @@ export interface HarnessConfig {
 }
 
 export class HarnessEnvironment {
-  readonly clock: ClockControl;
+  readonly clock: ClockControl | undefined;
   readonly faults: HarnessFaultInjector;
   private readonly clients = new Set<SimulatedClient>();
 
   constructor(private readonly config: HarnessConfig) {
-    this.clock = config.useSystemClock
-      ? new SystemClock()
-      : new SimulatedClock(config.initialTime);
+    this.clock = config.testClock;
     this.faults = new HarnessFaultInjector(config.serverFaults);
   }
 
@@ -387,7 +308,7 @@ export class HarnessEnvironment {
   }
 
   reset(): void {
-    this.clock.reset();
+    this.clock?.reset();
     this.faults.clearAllFaults();
     for (const client of this.clients) client.disconnectWs();
     this.clients.clear();

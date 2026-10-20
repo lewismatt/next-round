@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import { setTimeout as delay } from "node:timers/promises";
+import type { MatchService } from "./match-service.js";
+import crypto from "node:crypto";
 import { ApiError, ERROR_CODES } from "@next-round/contracts";
 import type {
   Permissions,
@@ -33,6 +36,40 @@ import {
 const SETUP_LOCK_NAMESPACE = 0x4e525354;
 const SETUP_LOCK_KEY = 1;
 const CONTROL_CHARACTER = /\p{Cc}/u;
+
+const LOGIN_USERNAME_FAILURE_LIMIT = 5;
+const LOGIN_SOURCE_IP_FAILURE_LIMIT = 20;
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+
+interface LoginBudgetSnapshot {
+  count: number;
+  oldest_at: Date | null;
+  checked_at: Date;
+}
+
+function loginBudgetHash(
+  namespace: "username" | "source-ip",
+  value: string,
+): Buffer {
+  return crypto
+    .createHash("sha256")
+    .update(`login:${namespace}:`, "utf8")
+    .update(value, "utf8")
+    .digest();
+}
+
+function loginRetryAfterSeconds(exhausted: LoginBudgetSnapshot[]): number {
+  const nextAvailableAt = Math.max(
+    ...exhausted.map(
+      (snapshot) =>
+        snapshot.oldest_at!.getTime() + LOGIN_FAILURE_WINDOW_MS,
+    ),
+  );
+  const checkedAt = Math.max(
+    ...exhausted.map((snapshot) => snapshot.checked_at.getTime()),
+  );
+  return Math.max(1, Math.ceil((nextAvailableAt - checkedAt) / 1000));
+}
 
 export interface SetupInput {
   setupToken: string;
@@ -172,6 +209,7 @@ export class AuthService {
   constructor(
     private readonly pool: DatabasePool,
     private readonly setupToken: string | undefined,
+    private readonly matchService: MatchService,
   ) {}
 
   async isConfigured(): Promise<boolean> {
@@ -286,72 +324,164 @@ export class AuthService {
     }
   }
 
-  async login(usernameInput: string, password: string): Promise<LoginResult> {
+  /** `sourceIp` must be Fastify's trusted request.ip, never a forwarded header. */
+  async login(
+    usernameInput: string,
+    password: string,
+    sourceIp: string,
+  ): Promise<LoginResult> {
     const username = normalizeUsername(usernameInput);
-    const accountResult = await this.pool.query<AccountRow>(
-      `SELECT p.id AS principal_id, p.kind, p.display_name, p.disabled_at, p.auth_epoch,
-              a.username, a.password_hash, a.role,
-              a.can_invite_registrations, a.can_invite_guests
-         FROM next_round.accounts a
-         JOIN next_round.principals p ON p.id = a.principal_id
-        WHERE a.username = $1`,
-      [username],
+    const keyHashes = [
+      loginBudgetHash("username", username),
+      loginBudgetHash("source-ip", sourceIp),
+    ];
+    const lockKeys = [...new Set(
+      keyHashes.map((keyHash) => keyHash.readBigInt64BE(0).toString()),
+    )].sort((a, b) =>
+      BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0,
     );
-    const account = accountResult.rows[0];
-    if (!account) {
-      await verifyDummyPassword(password);
-      throw new ApiError(
-        ERROR_CODES.INVALID_CREDENTIALS,
-        "Username or password is incorrect.",
-      );
-    }
-    if (
-      !(await verifyPassword(account.password_hash, password)) ||
-      account.disabled_at
-    ) {
-      throw new ApiError(
-        ERROR_CODES.INVALID_CREDENTIALS,
-        "Username or password is incorrect.",
-      );
-    }
+    const client = await this.pool.connect();
+    let transactionOpen = false;
+    try {
+      await client.query("BEGIN");
+      transactionOpen = true;
+      for (const lockKey of lockKeys) {
+        await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [
+          lockKey,
+        ]);
+      }
 
-    if (needsPasswordRehash(account.password_hash)) {
-      const replacement = await hashPassword(password);
-      await this.pool.query(
-        "UPDATE next_round.accounts SET password_hash = $1, updated_at = now() WHERE principal_id = $2 AND password_hash = $3",
-        [replacement, account.principal_id, account.password_hash],
+      const usernameBudgetResult = await client.query<LoginBudgetSnapshot>(
+        `WITH instant AS (SELECT clock_timestamp() AS checked_at)
+         SELECT COALESCE(sum(bucket.count), 0)::integer AS count,
+                min(bucket.window_start) AS oldest_at,
+                instant.checked_at
+           FROM instant
+           LEFT JOIN next_round.rate_buckets AS bucket
+             ON bucket.key_hash = $1
+            AND bucket.window_start > instant.checked_at - interval '15 minutes'
+          GROUP BY instant.checked_at`,
+        [keyHashes[0]],
       );
+      const sourceIpBudgetResult = await client.query<LoginBudgetSnapshot>(
+        `WITH instant AS (SELECT clock_timestamp() AS checked_at)
+         SELECT COALESCE(sum(bucket.count), 0)::integer AS count,
+                min(bucket.window_start) AS oldest_at,
+                instant.checked_at
+           FROM instant
+           LEFT JOIN next_round.rate_buckets AS bucket
+             ON bucket.key_hash = $1
+            AND bucket.window_start > instant.checked_at - interval '15 minutes'
+          GROUP BY instant.checked_at`,
+        [keyHashes[1]],
+      );
+      const usernameBudget = usernameBudgetResult.rows[0]!;
+      const sourceIpBudget = sourceIpBudgetResult.rows[0]!;
+      const exhausted: LoginBudgetSnapshot[] = [];
+      if (usernameBudget.count >= LOGIN_USERNAME_FAILURE_LIMIT)
+        exhausted.push(usernameBudget);
+      if (sourceIpBudget.count >= LOGIN_SOURCE_IP_FAILURE_LIMIT)
+        exhausted.push(sourceIpBudget);
+      if (exhausted.length > 0) {
+        throw new ApiError(
+          ERROR_CODES.RATE_LIMITED,
+          "Too many login attempts.",
+          {
+            details: {
+              retryAfterSeconds: loginRetryAfterSeconds(exhausted),
+            },
+          },
+        );
+      }
+
+      const accountResult = await client.query<AccountRow>(
+        `SELECT p.id AS principal_id, p.kind, p.display_name, p.disabled_at, p.auth_epoch,
+                a.username, a.password_hash, a.role,
+                a.can_invite_registrations, a.can_invite_guests
+           FROM next_round.accounts a
+           JOIN next_round.principals p ON p.id = a.principal_id
+          WHERE a.username = $1`,
+        [username],
+      );
+      const account = accountResult.rows[0];
+      let credentialsValid = false;
+      if (account) {
+        credentialsValid = await verifyPassword(account.password_hash, password);
+        if (account.disabled_at) credentialsValid = false;
+      } else {
+        await verifyDummyPassword(password);
+      }
+
+      if (!credentialsValid || !account) {
+        for (const keyHash of keyHashes) {
+          await client.query(
+            `WITH attempt AS (SELECT clock_timestamp() AS occurred_at)
+             INSERT INTO next_round.rate_buckets(key_hash, window_start, count, expires_at)
+             SELECT $1, attempt.occurred_at, 1,
+                    attempt.occurred_at + interval '15 minutes'
+               FROM attempt
+             ON CONFLICT (key_hash, window_start) DO UPDATE
+               SET count = next_round.rate_buckets.count + 1,
+                   expires_at = GREATEST(
+                     next_round.rate_buckets.expires_at,
+                     EXCLUDED.expires_at
+                   )`,
+            [keyHash],
+          );
+        }
+        await client.query("COMMIT");
+        transactionOpen = false;
+        throw new ApiError(
+          ERROR_CODES.INVALID_CREDENTIALS,
+          "Username or password is incorrect.",
+        );
+      }
+
+      if (needsPasswordRehash(account.password_hash)) {
+        const replacement = await hashPassword(password);
+        await client.query(
+          "UPDATE next_round.accounts SET password_hash = $1, updated_at = now() WHERE principal_id = $2 AND password_hash = $3",
+          [replacement, account.principal_id, account.password_hash],
+        );
+      }
+
+      const now = Date.now();
+      const absoluteExpiresAt = new Date(now + SESSION_ABSOLUTE_EXPIRY_MS);
+      const idleExpiresAt = new Date(
+        Math.min(now + SESSION_IDLE_EXPIRY_MS, absoluteExpiresAt.getTime()),
+      );
+      const { rawToken: rawSessionToken, tokenHash } =
+        generateOpaqueSessionToken();
+      const { rawToken: rawCsrfToken, csrfHash } = generateCsrfToken();
+      await client.query(
+        `INSERT INTO next_round.sessions
+           (principal_id, token_hash, csrf_hash, auth_epoch, idle_expires_at, absolute_expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          account.principal_id,
+          tokenHash,
+          csrfHash,
+          account.auth_epoch,
+          idleExpiresAt,
+          absoluteExpiresAt,
+        ],
+      );
+      await client.query("COMMIT");
+      transactionOpen = false;
+
+      return {
+        principal: principalView(account),
+        permissions: permissions(account),
+        rawSessionToken,
+        rawCsrfToken,
+        expiresAt: idleExpiresAt.toISOString(),
+      };
+    } catch (error) {
+      if (transactionOpen) await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-
-    const now = Date.now();
-    const absoluteExpiresAt = new Date(now + SESSION_ABSOLUTE_EXPIRY_MS);
-    const idleExpiresAt = new Date(
-      Math.min(now + SESSION_IDLE_EXPIRY_MS, absoluteExpiresAt.getTime()),
-    );
-    const { rawToken: rawSessionToken, tokenHash } =
-      generateOpaqueSessionToken();
-    const { rawToken: rawCsrfToken, csrfHash } = generateCsrfToken();
-    await this.pool.query(
-      `INSERT INTO next_round.sessions
-         (principal_id, token_hash, csrf_hash, auth_epoch, idle_expires_at, absolute_expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        account.principal_id,
-        tokenHash,
-        csrfHash,
-        account.auth_epoch,
-        idleExpiresAt,
-        absoluteExpiresAt,
-      ],
-    );
-
-    return {
-      principal: principalView(account),
-      permissions: permissions(account),
-      rawSessionToken,
-      rawCsrfToken,
-      expiresAt: idleExpiresAt.toISOString(),
-    };
   }
   async register(
     token: string,
@@ -837,6 +967,30 @@ export class AuthService {
       canInviteGuests?: boolean;
     } = {},
   ): Promise<PrincipalView & { disabled: boolean }> {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.setUserDisabledOnce(actor, principalId, disabled, changes);
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+        if (code !== "40001" && code !== "40P01") throw error;
+        if (attempt === 2) {
+          throw new ApiError(ERROR_CODES.SERVICE_UNAVAILABLE, "Please retry this command.");
+        }
+        await delay(10 + Math.random() * 30);
+      }
+    }
+  }
+
+  private async setUserDisabledOnce(
+    actor: AuthenticatedSession,
+    principalId: string,
+    disabled?: boolean,
+    changes: {
+      role?: "admin" | "member";
+      canInviteRegistrations?: boolean;
+      canInviteGuests?: boolean;
+    } = {},
+  ): Promise<PrincipalView & { disabled: boolean }> {
     if (!actor.permissions.isAdmin) {
       throw new ApiError(
         ERROR_CODES.FORBIDDEN,
@@ -850,11 +1004,20 @@ export class AuthService {
       const adminCandidates = await client.query<{ principal_id: string }>(
         "SELECT principal_id FROM next_round.accounts WHERE role = 'admin'",
       );
-      await lockPrincipals(client, [
-        actor.principal.id,
-        principalId,
+      const matchPrincipals = await client.query<{ principal_id: string }>(
+        `SELECT DISTINCT mm.principal_id
+           FROM next_round.match_members target
+           JOIN next_round.matches m ON m.id=target.match_id
+           JOIN next_round.match_members mm ON mm.match_id=m.id
+          WHERE target.principal_id=$1 AND target.status='active' AND m.phase<>'finished'`,
+        [principalId],
+      );
+      const lockedPrincipalIds = [
+        actor.principal.id, principalId,
         ...adminCandidates.rows.map((row) => row.principal_id),
-      ]);
+        ...matchPrincipals.rows.map((row) => row.principal_id),
+      ];
+      await lockPrincipals(client, lockedPrincipalIds);
       await recheckSession(client, actor, { registered: true, admin: true });
       const enabledAdmins = await client.query<{ principal_id: string }>(
         `SELECT a.principal_id
@@ -992,6 +1155,11 @@ export class AuthService {
                 changes.canInviteGuests ?? target.can_invite_guests,
             }),
           ],
+        );
+      }
+      if (disabledChanged) {
+        await this.matchService.applyPrincipalStatusInTransaction(
+          client, principalId, nextDisabled, lockedPrincipalIds,
         );
       }
       await client.query("COMMIT");

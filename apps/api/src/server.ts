@@ -86,9 +86,9 @@ export async function buildServer(
       process.env.NEXT_ROUND_ENABLE_TEST_COUNTER === "true",
     );
   }
-  const authService = new AuthService(databasePool, setupToken);
   const matchService = new MatchService(databasePool, gameRegistry);
-  const tokenService = new TokenService(databasePool);
+  const authService = new AuthService(databasePool, setupToken, matchService);
+  const tokenService = new TokenService(databasePool, matchService);
   const invitationService = new InvitationService(
     databasePool,
     matchService,
@@ -135,6 +135,12 @@ export async function buildServer(
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiError) {
+      if (
+        error.code === ERROR_CODES.RATE_LIMITED &&
+        typeof error.details?.retryAfterSeconds === "number"
+      ) {
+        reply.header("Retry-After", String(error.details.retryAfterSeconds));
+      }
       return reply.status(error.statusCode).send(error.toResponse(request.id));
     }
     const statusCode =
@@ -212,7 +218,21 @@ export async function buildServer(
   }
   await app.register(fastifyStatic, {
     root: staticRoot,
-    prefix: "/static/",
+    prefix: "/",
+  });
+  app.setNotFoundHandler((request, reply) => {
+    const pathname = request.url.split("?", 1)[0]!;
+    if (
+      request.method === "GET" &&
+      request.headers.accept?.includes("text/html") &&
+      !/^\/(?:api|games|assets)(?:\/|$)/.test(pathname) &&
+      fs.existsSync(path.join(staticRoot, "index.html"))
+    ) {
+      return reply.header("Cache-Control", "no-cache").sendFile("index.html");
+    }
+    return reply.status(404).send(
+      new ApiError(ERROR_CODES.NOT_FOUND, "Resource was not found.").toResponse(request.id),
+    );
   });
   await app.register(gameAssetRoutes, {
     registry: gameRegistry,

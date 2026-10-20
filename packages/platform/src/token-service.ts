@@ -4,6 +4,7 @@ import { ApiError, ERROR_CODES } from "@next-round/contracts";
 import type { DatabasePool } from "@next-round/db";
 import { lockPrincipals, recheckSession } from "./transaction-authority.js";
 import type { AuthenticatedSession } from "./auth-service.js";
+import type { MatchService } from "./match-service.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 const MINUTE = 60 * 1000;
@@ -24,7 +25,10 @@ function bearer(): { raw: string; digest: Buffer } {
 
 /** Issues opaque bearer tokens; only their SHA-256 digests are persisted. */
 export class TokenService {
-  constructor(private readonly pool: DatabasePool) {}
+  constructor(
+    private readonly pool: DatabasePool,
+    private readonly matchService: MatchService,
+  ) {}
 
   async issueRegistration(
     actor: AuthenticatedSession,
@@ -44,7 +48,16 @@ export class TokenService {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      await lockPrincipals(client, [actor.principal.id]);
+      const members = matchId
+        ? await client.query<{ principal_id: string }>(
+            "SELECT principal_id FROM next_round.match_members WHERE match_id=$1",
+            [matchId],
+          )
+        : { rows: [] };
+      await lockPrincipals(client, [
+        actor.principal.id,
+        ...members.rows.map((member) => member.principal_id),
+      ]);
       await recheckSession(client, actor, { registered: true });
       const issuer = await client.query(
         `SELECT p.disabled_at, a.role, a.can_invite_registrations
@@ -63,21 +76,18 @@ export class TokenService {
           "Registration invitations are not permitted.",
         );
       }
-      if (matchId) {
-        await client.query(
-          "SELECT id FROM next_round.matches WHERE id=$1 FOR UPDATE",
-          [matchId],
+      if (
+        matchId &&
+        !(await this.matchService.canInviteInTransaction(
+          client,
+          matchId,
+          actor.principal.id,
+        ))
+      ) {
+        throw new ApiError(
+          ERROR_CODES.FORBIDDEN,
+          "Match invitation is not permitted.",
         );
-        const membership = await client.query(
-          `SELECT 1 FROM next_round.match_members
-            WHERE match_id=$1 AND principal_id=$2 AND status='active'`,
-          [matchId, actor.principal.id],
-        );
-        if (!membership.rowCount)
-          throw new ApiError(
-            ERROR_CODES.FORBIDDEN,
-            "Match invitation is not permitted.",
-          );
       }
       const requestHash = crypto
         .createHash("sha256")
@@ -251,16 +261,43 @@ export class TokenService {
       .createHash("sha256")
       .update(addressKey, "utf8")
       .digest();
-    const now = new Date();
-    const bucket = new Date(Math.floor(now.getTime() / MINUTE) * MINUTE);
-    const result = await this.pool.query<{ count: number }>(
-      `INSERT INTO next_round.rate_buckets(key_hash,window_start,count,expires_at)
-       VALUES ($1,$2::timestamptz,1,$2::timestamptz + interval '2 minutes')
-       ON CONFLICT (key_hash,window_start) DO UPDATE SET count=next_round.rate_buckets.count+1
-       RETURNING count`,
-      [keyHash, bucket],
-    );
-    if (Number(result.rows[0]?.count ?? 0) > 10)
-      throw new ApiError(ERROR_CODES.RATE_LIMITED, "Too many token attempts.");
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended(encode($1::bytea,'hex'),0))",
+        [keyHash],
+      );
+      const budget = await client.query<{ count: number; retry_after_seconds: number }>(
+        `SELECT COALESCE(sum(count),0)::integer AS count,
+                GREATEST(1,ceil(extract(epoch FROM (
+                  min(window_start)+interval '1 minute'-clock_timestamp()
+                ))))::integer AS retry_after_seconds
+           FROM next_round.rate_buckets
+          WHERE key_hash=$1 AND window_start > clock_timestamp()-interval '1 minute'`,
+        [keyHash],
+      );
+      if (budget.rows[0]!.count >= 10) {
+        throw new ApiError(ERROR_CODES.RATE_LIMITED, "Too many token attempts.", {
+          details: { retryAfterSeconds: budget.rows[0]!.retry_after_seconds },
+        });
+      }
+      await client.query(
+        "DELETE FROM next_round.rate_buckets WHERE key_hash=$1 AND expires_at<=clock_timestamp()",
+        [keyHash],
+      );
+      await client.query(
+        `INSERT INTO next_round.rate_buckets(key_hash,window_start,count,expires_at)
+         SELECT $1,t,1,t+interval '1 minute' FROM (SELECT clock_timestamp() AS t) stamp
+         ON CONFLICT (key_hash,window_start) DO UPDATE SET count=next_round.rate_buckets.count+1`,
+        [keyHash],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

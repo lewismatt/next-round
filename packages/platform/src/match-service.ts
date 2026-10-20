@@ -174,7 +174,7 @@ function hashMatchAction(matchId: string, input: MatchActionInput): Buffer {
     .digest();
 }
 
-type LifecycleKind = "join" | "start" | "leave";
+type LifecycleKind = "join" | "start" | "leave" | "finish";
 
 function hashLifecycleCommand(
   kind: LifecycleKind,
@@ -659,6 +659,14 @@ export class MatchService {
     return this.runLifecycleCommand("leave", matchId, session, input);
   }
 
+  finish(
+    matchId: string,
+    session: AuthenticatedSession,
+    input: MatchLifecycleCommand,
+  ): Promise<CommandReceipt> {
+    return this.runLifecycleCommand("finish", matchId, session, input);
+  }
+
   removeMember(
     matchId: string,
     memberId: string,
@@ -1124,6 +1132,14 @@ export class MatchService {
         principalId,
         memberId: targetMemberId ? existingMember!.id : member.id,
       });
+      const event: GameEvent =
+        kind === "join"
+          ? { kind: "join", memberId: member.id, rejoin }
+          : kind === "start"
+            ? { kind: "start" }
+            : kind === "finish"
+              ? { kind: "finish", reason: "host_ended" }
+              : { kind: "leave", memberId: member.id, reason: targetMemberId ? "removed" : "left" };
       let transition;
       try {
         if (
@@ -1133,6 +1149,15 @@ export class MatchService {
           throw new ApiError(
             ERROR_CODES.FORBIDDEN,
             "Only the match host can start this match.",
+          );
+        }
+        if (
+          kind === "finish" &&
+          !registered.server.authority(ctx, state, member.id).canFinish
+        ) {
+          throw new ApiError(
+            ERROR_CODES.FORBIDDEN,
+            "You cannot end this match.",
           );
         }
         if (
@@ -1149,15 +1174,7 @@ export class MatchService {
         transition = registered.server.transition(
           ctx,
           state,
-          kind === "join"
-            ? { kind: "join", memberId: member.id, rejoin }
-            : kind === "start"
-              ? { kind: "start" }
-              : {
-                  kind: "leave",
-                  memberId: member.id,
-                  reason: targetMemberId ? "removed" : "left",
-                },
+          event,
         );
       } catch (error) {
         if (error instanceof ApiError) throw error;
@@ -1174,9 +1191,10 @@ export class MatchService {
       }
       if (
         !transition.value ||
-        (kind !== "leave" && transition.value.final !== null) ||
+        ((kind === "join" || kind === "start") && transition.value.final !== null) ||
         (kind === "start" && transition.value.phase !== "active") ||
         (kind === "join" && transition.value.phase !== match.phase)
+        || (kind === "finish" && (transition.value.phase !== "finished" || transition.value.final === null))
       )
         throw moduleFailure();
       if (
@@ -1247,11 +1265,7 @@ export class MatchService {
         members,
         registered,
         transition.value,
-        kind === "join"
-          ? { kind: "join", memberId: member.id, rejoin }
-          : kind === "start"
-            ? { kind: "start" }
-            : { kind: "leave", memberId: member.id, reason: leaveReason },
+        event,
         eventId,
         now,
         principalId,
@@ -1685,6 +1699,48 @@ export class MatchService {
       [matchId],
     );
     return result.rows;
+  }
+
+  /** Account changes and their game consequences commit under the same principal locks. */
+  async applyPrincipalStatusInTransaction(
+    client: TransactionClient,
+    principalId: string,
+    disabled: boolean,
+    lockedPrincipalIds: readonly string[],
+  ): Promise<void> {
+    const result = await client.query<Omit<ActionMatchRow, "viewer_member_id">>(
+      `SELECT m.id,m.module_id,m.module_version,m.state_version,m.mode,m.phase,
+              m.revision::integer AS revision,m.state,m.settings,m.host_member_id
+         FROM next_round.matches m
+         JOIN next_round.match_members mm ON mm.match_id=m.id
+        WHERE mm.principal_id=$1 AND mm.status='active' AND m.phase<>'finished'
+        ORDER BY m.id FOR UPDATE OF m`,
+      [principalId],
+    );
+    const locked = new Set(lockedPrincipalIds.map((id) => id.toLowerCase()));
+    for (const match of result.rows) {
+      const members = await this.loadMembers(client, match.id);
+      if (members.some((member) => !locked.has(member.principalId.toLowerCase()))) {
+        throw Object.assign(new Error("Retry membership discovery"), { code: "40001" });
+      }
+      const member = members.find((candidate) => candidate.principalId.toLowerCase() === principalId.toLowerCase());
+      if (!member || match.state === null) throw moduleFailure();
+      const registered = registeredVersion(this.registry, match.module_id, match.module_version);
+      const now = await this.databaseNow(client);
+      const eventId = randomUUID();
+      const event: GameEvent = { kind: "principal_status", memberId: member.id, disabled };
+      let transition;
+      try {
+        const state = parseJsonSchemaValue(registered.manifest.stateSchema, match.state);
+        transition = registered.server.transition(context(match, members, now, eventId, null), state, event);
+      } catch {
+        throw moduleFailure();
+      }
+      if (!transition.ok) throw moduleFailure();
+      await this.persistTransition(
+        client, match, members, registered, transition.value, event, eventId, now, null,
+      );
+    }
   }
 
   /** Shared state/event/result/deadline/effects commit path for commands and system events. */

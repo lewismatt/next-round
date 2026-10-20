@@ -157,6 +157,7 @@ afterEach(async () => {
 async function fixture(
   upgrade: "accept" | "reject" | "hang" = "accept",
   authReply: "complete" | "missing_cookie" | "missing_csrf" = "complete",
+  publicOrigin?: string,
 ) {
   const alice = session("alice");
   const bob = session("bob");
@@ -192,9 +193,10 @@ async function fixture(
 
   app.addHook("onRequest", async (request, reply) => {
     if (!request.url.startsWith("/api/v1/")) return;
-    if (["/api/v1/auth/login", "/api/v1/guest-invitations/redeem"].includes(request.url) && request.headers.origin === origin) return;
+    const expectedOrigin = publicOrigin ?? origin;
+    if (["/api/v1/auth/login", "/api/v1/guest-invitations/redeem"].includes(request.url) && request.headers.origin === expectedOrigin) return;
     const identity = identities.find((candidate) => candidate.cookie === request.headers.cookie);
-    if (!identity || request.headers.origin !== origin) {
+    if (!identity || request.headers.origin !== expectedOrigin) {
       return reply.code(401).send({ error: { code: "AUTH_REQUIRED", message: `secret ${alice.cookie} ${alice.csrfToken}` } });
     }
     if (request.method !== "GET" && request.headers["x-csrf-token"] !== identity.csrfToken) {
@@ -389,6 +391,23 @@ function gets(f: Fixture, matchId = MATCH) {
 }
 
 describe("HttpSimulatedClient real HTTP and WebSocket boundary", () => {
+  it("uses an explicitly configured browser origin for direct proxy HTTP and WS connections", async () => {
+    const publicOrigin = "http://127.0.0.1:3000";
+    const f = await fixture("accept", "complete", publicOrigin);
+    const env = new HarnessEnvironment({ baseUrl: f.origin, origin: publicOrigin });
+    try {
+      const first = await env.createRegisteredClient({ username: "alice", displayName: "Alice", password: "private-password" });
+      await first.getSnapshot(MATCH);
+      first.onSnapshot(MATCH, () => {});
+      await first.connectWs();
+      expect(first.connectionState.wsConnected).toBe(true);
+      expect(f.requests.every((request) => request.origin === publicOrigin)).toBe(true);
+      expect(env.clock).toBeUndefined();
+    } finally {
+      env.reset();
+    }
+  });
+
   it("authenticates real login responses and retains two devices for the same authoritative principal", async () => {
     const f = await fixture();
     const env = new HarnessEnvironment({ baseUrl: f.origin });

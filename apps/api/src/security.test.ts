@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -122,6 +122,23 @@ describe("GH-1 H-3: required secrets", () => {
     expect(response.body).not.toContain(process.env.SESSION_SECRET);
     expect(response.body).not.toContain(process.env.SETUP_TOKEN);
   });
+});
+
+it("serves browser entry paths without turning unknown API or asset requests into HTML", async () => {
+  await writeFile(path.join(root, "index.html"), "<!doctype html><title>Local shell fixture</title>");
+  await writeFile(path.join(root, "client.js"), "export const fixture = true;");
+  const app = await server();
+  const entry = await app.inject({ url: "/matches/fixture", headers: { accept: "text/html" } });
+  expect(entry.statusCode).toBe(200);
+  expect(entry.headers["content-type"]).toContain("text/html");
+  expect(entry.body).toContain("Local shell fixture");
+  const script = await app.inject("/client.js");
+  expect(script.body).toBe("export const fixture = true;");
+  for (const url of ["/api/v1/absent", "/games/absent/client.js", "/assets/absent.js"]) {
+    const absent = await app.inject({ url, headers: { accept: "text/html" } });
+    expect(absent.statusCode).toBe(404);
+    expect(absent.body).not.toContain("Local shell fixture");
+  }
 });
 
 it("GH-1 L-2: closes an oversized WebSocket message with 1009", async () => {

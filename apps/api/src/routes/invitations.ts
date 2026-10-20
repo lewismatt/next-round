@@ -180,7 +180,7 @@ function routeId(value: unknown): string {
 export const invitationRoutes: FastifyPluginAsync<
   InvitationRoutesOptions
 > = async (fastify, options) => {
-  const tokenService = new TokenService(options.databasePool);
+  const tokenService = new TokenService(options.databasePool, options.matchService);
   fastify.get("/invitations", async (request, reply) => {
     const current = await requireSession(request, options.authService, false);
     return reply
