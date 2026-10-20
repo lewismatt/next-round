@@ -12,7 +12,6 @@ const timestamp = (value) =>
     : typeof value === "number"
       ? value
       : Date.parse(value);
-const days = (from, to) => (timestamp(to) - timestamp(from)) / 86_400_000;
 const minutes = (from, to) => (timestamp(to) - timestamp(from)) / 60_000;
 const tokenFromUrl = (value) => {
   const url = new URL(value);
@@ -47,6 +46,27 @@ export async function runIdentityAcceptance(ctx) {
     assert.ok(
       Math.abs(actualMs - expectedMs) <= 5_000,
       `${label} TTL must be within five seconds of expected; actual ${actualMs}ms`,
+    );
+  };
+  /**
+   * Asserts that a stored expiry equals the database clock plus a calendar
+   * interval (for example "30 days"). Production computes these expiries
+   * with SQL interval arithmetic, so the expected value is computed by
+   * PostgreSQL itself and follows the database's own timezone and DST
+   * rules. An absolute millisecond window silently assumes a UTC database:
+   * across the autumn DST fall-back a calendar "30 days" measures 30.0417
+   * absolute days (BL-026).
+   */
+  const assertDbInterval = async (expiresAt, interval, label) => {
+    const expected = (
+      await pool.query("SELECT clock_timestamp() + $1::interval AS expected", [
+        interval,
+      ])
+    ).rows[0].expected;
+    const deltaMs = Math.abs(timestamp(expiresAt) - timestamp(expected));
+    assert.ok(
+      deltaMs <= 60_000,
+      `${label} expiry must equal the database clock plus ${interval} (within 60s); delta ${deltaMs}ms`,
     );
   };
   const adminRequest = (path, body, client = host) =>
@@ -143,16 +163,7 @@ export async function runIdentityAcceptance(ctx) {
     "authorized match member can issue production registration invitation",
   );
   const reg = (await registration.json()).data;
-  await assertTtl(
-    reg.expiresAt,
-    7 * 24 * 60 * 60 * 1000,
-    "registration invitation",
-  );
-  assert.ok(
-    days(Date.now(), reg.expiresAt) > 6.99 &&
-      days(Date.now(), reg.expiresAt) < 7.01,
-    "registration invitation expires after seven days",
-  );
+  await assertDbInterval(reg.expiresAt, "7 days", "registration invitation");
   const regToken = tokenFromUrl(reg.url);
   assert.ok(regToken.length >= 32);
 
@@ -607,22 +618,14 @@ export async function runIdentityAcceptance(ctx) {
         )
       ).rows[0];
       assert.ok(row, "guest session persisted by production redemption");
-      assert.ok(
-        days(Date.now(), row.idle_expires_at) > 29.99 &&
-          days(Date.now(), row.idle_expires_at) < 30.01,
-      );
-      assert.ok(
-        days(Date.now(), row.absolute_expires_at) > 179.99 &&
-          days(Date.now(), row.absolute_expires_at) < 180.01,
-      );
-      await assertTtl(
+      await assertDbInterval(
         row.idle_expires_at,
-        30 * 24 * 60 * 60 * 1000,
+        "30 days",
         "guest idle session",
       );
-      await assertTtl(
+      await assertDbInterval(
         row.absolute_expires_at,
-        180 * 24 * 60 * 60 * 1000,
+        "180 days",
         "guest absolute session",
       );
       const inviteDigest = createHash("sha256")
