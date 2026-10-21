@@ -217,6 +217,6 @@ when Matthew merges.
 ## Local playtest feature-testing triage (codex-local-feature-test-20261021)
 
 - BL-055–BL-057 integrated through PR #38 (`817d4dfe`); historical feature-test evidence above is retained.
-- BL-058–BL-060 fixed in the close-out review unit; code/browser and live proxy/anti-spoof evidence: `docs/playtest-2026-10-21.md`.
+- BL-058–BL-060 fixed in [PR #39](https://github.com/lewismatt/next-round/pull/39); code/browser and live proxy/anti-spoof evidence: `docs/playtest-2026-10-21.md`.
 - Close-out branch: **60 Fixed / 0 Open**. Main remains **57 Fixed / 3 Open** until this PR is integrated. No acceptance row closed.
 - T2/T8 residual browser checks completed. Live 50-outstanding cap not filled; D54 and human C5 remain explicitly open.
