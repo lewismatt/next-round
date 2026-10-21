@@ -388,6 +388,15 @@ trusts only that address; its API port is not published. If `172.30.0.0/24` conf
 with your network, change `PROXY_SUBNET` and `CADDY_PROXY_IP` together. Caddy must
 remain the only service assigned that address. Keep direct API access private.
 
+For a private Tailscale Serve → loopback-published Docker API deployment, Docker
+DNAT presents the compose bridge gateway as the ingress peer, not `127.0.0.1`.
+Inspect the API's actual network with `docker network inspect` before setting
+the operator override's `TRUST_PROXY` to that **single explicit gateway IP**.
+Keep the published API bind on loopback; do not trust the subnet or all proxies.
+Re-check after network recreation: a changed subnet changes the gateway and
+trust fails closed to shared-IP behavior. Verify real tailnet client addresses
+in API logs and verify a sibling container's forged `X-Forwarded-For` is ignored.
+
 `SESSION_SECRET` configures the cookie plugin, but current session cookies are
 unsigned opaque tokens and CSRF tokens have independent digests. Rotating this
 secret does not revoke existing sessions. Revoke session rows to end access;

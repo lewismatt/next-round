@@ -4,6 +4,18 @@ import { Link } from "react-router";
 import type { GameManifest } from "@next-round/contracts";
 import type { AdminGameSummary, MatchCard } from "./api.js";
 
+export function PermissionNote({
+  note,
+  className,
+}: {
+  note: unknown;
+  className?: string;
+}) {
+  return typeof note === "string" ? (
+    <p className={className}><strong>Permission:</strong> {note}</p>
+  ) : null;
+}
+
 export function HistoryMatches({
   finished,
   games,
