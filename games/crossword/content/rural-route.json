@@ -1,0 +1,94 @@
+{
+  "format": "next-round.crossword/1",
+  "title": "Rural Route",
+  "author": "Matthew Lewis",
+  "language": "en",
+  "difficulty": "medium",
+  "rights": {
+    "license": "CC0-1.0",
+    "sourceUrl": null,
+    "attribution": "Matthew Lewis",
+    "permissionNote": "Original work by Matthew Lewis, released under CC0-1.0 (attested in the authoring kit)."
+  },
+  "rows": [
+    "HI#BE",
+    "ON#LA",
+    "UPPER",
+    "RURAL",
+    "STORY"
+  ],
+  "clues": [
+    {
+      "direction": "across",
+      "row": 0,
+      "col": 0,
+      "text": "Short greeting"
+    },
+    {
+      "direction": "across",
+      "row": 0,
+      "col": 3,
+      "text": "To exist"
+    },
+    {
+      "direction": "across",
+      "row": 1,
+      "col": 0,
+      "text": "Resting atop"
+    },
+    {
+      "direction": "across",
+      "row": 1,
+      "col": 3,
+      "text": "Tra follower, in a song"
+    },
+    {
+      "direction": "across",
+      "row": 2,
+      "col": 0,
+      "text": "Higher of two"
+    },
+    {
+      "direction": "across",
+      "row": 3,
+      "col": 0,
+      "text": "Relating to the countryside"
+    },
+    {
+      "direction": "across",
+      "row": 4,
+      "col": 0,
+      "text": "Tale"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 0,
+      "text": "Units a workday is measured in"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 1,
+      "text": "Data fed into a computer"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 3,
+      "text": "Make dim and blurry"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 4,
+      "text": "Before the expected time"
+    },
+    {
+      "direction": "down",
+      "row": 2,
+      "col": 2,
+      "text": "Paid professional athlete"
+    }
+  ]
+}
