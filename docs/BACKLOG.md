@@ -81,6 +81,7 @@ section on the work tracker mirrors this file for triage discussion.
 | BL-052 | Fixed | PR #36 review (codex-review-pr36-20261020) | `apps/api/src/invitation-budgets.integration.test.ts` | Outstanding-cap test reaches both hourly and outstanding limits before its guest/link 429 assertions, so those assertions do not isolate outstanding enforcement. | Fixed — PR #36 adjudication (Larry, 2026-10-20): the test clears rate buckets after filling the outstanding cap and before the three rejection assertions, and now also proves the rejections created nothing (outstanding count unchanged at 50, no match link). Production enforcement bypass was not observed and none was found on re-inspection. |
 | BL-053 | Fixed | PR #36 review (codex-review-pr36-20261020) | `apps/worker/src/worker.ts` (heartbeat lifecycle); admin-health query | Crashed worker UUID rows are never pruned and every row is returned/rendered; repeated crashes grow the stale list indefinitely. | Fixed — PR #36 adjudication (Larry, 2026-10-20): worker startup prunes heartbeat rows older than a documented 24-hour retention window (recent crash rows survive as diagnostics); the misleading shutdown comment now describes the actual cleanup. Worker regression seeds 25-hour-old and 2-hour-old crash rows and proves only the old row is pruned. |
 | BL-054 | Fixed | PR #36 review (codex-review-pr36-20261020) | `docs/BACKLOG.md` on PR #36 | BL-050 has five cells, uses P2 as State and puts its resolution in the Issue column; burn-down count says 49 while the PR body says 50. | Fixed — PR #36 adjudication (Larry, 2026-10-20): BL-050 row restored to the six-column schema with State `Fixed`; the mop-up burn-down count below is corrected to 50 and the adjudication paragraph records the branch total (54 Fixed / 0 Open) separately from main's integrated counts. |
+| BL-055 | Open | Playtest deploy on smallpc (Larry, 2026-10-20) | `deploy/Dockerfile` runtime layout vs `apps/api/src/crossword-fixture.ts` (and `apps/worker/src/crossword-fixture.ts`) | In the shipped Docker image the web build is installed under `/app/public/`, but the crossword registration check resolves the bundled client at `apps/web/dist/games/crossword/0.1.0/client.js` relative to the compiled API — a path that does not exist in the runtime image. Crossword registration is therefore skipped (`MODULE_CLIENT_MISSING`) in the project's own Docker deployment and the module is unavailable even though its client bundle is built and served. | Found during the first live playtest deploy (smallpc, 2026-10-20). Playtest workaround in place: `/app/apps/web/dist` symlinked to `/app/public` inside the api and worker containers (survives container restart, not recreation). Proper fix: align the Dockerfile runtime layout with the fixture's client-root resolution (or vice versa) and cover it with a deployment smoke check, so a stock `docker compose up` registers crossword. |
 
 ## Sprint 5 triage (omp-s5-20261020)
 
@@ -198,3 +199,12 @@ BL-053 (24-hour heartbeat-row retention at worker startup) and BL-054
 (this file's BL-050 row schema and the count above). With those rows the
 branch stands at 54 Fixed / 0 Open; main's integrated counts change only
 when Matthew merges.
+
+## Playtest deploy triage (Larry, 2026-10-20)
+
+- BL-055 logged from the first live playtest deployment on smallpc: the
+  stock Docker image never registers the crossword module because the
+  runtime layout and the registration check disagree on the client bundle
+  path. The playtest stack runs with an in-container symlink workaround;
+  the module registers and serves.
+- The backlog now stands at 54 Fixed / 1 Open.
