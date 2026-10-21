@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
-import { AdminAccess, AdminModule, HistoryMatches } from "./page-views.js";
+import { AdminAccess, AdminModule, HistoryMatches, PermissionNote } from "./page-views.js";
 import type { AdminGameSummary } from "./api.js";
 
 function history(error: string, loading = false) {
@@ -94,5 +94,21 @@ describe("Admin loaded module controls", () => {
     const html = render(true, true);
     expect(html).toMatch(/<select[^>]*disabled=""/);
     expect(html).toMatch(/<button[^>]*disabled=""/);
+  });
+});
+
+describe("Puzzle permission notes", () => {
+  it("renders permission as escaped text", () => {
+    const html = renderToStaticMarkup(createElement(PermissionNote, {
+      note: '<script>alert("rights")</script> & permission',
+    }));
+    expect(html).toContain("<strong>Permission:</strong>");
+    expect(html).toContain("&lt;script&gt;alert(&quot;rights&quot;)&lt;/script&gt; &amp; permission");
+    expect(html).not.toContain("<script>");
+  });
+  it("omits absent notes, including older results without permission metadata", () => {
+    for (const note of [null, undefined]) {
+      expect(renderToStaticMarkup(createElement(PermissionNote, { note }))).toBe("");
+    }
   });
 });

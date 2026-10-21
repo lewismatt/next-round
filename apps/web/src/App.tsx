@@ -67,7 +67,8 @@ import {
 import type { CrosswordCustomInput } from "./crossword-setup.js";
 import { LiveClient } from "./live.js";
 import type { LiveBinding } from "./live.js";
-import { AdminAccess, AdminModule, HistoryMatches } from "./page-views.js";
+import { AdminAccess, AdminModule, HistoryMatches, PermissionNote } from "./page-views.js";
+import { SignOutButton, SignOutContext, SignOutError, submitSignOut } from "./sign-out.js";
 import { SetupGate } from "./setup.js";
 
 const TOKEN_PATHS: Record<string, true> = {
@@ -148,9 +149,7 @@ function Header({
             Sign in
           </Link>
         )}
-        <button className="button" type="button" onClick={onSignOut}>
-          Sign out
-        </button>
+        <SignOutButton onClick={onSignOut} />
       </div>
     </header>
   );
@@ -165,24 +164,6 @@ function MobileNav({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && <Link to="/admin">Admin</Link>}
       <Link to="/login">Account</Link>
     </nav>
-  );
-}
-
-function Shell({
-  session,
-  onSignOut,
-  children,
-}: {
-  session: SessionInfo;
-  onSignOut: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="app-shell">
-      <Header session={session} onSignOut={onSignOut} />
-      {children}
-      <MobileNav isAdmin={session.permissions.isAdmin} />
-    </div>
   );
 }
 
@@ -506,9 +487,12 @@ function CreateMatchDialog({
                       (entry) => entry.resourceId === resourceId,
                     );
                     return selected ? (
-                      <p className="hint">
-                        Attribution: {selected.metadata.rights.attribution}
-                      </p>
+                      <>
+                        <p className="hint">
+                          Attribution: {selected.metadata.rights.attribution}
+                        </p>
+                        <PermissionNote className="hint" note={selected.metadata.rights.permissionNote} />
+                      </>
                     ) : null;
                   })()}
               </div>
@@ -634,12 +618,10 @@ interface HomeData {
 
 function HomePage({
   session,
-  onSignOut,
   onSessionExpired,
   notice,
 }: {
   session: SessionInfo;
-  onSignOut: () => void;
   onSessionExpired: () => void;
   notice: string;
 }) {
@@ -747,228 +729,226 @@ function HomePage({
   }
 
   return (
-    <Shell session={session} onSignOut={onSignOut}>
-      <main className="app-main">
-        <h1 className="page-title">Your Home</h1>
-        <p className="page-intro">
-          Resume a game or start a new one. Opening a game here never leaves it;
-          use its explicit Leave match control only when you want to give up
-          your seat.
+    <>
+    <main className="app-main">
+      <h1 className="page-title">Your Home</h1>
+      <p className="page-intro">
+        Resume a game or start a new one. Opening a game here never leaves it;
+        use its explicit Leave match control only when you want to give up
+        your seat.
+      </p>
+      {notice && (
+        <p className="status-message" role="status">
+          {notice}
         </p>
-        {notice && (
-          <p className="status-message" role="status">
-            {notice}
-          </p>
-        )}
-        {refreshNotice && (
-          <p className="status-message" role="status">
-            {refreshNotice}
-          </p>
-        )}
-        {error && (
-          <p className="error-message" role="alert">
-            {error}
-          </p>
-        )}
-        {loading && <p role="status">Loading your authorized games…</p>}
-
-        {session.principal.kind === "guest" ? (
-          <>
-            <section className="section" aria-labelledby="guest-match-heading">
-              <h2 id="guest-match-heading" className="section-heading">
-                Your invited game
-              </h2>
-              <p className="hint">
-                Guest access is limited to the game that invited you. Keep using
-                this browser to return to the same player.
-              </p>
-              <div className="card-grid">
-                {home.mine.map((match) => (
-                  <MatchCardView
-                    key={match.id}
-                    match={match}
-                    title={gameTitle(match.moduleId)}
-                    action={() =>
-                      navigate(`/matches/${encodeURIComponent(match.id)}`)
-                    }
-                    actionLabel={
-                      match.phase === "finished" ? "View result" : "Resume game"
-                    }
-                  />
-                ))}
-                {!loading && home.mine.length === 0 && (
-                  <p className="status-message">
-                    No game is currently available in this guest session.
-                  </p>
-                )}
-              </div>
-            </section>
-          </>
-        ) : (
-          <>
-            <div className="inline-actions">
-              <button
-                className="button button-primary"
-                type="button"
-                disabled={home.games.length === 0}
-                onClick={() => {
-                  setCreateGameId(home.games[0]?.id ?? "");
-                  setCreateOpen(true);
-                }}
-              >
-                Start a game
-              </button>
+      )}
+      {refreshNotice && (
+        <p className="status-message" role="status">
+          {refreshNotice}
+        </p>
+      )}
+      {error && (
+        <p className="error-message" role="alert">
+          {error}
+        </p>
+      )}
+      {loading && <p role="status">Loading your authorized games…</p>}
+    
+      {session.principal.kind === "guest" ? (
+        <>
+          <section className="section" aria-labelledby="guest-match-heading">
+            <h2 id="guest-match-heading" className="section-heading">
+              Your invited game
+            </h2>
+            <p className="hint">
+              Guest access is limited to the game that invited you. Keep using
+              this browser to return to the same player.
+            </p>
+            <div className="card-grid">
+              {home.mine.map((match) => (
+                <MatchCardView
+                  key={match.id}
+                  match={match}
+                  title={gameTitle(match.moduleId)}
+                  action={() =>
+                    navigate(`/matches/${encodeURIComponent(match.id)}`)
+                  }
+                  actionLabel={
+                    match.phase === "finished" ? "View result" : "Resume game"
+                  }
+                />
+              ))}
+              {!loading && home.mine.length === 0 && (
+                <p className="status-message">
+                  No game is currently available in this guest session.
+                </p>
+              )}
             </div>
+          </section>
+        </>
+      ) : (
+        <>
+          <div className="inline-actions">
+            <button
+              className="button button-primary"
+              type="button"
+              disabled={home.games.length === 0}
+              onClick={() => {
+                setCreateGameId(home.games[0]?.id ?? "");
+                setCreateOpen(true);
+              }}
+            >
+              Start a game
+            </button>
+          </div>
+          <section
+            className="section"
+            aria-labelledby="current-matches-heading"
+          >
+            <h2 id="current-matches-heading" className="section-heading">
+              Your matches
+            </h2>
+            <div className="card-grid">
+              {home.mine.map((match) => (
+                <MatchCardView
+                  key={match.id}
+                  match={match}
+                  title={gameTitle(match.moduleId)}
+                  action={() =>
+                    navigate(`/matches/${encodeURIComponent(match.id)}`)
+                  }
+                  actionLabel={
+                    match.phase === "finished" ? "View result" : "Resume game"
+                  }
+                />
+              ))}
+              {!loading && home.mine.length === 0 && (
+                <p className="status-message">
+                  No matches yet. Start a game or join an open match.
+                </p>
+              )}
+            </div>
+          </section>
+          {home.invitations.length > 0 && (
             <section
               className="section"
-              aria-labelledby="current-matches-heading"
+              aria-labelledby="pending-invitations-heading"
             >
-              <h2 id="current-matches-heading" className="section-heading">
-                Your matches
-              </h2>
-              <div className="card-grid">
-                {home.mine.map((match) => (
-                  <MatchCardView
-                    key={match.id}
-                    match={match}
-                    title={gameTitle(match.moduleId)}
-                    action={() =>
-                      navigate(`/matches/${encodeURIComponent(match.id)}`)
-                    }
-                    actionLabel={
-                      match.phase === "finished" ? "View result" : "Resume game"
-                    }
-                  />
-                ))}
-                {!loading && home.mine.length === 0 && (
-                  <p className="status-message">
-                    No matches yet. Start a game or join an open match.
-                  </p>
-                )}
-              </div>
-            </section>
-            {home.invitations.length > 0 && (
-              <section
-                className="section"
-                aria-labelledby="pending-invitations-heading"
+              <h2
+                id="pending-invitations-heading"
+                className="section-heading"
               >
-                <h2
-                  id="pending-invitations-heading"
-                  className="section-heading"
-                >
-                  Pending invitations
-                </h2>
-                <div className="card-grid">
-                  {home.invitations.map((invitation) => (
-                    <article className="card" key={invitation.id}>
-                      <h3>Invitation to a match</h3>
-                      <p className="card-meta">
-                        Expires{" "}
-                        {new Date(invitation.expiresAt).toLocaleString()}
-                      </p>
-                      <div className="inline-actions">
-                        <button
-                          className="button button-primary"
-                          type="button"
-                          disabled={busyMatch === invitation.id}
-                          onClick={() => void acceptPending(invitation)}
-                        >
-                          {busyMatch === invitation.id
-                            ? "Accepting…"
-                            : "Accept invitation"}
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
-            <section
-              className="section"
-              id="games"
-              aria-labelledby="open-games-heading"
-            >
-              <h2 id="open-games-heading" className="section-heading">
-                Open matches
+                Pending invitations
               </h2>
               <div className="card-grid">
-                {home.open.map((match) => (
-                  <MatchCardView
-                    key={match.id}
-                    match={match}
-                    title={gameTitle(match.moduleId)}
-                    action={() => void joinOpenMatch(match)}
-                    actionLabel={
-                      busyMatch === match.id ? "Joining…" : "Join match"
-                    }
-                    actionDisabled={busyMatch === match.id}
-                  />
-                ))}
-                {!loading && home.open.length === 0 && (
-                  <p className="status-message">
-                    No open matches are available right now.
-                  </p>
-                )}
-              </div>
-            </section>
-            <section className="section" aria-labelledby="game-catalog-heading">
-              <h2 id="game-catalog-heading" className="section-heading">
-                Games
-              </h2>
-              <div className="card-grid">
-                {home.games.map((game) => (
-                  <article className="card" key={`${game.id}-${game.version}`}>
-                    <h3>{game.name}</h3>
-                    <p>{game.description}</p>
+                {home.invitations.map((invitation) => (
+                  <article className="card" key={invitation.id}>
+                    <h3>Invitation to a match</h3>
                     <p className="card-meta">
-                      Available modes:{" "}
-                      {game.modes.map((mode) => mode.label).join(", ")}
+                      Expires{" "}
+                      {new Date(invitation.expiresAt).toLocaleString()}
                     </p>
                     <div className="inline-actions">
                       <button
-                        className="button"
+                        className="button button-primary"
                         type="button"
-                        onClick={() => {
-                          setCreateGameId(game.id);
-                          setCreateOpen(true);
-                        }}
+                        disabled={busyMatch === invitation.id}
+                        onClick={() => void acceptPending(invitation)}
                       >
-                        Create {game.name} match
+                        {busyMatch === invitation.id
+                          ? "Accepting…"
+                          : "Accept invitation"}
                       </button>
                     </div>
                   </article>
                 ))}
-                {!loading && home.games.length === 0 && (
-                  <p className="status-message">
-                    No games are available to start right now.
-                  </p>
-                )}
               </div>
             </section>
-          </>
-        )}
-      </main>
-      {createOpen && (
-        <CreateMatchDialog
-          games={home.games}
-          initialGameId={createGameId}
-          onClose={() => setCreateOpen(false)}
-          onCreated={(matchId) =>
-            navigate(`/matches/${encodeURIComponent(matchId)}`)
-          }
-        />
+          )}
+          <section
+            className="section"
+            id="games"
+            aria-labelledby="open-games-heading"
+          >
+            <h2 id="open-games-heading" className="section-heading">
+              Open matches
+            </h2>
+            <div className="card-grid">
+              {home.open.map((match) => (
+                <MatchCardView
+                  key={match.id}
+                  match={match}
+                  title={gameTitle(match.moduleId)}
+                  action={() => void joinOpenMatch(match)}
+                  actionLabel={
+                    busyMatch === match.id ? "Joining…" : "Join match"
+                  }
+                  actionDisabled={busyMatch === match.id}
+                />
+              ))}
+              {!loading && home.open.length === 0 && (
+                <p className="status-message">
+                  No open matches are available right now.
+                </p>
+              )}
+            </div>
+          </section>
+          <section className="section" aria-labelledby="game-catalog-heading">
+            <h2 id="game-catalog-heading" className="section-heading">
+              Games
+            </h2>
+            <div className="card-grid">
+              {home.games.map((game) => (
+                <article className="card" key={`${game.id}-${game.version}`}>
+                  <h3>{game.name}</h3>
+                  <p>{game.description}</p>
+                  <p className="card-meta">
+                    Available modes:{" "}
+                    {game.modes.map((mode) => mode.label).join(", ")}
+                  </p>
+                  <div className="inline-actions">
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={() => {
+                        setCreateGameId(game.id);
+                        setCreateOpen(true);
+                      }}
+                    >
+                      Create {game.name} match
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {!loading && home.games.length === 0 && (
+                <p className="status-message">
+                  No games are available to start right now.
+                </p>
+              )}
+            </div>
+          </section>
+        </>
       )}
-    </Shell>
+    </main>
+    {createOpen && (
+      <CreateMatchDialog
+        games={home.games}
+        initialGameId={createGameId}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(matchId) =>
+          navigate(`/matches/${encodeURIComponent(matchId)}`)
+        }
+      />
+    )}
+    </>
   );
 }
 
 function HistoryPage({
   session,
-  onSignOut,
   onSessionExpired,
 }: {
   session: SessionInfo;
-  onSignOut: () => void;
   onSessionExpired: () => void;
 }) {
   const navigate = useNavigate();
@@ -1024,74 +1004,70 @@ function HistoryPage({
 
 
   return (
-    <Shell session={session} onSignOut={onSignOut}>
-      <main className="app-main">
-        <h1 className="page-title">History</h1>
-        <p className="page-intro">
-          Your finished matches and the career standings they produced. Raw
-          per-match points stay with each result; standings count only
-          career-eligible play.
-        </p>
-        <HistoryMatches finished={finished} games={games} loading={loading} error={error} />
-        {games
-          .filter((game) => game.capabilities.careerStats)
-          .map((game) => (
-            <section
-              className="section"
-              key={game.id}
-              aria-labelledby={`leaderboard-${game.id}`}
-            >
-              <h2 id={`leaderboard-${game.id}`} className="section-heading">
-                {game.name} standings
-              </h2>
-              {(boards[game.id] ?? []).length === 0 ? (
-                <p className="status-message">
-                  No career-eligible results yet.
-                </p>
-              ) : (
-                <table className="result-score-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Rank</th>
-                      <th scope="col">Player</th>
-                      <th scope="col">Points</th>
-                      <th scope="col">Played</th>
-                      <th scope="col">Wins</th>
-                      <th scope="col">Avg / game</th>
+    <main className="app-main">
+      <h1 className="page-title">History</h1>
+      <p className="page-intro">
+        Your finished matches and the career standings they produced. Raw
+        per-match points stay with each result; standings count only
+        career-eligible play.
+      </p>
+      <HistoryMatches finished={finished} games={games} loading={loading} error={error} />
+      {games
+        .filter((game) => game.capabilities.careerStats)
+        .map((game) => (
+          <section
+            className="section"
+            key={game.id}
+            aria-labelledby={`leaderboard-${game.id}`}
+          >
+            <h2 id={`leaderboard-${game.id}`} className="section-heading">
+              {game.name} standings
+            </h2>
+            {(boards[game.id] ?? []).length === 0 ? (
+              <p className="status-message">
+                No career-eligible results yet.
+              </p>
+            ) : (
+              <table className="result-score-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Rank</th>
+                    <th scope="col">Player</th>
+                    <th scope="col">Points</th>
+                    <th scope="col">Played</th>
+                    <th scope="col">Wins</th>
+                    <th scope="col">Avg / game</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(boards[game.id] ?? []).map((entry) => (
+                    <tr key={entry.principalId}>
+                      <td>{entry.rank}</td>
+                      <td>{entry.displayName}</td>
+                      <td>{entry.points}</td>
+                      <td>{entry.gamesPlayed}</td>
+                      <td>{entry.wins}</td>
+                      <td>
+                        {entry.averagePointsPerGame === null
+                          ? "—"
+                          : entry.averagePointsPerGame.toFixed(2)}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {(boards[game.id] ?? []).map((entry) => (
-                      <tr key={entry.principalId}>
-                        <td>{entry.rank}</td>
-                        <td>{entry.displayName}</td>
-                        <td>{entry.points}</td>
-                        <td>{entry.gamesPlayed}</td>
-                        <td>{entry.wins}</td>
-                        <td>
-                          {entry.averagePointsPerGame === null
-                            ? "—"
-                            : entry.averagePointsPerGame.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </section>
-          ))}
-      </main>
-    </Shell>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        ))}
+    </main>
   );
 }
 
 function AdminPage({
   session,
-  onSignOut,
   onSessionExpired,
 }: {
   session: SessionInfo;
-  onSignOut: () => void;
   onSessionExpired: () => void;
 }) {
   const [adminGames, setAdminGames] = useState<AdminGameSummary[]>([]);
@@ -1220,170 +1196,168 @@ function AdminPage({
     }
   }
 
-
   return (
-    <Shell session={session} onSignOut={onSignOut}>
-      <AdminAccess isAdmin={session.permissions.isAdmin}>
-      <main className="app-main">
-        <h1 className="page-title">Admin</h1>
-        <p className="page-intro">
-          Manage installed game modules and the content library. Disabling a
-          module blocks new matches; matches already running keep their
-          pinned version and finish normally.
+    <AdminAccess isAdmin={session.permissions.isAdmin}>
+    <main className="app-main">
+      <h1 className="page-title">Admin</h1>
+      <p className="page-intro">
+        Manage installed game modules and the content library. Disabling a
+        module blocks new matches; matches already running keep their
+        pinned version and finish normally.
+      </p>
+      {error && (
+        <p className="error-message" role="alert">
+          {error}
         </p>
-        {error && (
-          <p className="error-message" role="alert">
-            {error}
-          </p>
-        )}
-        {loading && <p role="status">Loading administration…</p>}
-        <section className="section" aria-labelledby="admin-games-heading">
-          <h2 id="admin-games-heading" className="section-heading">
-            Game modules
-          </h2>
-          <div className="card-grid">
-            {adminGames.map((game) => (
-              <AdminModule key={game.id} game={game} busy={busy === game.id}
-                onDefault={(game, version) => void changeDefault(game, version)}
-                onToggle={(game) => void toggleEnabled(game)} />
-            ))}
-            {!loading && adminGames.length === 0 && (
-              <p className="status-message">No game modules are installed.</p>
-            )}
-          </div>
-        </section>
-        <section className="section" aria-labelledby="admin-health-heading">
-          <h2 id="admin-health-heading" className="section-heading">
-            Worker health
-          </h2>
-          {!adminHealth && !loading && (
-            <p className="status-message">Worker health is unavailable.</p>
-          )}
-          {adminHealth && (
-            <div className="card-grid">
-              <article className="card">
-                <h3>Workers</h3>
-                {adminHealth.workers.length === 0 && (
-                  <p className="card-meta">No worker heartbeat recorded.</p>
-                )}
-                {adminHealth.workers.map((worker) => (
-                  <p className="card-meta" key={worker.workerId}>
-                    {worker.status === "ok" ? "Running" : "Stale"} · last
-                    heartbeat {worker.ageSeconds}s ago · started{" "}
-                    {new Date(worker.startedAt).toLocaleString()}
-                  </p>
-                ))}
-              </article>
-              <article className="card">
-                <h3>Pending work</h3>
-                <p className="card-meta">
-                  Oldest pending outbox effect:{" "}
-                  {adminHealth.oldestPendingOutboxAgeSeconds === null
-                    ? "none"
-                    : `${adminHealth.oldestPendingOutboxAgeSeconds}s old`}
-                </p>
-                <p className="card-meta">
-                  Oldest overdue deadline:{" "}
-                  {adminHealth.oldestPendingDeadlineAgeSeconds === null
-                    ? "none"
-                    : `${adminHealth.oldestPendingDeadlineAgeSeconds}s overdue`}
-                </p>
-                <p className="card-meta">
-                  Parked (dead-lettered) effects:{" "}
-                  {adminHealth.parkedEffects.total}
-                </p>
-                {adminHealth.parkedEffects.recent.map((effect) => (
-                  <p className="card-meta" key={effect.id}>
-                    {effect.topic} · {effect.attempts} attempts ·{" "}
-                    {effect.lastErrorCode ?? "no error code"} ·{" "}
-                    {new Date(effect.deadLetteredAt).toLocaleString()}
-                  </p>
-                ))}
-              </article>
-            </div>
-          )}
-        </section>
-        {manifests
-          .filter((game) => game.resourceSchemas?.import)
-          .map((game) => (
-            <section
-              className="section"
-              key={game.id}
-              aria-labelledby={`admin-import-${game.id}`}
-            >
-              <h2
-                id={`admin-import-${game.id}`}
-                className="section-heading"
-              >
-                {game.name} library
-              </h2>
-              <div className="card-grid">
-                {(catalogs[game.id] ?? []).map((entry) => (
-                  <article className="card" key={entry.resourceId}>
-                    <h3>{entry.metadata.title}</h3>
-                    <p className="card-meta">
-                      {catalogSummary(entry.metadata)} · version{" "}
-                      {entry.version}
-                    </p>
-                    <p className="card-meta">
-                      Attribution: {entry.metadata.rights.attribution}
-                    </p>
-                  </article>
-                ))}
-                {(catalogs[game.id] ?? []).length === 0 && (
-                  <p className="status-message">
-                    No content has been imported yet.
-                  </p>
-                )}
-              </div>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submitImport(game.id);
-                }}
-              >
-                <div className="field">
-                  <label htmlFor={`import-${game.id}`}>
-                    Import a {game.name} document (JSON)
-                  </label>
-                  <textarea
-                    id={`import-${game.id}`}
-                    rows={10}
-                    value={importText[game.id] ?? ""}
-                    onChange={(event) =>
-                      setImportText((current) => ({
-                        ...current,
-                        [game.id]: event.target.value,
-                      }))
-                    }
-                    placeholder='{"format": "next-round.crossword/1", ...}'
-                  />
-                </div>
-                <p className="hint">
-                  Only import content with a reviewed license (CC0-1.0,
-                  CC-BY-4.0, CC-BY-SA-4.0 or documented permission). Importing
-                  records you as exposed to the puzzle.
-                </p>
-                {importMessage[game.id] && (
-                  <p className="status-message" role="status">
-                    {importMessage[game.id]}
-                  </p>
-                )}
-                <div className="inline-actions">
-                  <button
-                    className="button button-primary"
-                    type="submit"
-                    disabled={busy === game.id}
-                  >
-                    {busy === game.id ? "Importing…" : "Import document"}
-                  </button>
-                </div>
-              </form>
-            </section>
+      )}
+      {loading && <p role="status">Loading administration…</p>}
+      <section className="section" aria-labelledby="admin-games-heading">
+        <h2 id="admin-games-heading" className="section-heading">
+          Game modules
+        </h2>
+        <div className="card-grid">
+          {adminGames.map((game) => (
+            <AdminModule key={game.id} game={game} busy={busy === game.id}
+              onDefault={(game, version) => void changeDefault(game, version)}
+              onToggle={(game) => void toggleEnabled(game)} />
           ))}
-      </main>
-      </AdminAccess>
-    </Shell>
+          {!loading && adminGames.length === 0 && (
+            <p className="status-message">No game modules are installed.</p>
+          )}
+        </div>
+      </section>
+      <section className="section" aria-labelledby="admin-health-heading">
+        <h2 id="admin-health-heading" className="section-heading">
+          Worker health
+        </h2>
+        {!adminHealth && !loading && (
+          <p className="status-message">Worker health is unavailable.</p>
+        )}
+        {adminHealth && (
+          <div className="card-grid">
+            <article className="card">
+              <h3>Workers</h3>
+              {adminHealth.workers.length === 0 && (
+                <p className="card-meta">No worker heartbeat recorded.</p>
+              )}
+              {adminHealth.workers.map((worker) => (
+                <p className="card-meta" key={worker.workerId}>
+                  {worker.status === "ok" ? "Running" : "Stale"} · last
+                  heartbeat {worker.ageSeconds}s ago · started{" "}
+                  {new Date(worker.startedAt).toLocaleString()}
+                </p>
+              ))}
+            </article>
+            <article className="card">
+              <h3>Pending work</h3>
+              <p className="card-meta">
+                Oldest pending outbox effect:{" "}
+                {adminHealth.oldestPendingOutboxAgeSeconds === null
+                  ? "none"
+                  : `${adminHealth.oldestPendingOutboxAgeSeconds}s old`}
+              </p>
+              <p className="card-meta">
+                Oldest overdue deadline:{" "}
+                {adminHealth.oldestPendingDeadlineAgeSeconds === null
+                  ? "none"
+                  : `${adminHealth.oldestPendingDeadlineAgeSeconds}s overdue`}
+              </p>
+              <p className="card-meta">
+                Parked (dead-lettered) effects:{" "}
+                {adminHealth.parkedEffects.total}
+              </p>
+              {adminHealth.parkedEffects.recent.map((effect) => (
+                <p className="card-meta" key={effect.id}>
+                  {effect.topic} · {effect.attempts} attempts ·{" "}
+                  {effect.lastErrorCode ?? "no error code"} ·{" "}
+                  {new Date(effect.deadLetteredAt).toLocaleString()}
+                </p>
+              ))}
+            </article>
+          </div>
+        )}
+      </section>
+      {manifests
+        .filter((game) => game.resourceSchemas?.import)
+        .map((game) => (
+          <section
+            className="section"
+            key={game.id}
+            aria-labelledby={`admin-import-${game.id}`}
+          >
+            <h2
+              id={`admin-import-${game.id}`}
+              className="section-heading"
+            >
+              {game.name} library
+            </h2>
+            <div className="card-grid">
+              {(catalogs[game.id] ?? []).map((entry) => (
+                <article className="card" key={entry.resourceId}>
+                  <h3>{entry.metadata.title}</h3>
+                  <p className="card-meta">
+                    {catalogSummary(entry.metadata)} · version{" "}
+                    {entry.version}
+                  </p>
+                  <p className="card-meta">
+                    Attribution: {entry.metadata.rights.attribution}
+                  </p>
+                  <PermissionNote className="card-meta" note={entry.metadata.rights.permissionNote} />
+                </article>
+              ))}
+              {(catalogs[game.id] ?? []).length === 0 && (
+                <p className="status-message">
+                  No content has been imported yet.
+                </p>
+              )}
+            </div>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submitImport(game.id);
+              }}
+            >
+              <div className="field">
+                <label htmlFor={`import-${game.id}`}>
+                  Import a {game.name} document (JSON)
+                </label>
+                <textarea
+                  id={`import-${game.id}`}
+                  rows={10}
+                  value={importText[game.id] ?? ""}
+                  onChange={(event) =>
+                    setImportText((current) => ({
+                      ...current,
+                      [game.id]: event.target.value,
+                    }))
+                  }
+                  placeholder='{"format": "next-round.crossword/1", ...}'
+                />
+              </div>
+              <p className="hint">
+                Only import content with a reviewed license (CC0-1.0,
+                CC-BY-4.0, CC-BY-SA-4.0 or documented permission). Importing
+                records you as exposed to the puzzle.
+              </p>
+              {importMessage[game.id] && (
+                <p className="status-message" role="status">
+                  {importMessage[game.id]}
+                </p>
+              )}
+              <div className="inline-actions">
+                <button
+                  className="button button-primary"
+                  type="submit"
+                  disabled={busy === game.id}
+                >
+                  {busy === game.id ? "Importing…" : "Import document"}
+                </button>
+              </div>
+            </form>
+          </section>
+        ))}
+    </main>
+    </AdminAccess>
   );
 }
 
@@ -1882,7 +1856,6 @@ function InvitePage({
   busy,
   onJoin,
   onRedeemGuest,
-  onSignOut,
   notice,
 }: {
   flow: TokenFlow | null;
@@ -1890,7 +1863,6 @@ function InvitePage({
   busy: boolean;
   onJoin: (token: string, preview: InvitationPreview) => Promise<void>;
   onRedeemGuest: (token: string, displayName: string) => Promise<void>;
-  onSignOut: () => void;
   notice: string;
 }) {
   const navigate = useNavigate();
@@ -1941,42 +1913,40 @@ function InvitePage({
   const inviteTitle = invitationTitle(flow.preview);
   if (session?.principal.kind === "registered")
     return (
-      <Shell session={session} onSignOut={onSignOut}>
-        <main className="app-main">
-          <h1 className="page-title">Join {inviteTitle}</h1>
-          <p className="page-intro">
-            This link can admit a registered player if the game still accepts
-            players. Joining will not create a guest account.
+      <><main className="app-main">
+        <h1 className="page-title">Join {inviteTitle}</h1>
+        <p className="page-intro">
+          This link can admit a registered player if the game still accepts
+          players. Joining will not create a guest account.
+        </p>
+        {notice && (
+          <p className="status-message" role="status">
+            {notice}
           </p>
-          {notice && (
-            <p className="status-message" role="status">
-              {notice}
-            </p>
-          )}
-          <article className="card">
-            <p>
-              <strong>Game:</strong> {inviteTitle}
-            </p>
-            <p>
-              <strong>Status:</strong> {phaseLabel(flow.preview.phase)}
-            </p>
-            {busy && <p role="status">Joining…</p>}
-            <div className="inline-actions">
-              <button
-                className="button button-primary"
-                type="button"
-                disabled={busy || flow.preview.phase === "finished"}
-                onClick={() => void onJoin(flow.token, flow.preview)}
-              >
-                Join match
-              </button>
-              <Link className="button" to="/">
-                Home
-              </Link>
-            </div>
-          </article>
-        </main>
-      </Shell>
+        )}
+        <article className="card">
+          <p>
+            <strong>Game:</strong> {inviteTitle}
+          </p>
+          <p>
+            <strong>Status:</strong> {phaseLabel(flow.preview.phase)}
+          </p>
+          {busy && <p role="status">Joining…</p>}
+          <div className="inline-actions">
+            <button
+              className="button button-primary"
+              type="button"
+              disabled={busy || flow.preview.phase === "finished"}
+              onClick={() => void onJoin(flow.token, flow.preview)}
+            >
+              Join match
+            </button>
+            <Link className="button" to="/">
+              Home
+            </Link>
+          </div>
+        </article>
+      </main></>
     );
   return (
     <AuthCard title={`Join ${inviteTitle}`}>
@@ -2152,7 +2122,7 @@ type SavedResultView = {
     attribution?: {
       title?: string;
       author?: string;
-      rights?: { attribution?: string; license?: string; sourceUrl?: string | null };
+      rights?: { attribution?: string; license?: string; sourceUrl?: string | null; permissionNote?: string | null };
     };
   };
   participants: Array<{ memberId: string; score: number; win: boolean }>;
@@ -2212,6 +2182,7 @@ function ResultView({
       {typeof projection.data?.attribution?.rights?.sourceUrl === "string" && (
         <p><strong>Source:</strong> {projection.data.attribution.rights.sourceUrl}</p>
       )}
+      <PermissionNote note={projection.data?.attribution?.rights?.permissionNote} />
       <h3>Scores</h3>
       <table className="result-score-table">
         <thead>
@@ -2462,12 +2433,10 @@ function InviteLinkControls({
 
 function MatchPage({
   session,
-  onSignOut,
   onSessionExpired,
   onAccessRevoked,
 }: {
   session: SessionInfo;
-  onSignOut: () => void;
   onSessionExpired: () => void;
   onAccessRevoked: () => void;
 }) {
@@ -2696,177 +2665,113 @@ function MatchPage({
     fallbackTitle;
   if (snapshotError && !snapshot && !result)
     return (
-      <Shell session={session} onSignOut={onSignOut}>
-        <main className="app-main">
-          <h1 className="page-title">Game unavailable</h1>
-          <p className="error-message" role="alert">
-            {snapshotError}
-          </p>
-          <Link className="button" to="/">
-            Return Home
-          </Link>
-        </main>
-      </Shell>
+      <><main className="app-main">
+        <h1 className="page-title">Game unavailable</h1>
+        <p className="error-message" role="alert">
+          {snapshotError}
+        </p>
+        <Link className="button" to="/">
+          Return Home
+        </Link>
+      </main></>
     );
 
   return (
-    <Shell session={session} onSignOut={onSignOut}>
-      <main className="app-main">
-        <div className="match-toolbar">
-          <Link
-            className="button"
-            to="/"
-            aria-label="Return Home without leaving the match"
+    <>
+    <main className="app-main">
+      <div className="match-toolbar">
+        <Link
+          className="button"
+          to="/"
+          aria-label="Return Home without leaving the match"
+        >
+          Home
+        </Link>
+        <span className="badge">
+          {snapshot
+            ? phaseLabel(snapshot.phase)
+            : result
+              ? phaseLabel("finished")
+              : "Loading game"}
+        </span>
+        <span className="spacer" />
+        {snapshot?.capabilities.canStart && (
+          <button
+            className="button button-primary"
+            type="button"
+            disabled={busyAction}
+            onClick={() => void runLifecycle("start")}
           >
-            Home
-          </Link>
-          <span className="badge">
-            {snapshot
-              ? phaseLabel(snapshot.phase)
-              : result
-                ? phaseLabel("finished")
-                : "Loading game"}
-          </span>
-          <span className="spacer" />
-          {snapshot?.capabilities.canStart && (
-            <button
-              className="button button-primary"
-              type="button"
-              disabled={busyAction}
-              onClick={() => void runLifecycle("start")}
-            >
-              Start game
-            </button>
-          )}
-          {snapshot?.capabilities.canFinish &&
-            snapshot.phase !== "finished" && (
-              <button
-                className="button button-danger"
-                type="button"
-                disabled={busyAction}
-                onClick={() => setConfirmAction("finish")}
-              >
-                End game
-              </button>
-            )}
-          {snapshot?.capabilities.canLeave && snapshot.phase !== "finished" && (
+            Start game
+          </button>
+        )}
+        {snapshot?.capabilities.canFinish &&
+          snapshot.phase !== "finished" && (
             <button
               className="button button-danger"
               type="button"
               disabled={busyAction}
-              onClick={() => setConfirmAction("leave")}
+              onClick={() => setConfirmAction("finish")}
             >
-              Leave match
+              End game
             </button>
           )}
-        </div>
-        <h1 className="page-title">{title}</h1>
-        {snapshot && (
-          <p className="page-intro">
-            {snapshot.mode === "group" ? "Group game" : "Solo game"}
-          </p>
+        {snapshot?.capabilities.canLeave && snapshot.phase !== "finished" && (
+          <button
+            className="button button-danger"
+            type="button"
+            disabled={busyAction}
+            onClick={() => setConfirmAction("leave")}
+          >
+            Leave match
+          </button>
         )}
-        {actionMessage && (
-          <p className="status-message" role="status">
-            {actionMessage}
-          </p>
-        )}
-        {pageError && (
-          <p className="error-message" role="alert">
-            {pageError}
-          </p>
-        )}
-        {!snapshot && !result && <p role="status">Loading game…</p>}
-
-        {snapshot && snapshot.phase === "finished" && result && (
-          <ResultView result={result} members={snapshot.members} />
-        )}
-        {!snapshot && result && <ResultView result={result} members={[]} />}
-
-        {snapshot && snapshot.phase !== "finished" && (
-          <div className="match-layout">
-            <div>
-              <GameRenderer
-                snapshot={snapshot}
-                onRefresh={refreshSnapshot}
-                onOpenPanel={setSelectedPanel}
-                onSessionExpired={onSessionExpired}
-              />
-              <div className="match-toolbar">
-                {snapshot.capabilities.canChat && (
-                  <button
-                    className="button"
-                    type="button"
-                    onClick={() => {
-                      setSelectedPanel("chat");
-                      void loadChatRef.current();
-                    }}
-                  >
-                    Open chat
-                  </button>
-                )}
-                <button
-                  className="button"
-                  type="button"
-                  onClick={() => setSelectedPanel("participants")}
-                >
-                  Open participants
-                </button>
-              </div>
-            </div>
-            <aside className="match-sidebar" aria-label="Shared game panels">
-              <section className="card">
-                <h2 className="section-heading">Participants</h2>
-                <ul className="member-list">
-                  {snapshot.members.map((member) => (
-                    <li className="member-row" key={member.id}>
-                      <span>{member.displayName}</span>
-                      <span className="badge">{member.status}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  className="button"
-                  type="button"
-                  onClick={() => setSelectedPanel("participants")}
-                >
-                  View participant details
-                </button>
-              </section>
+      </div>
+      <h1 className="page-title">{title}</h1>
+      {snapshot && (
+        <p className="page-intro">
+          {snapshot.mode === "group" ? "Group game" : "Solo game"}
+        </p>
+      )}
+      {actionMessage && (
+        <p className="status-message" role="status">
+          {actionMessage}
+        </p>
+      )}
+      {pageError && (
+        <p className="error-message" role="alert">
+          {pageError}
+        </p>
+      )}
+      {!snapshot && !result && <p role="status">Loading game…</p>}
+    
+      {snapshot && snapshot.phase === "finished" && result && (
+        <ResultView result={result} members={snapshot.members} />
+      )}
+      {!snapshot && result && <ResultView result={result} members={[]} />}
+    
+      {snapshot && snapshot.phase !== "finished" && (
+        <div className="match-layout">
+          <div>
+            <GameRenderer
+              snapshot={snapshot}
+              onRefresh={refreshSnapshot}
+              onOpenPanel={setSelectedPanel}
+              onSessionExpired={onSessionExpired}
+            />
+            <div className="match-toolbar">
               {snapshot.capabilities.canChat && (
-                <section className="card">
-                  <h2 className="section-heading">Chat</h2>
-                  <p className="hint">Open the shared match conversation.</p>
-                  <button
-                    className="button"
-                    type="button"
-                    onClick={() => {
-                      setSelectedPanel("chat");
-                      void loadChatRef.current();
-                    }}
-                  >
-                    Open chat
-                  </button>
-                </section>
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => {
+                    setSelectedPanel("chat");
+                    void loadChatRef.current();
+                  }}
+                >
+                  Open chat
+                </button>
               )}
-              <InviteLinkControls snapshot={snapshot} session={session} />
-            </aside>
-          </div>
-        )}
-        {snapshot &&
-          snapshot.phase === "finished" &&
-          snapshot.capabilities.canChat && (
-            <div className="inline-actions">
-              <button
-                className="button"
-                type="button"
-                onClick={() => {
-                  setSelectedPanel("chat");
-                  void loadChatRef.current();
-                }}
-              >
-                Open chat
-              </button>
               <button
                 className="button"
                 type="button"
@@ -2875,67 +2780,129 @@ function MatchPage({
                 Open participants
               </button>
             </div>
-          )}
-      </main>
-
-      {selectedPanel === "participants" && snapshot && (
-        <ParticipantsDialog
-          snapshot={snapshot}
-          onClose={() => setSelectedPanel(null)}
-        />
+          </div>
+          <aside className="match-sidebar" aria-label="Shared game panels">
+            <section className="card">
+              <h2 className="section-heading">Participants</h2>
+              <ul className="member-list">
+                {snapshot.members.map((member) => (
+                  <li className="member-row" key={member.id}>
+                    <span>{member.displayName}</span>
+                    <span className="badge">{member.status}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                className="button"
+                type="button"
+                onClick={() => setSelectedPanel("participants")}
+              >
+                View participant details
+              </button>
+            </section>
+            {snapshot.capabilities.canChat && (
+              <section className="card">
+                <h2 className="section-heading">Chat</h2>
+                <p className="hint">Open the shared match conversation.</p>
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => {
+                    setSelectedPanel("chat");
+                    void loadChatRef.current();
+                  }}
+                >
+                  Open chat
+                </button>
+              </section>
+            )}
+            <InviteLinkControls snapshot={snapshot} session={session} />
+          </aside>
+        </div>
       )}
-      {selectedPanel === "chat" &&
-        snapshot &&
+      {snapshot &&
+        snapshot.phase === "finished" &&
         snapshot.capabilities.canChat && (
-          <ChatDialog
-            messages={chatMessages}
-            loading={chatLoading}
-            error={chatError}
-            onClose={() => setSelectedPanel(null)}
-            onSend={sendMessage}
-          />
-        )}
-      {confirmAction && (
-        <Dialog
-          title={
-            confirmAction === "leave" ? "Leave this match?" : "End this game?"
-          }
-          onClose={() => setConfirmAction(null)}
-        >
-          <p>
-            {confirmAction === "leave"
-              ? "Leaving revokes your active match and chat access. Your result entitlement may remain; returning Home alone never leaves."
-              : "Ending now records the game's final result for everyone. This cannot be undone."}
-          </p>
-          {pageError && (
-            <p className="error-message" role="alert">
-              {pageError}
-            </p>
-          )}
           <div className="inline-actions">
             <button
-              className="button button-danger"
+              className="button"
               type="button"
-              disabled={busyAction}
-              onClick={() => void runLifecycle(confirmAction)}
+              onClick={() => {
+                setSelectedPanel("chat");
+                void loadChatRef.current();
+              }}
             >
-              {busyAction
-                ? "Working…"
-                : confirmAction === "leave"
-                  ? "Confirm leave"
-                  : "Confirm end game"}
+              Open chat
             </button>
             <button
               className="button"
               type="button"
-              onClick={() => setConfirmAction(null)}
+              onClick={() => setSelectedPanel("participants")}
             >
-              Cancel
+              Open participants
             </button>
           </div>
-        </Dialog>
+        )}
+    </main>
+    
+    {selectedPanel === "participants" && snapshot && (
+      <ParticipantsDialog
+        snapshot={snapshot}
+        onClose={() => setSelectedPanel(null)}
+      />
+    )}
+    {selectedPanel === "chat" &&
+      snapshot &&
+      snapshot.capabilities.canChat && (
+        <ChatDialog
+          messages={chatMessages}
+          loading={chatLoading}
+          error={chatError}
+          onClose={() => setSelectedPanel(null)}
+          onSend={sendMessage}
+        />
       )}
-    </Shell>
+    {confirmAction && (
+      <Dialog
+        title={
+          confirmAction === "leave" ? "Leave this match?" : "End this game?"
+        }
+        onClose={() => setConfirmAction(null)}
+      >
+        <p>
+          {confirmAction === "leave"
+            ? "Leaving revokes your active match and chat access. Your result entitlement may remain; returning Home alone never leaves."
+            : "Ending now records the game's final result for everyone. This cannot be undone."}
+        </p>
+        {pageError && (
+          <p className="error-message" role="alert">
+            {pageError}
+          </p>
+        )}
+        <div className="inline-actions">
+          <button
+            className="button button-danger"
+            type="button"
+            disabled={busyAction}
+            onClick={() => void runLifecycle(confirmAction)}
+          >
+            {busyAction
+              ? "Working…"
+              : confirmAction === "leave"
+                ? "Confirm leave"
+                : "Confirm end game"}
+          </button>
+          <button
+            className="button"
+            type="button"
+            onClick={() => setConfirmAction(null)}
+          >
+            Cancel
+          </button>
+        </div>
+      </Dialog>
+    )}
+    </>
   );
 }
 
@@ -2977,6 +2944,9 @@ function SessionApp() {
   const [logoutPrompt, setLogoutPrompt] = useState(false);
   const [notice, setNotice] = useState("");
   const [globalError, setGlobalError] = useState("");
+  const [signOutBusy, setSignOutBusy] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
+  const signOutLock = useRef(false);
 
   async function refreshSession(): Promise<SessionInfo | null> {
     try {
@@ -3197,29 +3167,31 @@ function SessionApp() {
 
   async function performLogout() {
     if (!session) return;
-    setAuthBusy(true);
-    try {
-      await logout();
-      setCsrfToken(null);
-      if (session.principal.kind === "guest") {
-        window.localStorage.setItem(GUEST_MARKER, "present");
-        setLostGuest(true);
-      } else {
-        window.localStorage.removeItem(GUEST_MARKER);
-        setLostGuest(false);
-      }
-      setSession(null);
-      setLogoutPrompt(false);
-      setNotice("");
-      navigate("/");
-    } catch (cause) {
-      setGlobalError(errorMessage(cause));
-    } finally {
-      setAuthBusy(false);
-    }
+    await submitSignOut({
+      lock: signOutLock,
+      request: logout,
+      setBusy: setSignOutBusy,
+      setError: setSignOutError,
+      onSuccess: () => {
+        setCsrfToken(null);
+        if (session.principal.kind === "guest") {
+          window.localStorage.setItem(GUEST_MARKER, "present");
+          setLostGuest(true);
+        } else {
+          window.localStorage.removeItem(GUEST_MARKER);
+          setLostGuest(false);
+        }
+        setSession(null);
+        setLogoutPrompt(false);
+        setNotice("");
+        navigate("/");
+      },
+    });
   }
 
   function requestLogout() {
+    if (signOutLock.current) return;
+    setSignOutError("");
     if (session?.principal.kind === "guest") setLogoutPrompt(true);
     else void performLogout();
   }
@@ -3259,7 +3231,6 @@ function SessionApp() {
         busy={authBusy}
         onJoin={joinFromMatchLink}
         onRedeemGuest={redeemGuestInvite}
-        onSignOut={requestLogout}
         notice={notice}
       />
     );
@@ -3279,7 +3250,10 @@ function SessionApp() {
   }
 
   return (
+    <SignOutContext.Provider value={{ busy: signOutBusy, error: signOutError }}>
     <div className="app-shell">
+      {session && <Header session={session} onSignOut={requestLogout} />}
+      {session && !logoutPrompt && <SignOutError />}
       {initializing ? (
         <div className="center-page">
           <p role="status">Checking your session…</p>
@@ -3292,7 +3266,6 @@ function SessionApp() {
               session ? (
                 <HomePage
                   session={session}
-                  onSignOut={requestLogout}
                   onSessionExpired={sessionExpired}
                   notice={notice}
                 />
@@ -3330,7 +3303,6 @@ function SessionApp() {
               session ? (
                 <HistoryPage
                   session={session}
-                  onSignOut={requestLogout}
                   onSessionExpired={sessionExpired}
                 />
               ) : lostGuest ? (
@@ -3355,7 +3327,6 @@ function SessionApp() {
               session ? (
                 <AdminPage
                   session={session}
-                  onSignOut={requestLogout}
                   onSessionExpired={sessionExpired}
                 />
               ) : lostGuest ? (
@@ -3381,7 +3352,6 @@ function SessionApp() {
                 <MatchPage
                   key={`${session.principal.id}:${pathname}`}
                   session={session}
-                  onSignOut={requestLogout}
                   onSessionExpired={sessionExpired}
                   onAccessRevoked={accessRevoked}
                 />
@@ -3402,14 +3372,12 @@ function SessionApp() {
             path="/login"
             element={
               session?.principal.kind === "registered" ? (
-                <Shell session={session} onSignOut={requestLogout}>
-                  <main className="app-main">
-                    <p className="status-message">You are already signed in.</p>
-                    <Link className="button" to="/">
-                      Return Home
-                    </Link>
-                  </main>
-                </Shell>
+                <><main className="app-main">
+                  <p className="status-message">You are already signed in.</p>
+                  <Link className="button" to="/">
+                    Return Home
+                  </Link>
+                </main></>
               ) : (
                 loginScreen()
               )
@@ -3463,7 +3431,6 @@ function SessionApp() {
               session ? (
                 <HomePage
                   session={session}
-                  onSignOut={requestLogout}
                   onSessionExpired={sessionExpired}
                   notice={notice}
                 />
@@ -3479,6 +3446,7 @@ function SessionApp() {
           />
         </Routes>
       )}
+      {session && <MobileNav isAdmin={session.permissions.isAdmin} />}
       {logoutPrompt && session?.principal.kind === "guest" && (
         <Dialog
           title="Sign out of guest access?"
@@ -3491,23 +3459,13 @@ function SessionApp() {
             restored by name; ask the inviter for a new invitation. Points
             remain with the original player.
           </p>
-          {globalError && (
-            <p className="error-message" role="alert">
-              {globalError}
-            </p>
-          )}
+          <SignOutError />
           <div className="inline-actions">
-            <button
-              className="button button-danger"
-              type="button"
-              disabled={authBusy}
-              onClick={() => void performLogout()}
-            >
-              {authBusy ? "Signing out…" : "Sign out and clear guest session"}
-            </button>
+            <SignOutButton guestConfirmation onClick={() => void performLogout()} />
             <button
               className="button"
               type="button"
+              disabled={signOutBusy}
               onClick={() => setLogoutPrompt(false)}
             >
               Keep using this browser
@@ -3516,6 +3474,7 @@ function SessionApp() {
         </Dialog>
       )}
     </div>
+    </SignOutContext.Provider>
   );
 }
 
