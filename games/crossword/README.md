@@ -1,7 +1,8 @@
 # Crossword Game Module (`games/crossword`)
 
-Status: **Sprint 5 / F3-A delivered** (module foundation in
-[PR #33](https://github.com/lewismatt/next-round/pull/33); not merged)
+Status: **F3 implementation integrated** ([PR #33](https://github.com/lewismatt/next-round/pull/33),
+[PR #34](https://github.com/lewismatt/next-round/pull/34)); launch-puzzle
+bundling and F4 close-out are under review in [PR #40](https://github.com/lewismatt/next-round/pull/40).
 
 ## Overview
 
@@ -63,8 +64,9 @@ Per **Master Specification v1.2 §9** and **§10 (Build Slices and Acceptance Ga
    isolation tests, the setup and library UI, and the production
    Home/Games/History/Admin flows (F3-B), and the three original CC0-1.0
    author-verified puzzle packages (below; human deliverable under D54,
-   completed 2026-10-21). F3 exit criteria were met on 2026-10-21: D54
-   content gates complete and the human C5 walkthrough passed.
+   completed 2026-10-21, per the human record). D54 content gates and the human
+   C5 walkthrough are recorded as passed. Bundling integration and independent
+   kit-original byte comparison remain pending; this is not acceptance closure.
 
 ## Bundled puzzles
 
@@ -83,8 +85,12 @@ author of record, Matthew Lewis, who completed the editorial review,
 solution/clue correctness review and clean cold playtest and signed the
 written CC0-1.0 attestation on 2026-10-21; the attestation and review record
 live in the authoring kit. `src/bundled-content.test.ts` parses each bundled
-file through the real import contract and pins its identity digest, so the
-shipped files cannot drift from the attested puzzles unnoticed.
+file through the real import contract, pins its grid identity and complete
+rights block, and checks a separate raw-file SHA-256 digest covering every
+byte. The raw-file pins freeze the bundle reviewed at `c3676e97`; they do not
+prove equality to the external authoring-kit originals, which were not
+accessible to the independent reviewer. Original kit JSONs or independently
+sourced whole-file hashes are still required for that comparison.
 
 ## Specification Reference
 

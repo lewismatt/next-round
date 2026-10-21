@@ -13,8 +13,9 @@ and what remains — it is evidence, not an acceptance claim beyond its scope.
   The two human F3 exit gates closed on 2026-10-21: the D54 content gates
   (editorial review, correctness review, clean cold playtest, written
   CC0-1.0 attestation — all by the author of record, Matthew Lewis) and the
-  human C5 walkthrough (passed, per Matthew). With the bundled puzzles in
-  this change, F3 §10 exit criteria are fully met.
+  human C5 walkthrough (passed, per Matthew). This change delivers the
+  launch-puzzle bundle; independent kit-original byte comparison remains
+  outstanding before provenance sign-off (see below).
 - Backlog: 60 Fixed / 0 Open at the start of this review.
 
 ## This change
@@ -24,36 +25,39 @@ and what remains — it is evidence, not an acceptance claim beyond its scope.
    `rural-route.json`) as import documents, with provenance and import
    instructions in `games/crossword/README.md`.
    `games/crossword/src/bundled-content.test.ts` parses each file through
-   the real C1 import contract (`parseCrosswordImport`) and pins its
-   identity digest to the authoring kit's attested values
-   (`012b04f7…`, `676d7d84…`, `56e971e5…`), plus CC0-1.0 license,
-   attribution and attested permission-note wording — so the shipped
-   files cannot drift from the attested puzzles unnoticed.
+   the real C1 import contract (`parseCrosswordImport`) and pins the
+   reported kit grid identities (`012b04f7…`, `676d7d84…`, `56e971e5…`),
+   plus the complete rights blocks. Separate raw-file SHA-256 pins freeze
+   every byte of the reviewed `c3676e97` bundle, including clues, rights
+   and formatting. These raw-file pins prevent subsequent drift; they
+   are not independent evidence of equality to the external kit originals.
 2. **Stale milestone text corrected** in `games/crossword/README.md`
    ("Still open in F3" replaced with the delivered state).
 
 ## Focused checks (docs vs behavior)
 
 Per §10 F4: "ensure version/error/privacy docs match behavior, and resolve
-remaining release risks with focused checks." All checks run against the
-exact base above; no drift found, no code changes required.
+remaining release risks with focused checks." The original checks used the
+base above. Independent review of `c3676e97` found the documentation and
+bundle-test gaps corrected here; no runtime contract change was required.
 
 - **Version surface.** The SDK identifier has a single source of truth,
-  `SDK_IDENTIFIER = "next-round-game/0.1"` in the game-sdk package; spec
-  and README references are to Master Spec v1.2 throughout. Game modules
+  `SDK_IDENTIFIER = "next-round-game/0.1"` in
+  `packages/contracts/src/manifest.ts`, exported by `@next-round/contracts`;
+  README references are to Master Spec v1.2 throughout. Game modules
   remain pinned at `0.1.0` with exact-version install/disable behavior
   (F1-10 evidence).
-- **Error catalog.** Every public error code in Master Spec §2
-  (INVALID_REQUEST, AUTH_REQUIRED, SESSION_EXPIRED, INVALID_CREDENTIALS,
-  FORBIDDEN, ACCOUNT_DISABLED, NOT_FOUND, STALE_REVISION,
-  IDEMPOTENCY_CONFLICT, MATCH_CLOSED, MODULE_DISABLED, CAPACITY_REACHED,
-  TOKEN_INVALID, RULE_REJECTED, INCOMPATIBLE_MODULE, RATE_LIMITED,
-  MODULE_UNAVAILABLE, SERVICE_UNAVAILABLE, MODULE_FAILURE, INTERNAL_ERROR)
-  is emitted by the API/platform code. One additional code,
-  `MODULE_CLIENT_MISSING`, appears only as an internal startup diagnostic
-  in the API/worker module loaders (the BL-055 class of failure); it is
-  never returned as an API error response, which matches its documented
-  use in the playtest record.
+- **Error catalog.** The 20 public error codes and HTTP status mappings in
+  Master Spec §3 are represented in `packages/contracts/src/errors.ts`.
+  Catalog parity is not complete runtime emission coverage:
+  `MODULE_DISABLED` and `INCOMPATIBLE_MODULE` currently occur only in the
+  catalog/status declarations. Disabled match creation returns
+  `MODULE_UNAVAILABLE` (`packages/platform/src/match-service.ts:333-349`);
+  incompatible registry validation throws an ordinary `Error`
+  (`packages/platform/src/registry.ts:112-119`). This review records that
+  existing behavior rather than claiming those two response paths exist.
+  `MODULE_CLIENT_MISSING` is an internal startup warning in the API/worker
+  module loaders, not a public API response code.
 - **Privacy defaults (D48).** The first-run setup policy submitted by the
   web client is `historyVisibility: "participants"` (participant-only
   detailed results), `statsVisibility: "instance"` (instance-visible
@@ -84,6 +88,13 @@ exact base above; no drift found, no code changes required.
 
 ## Remaining risks and explicit non-claims
 
+- **External kit comparison.** The independent reviewer verified the bundled
+  imports, reported grid identities and exact attested rights wording, but
+  could not access `content-kit/puzzle-{1,2,3}.json` through local files or
+  Notion records/searches. Original kit JSONs or independently sourced
+  whole-file hashes are still required to establish byte equality. The new
+  raw-file pins freeze the reviewed bundle, not an independently verified
+  kit baseline; they do not discharge this prerequisite.
 - **Playtest stack currency.** The smallpc playtest stack still runs the
   PR #38 image with the playtest-wording puzzle imports. Updating it to
   current main (which also brings the BL-058/BL-059 UI fixes live) and
@@ -102,8 +113,8 @@ exact base above; no drift found, no code changes required.
 
 ## Verdict
 
-With this change integrated, F3 §10 exit criteria are met and the F4
-integration review is complete: version, error and privacy documentation
-match behavior at the checked surfaces, the SDK contract is unchanged and
-stabilized at `next-round-game/0.1`, and the remaining items above are
-operator steps or explicitly accepted non-claims rather than open defects.
+The implementation corrections address the reproduced bundle-drift gap and
+documentation nits without changing the SDK contract, stabilized at
+`next-round-game/0.1`. Independent kit-original comparison remains unverified;
+F3/F4 acceptance is not closed by this amendment. After that comparison and
+review of the amended head, integration remains Matthew's decision.
