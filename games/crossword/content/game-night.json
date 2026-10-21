@@ -1,0 +1,82 @@
+{
+  "format": "next-round.crossword/1",
+  "title": "Game Night",
+  "author": "Matthew Lewis",
+  "language": "en",
+  "difficulty": "easy",
+  "rights": {
+    "license": "CC0-1.0",
+    "sourceUrl": null,
+    "attribution": "Matthew Lewis",
+    "permissionNote": "Original work by Matthew Lewis, released under CC0-1.0 (attested in the authoring kit)."
+  },
+  "rows": [
+    "GAMES",
+    "ALERT",
+    "METRO",
+    "ERROR",
+    "STORE"
+  ],
+  "clues": [
+    {
+      "direction": "across",
+      "row": 0,
+      "col": 0,
+      "text": "Things you play to win"
+    },
+    {
+      "direction": "across",
+      "row": 1,
+      "col": 0,
+      "text": "Warning signal"
+    },
+    {
+      "direction": "across",
+      "row": 2,
+      "col": 0,
+      "text": "City subway system"
+    },
+    {
+      "direction": "across",
+      "row": 3,
+      "col": 0,
+      "text": "Mistake"
+    },
+    {
+      "direction": "across",
+      "row": 4,
+      "col": 0,
+      "text": "Place to buy things"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 0,
+      "text": "Chess and tag, for example"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 1,
+      "text": "Wide awake and watchful"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 2,
+      "text": "Urban transit network"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 3,
+      "text": "Typo, for example"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 4,
+      "text": "Keep in a warehouse"
+    }
+  ]
+}

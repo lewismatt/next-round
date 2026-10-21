@@ -1,0 +1,94 @@
+{
+  "format": "next-round.crossword/1",
+  "title": "Warm Up",
+  "author": "Matthew Lewis",
+  "language": "en",
+  "difficulty": "easy",
+  "rights": {
+    "license": "CC0-1.0",
+    "sourceUrl": null,
+    "attribution": "Matthew Lewis",
+    "permissionNote": "Original work by Matthew Lewis, released under CC0-1.0 (attested in the authoring kit)."
+  },
+  "rows": [
+    "AM#HI",
+    "LEMON",
+    "ADEPT",
+    "RIDER",
+    "MA#SO"
+  ],
+  "clues": [
+    {
+      "direction": "across",
+      "row": 0,
+      "col": 0,
+      "text": "Before-noon hours marker"
+    },
+    {
+      "direction": "across",
+      "row": 0,
+      "col": 3,
+      "text": "Friendly greeting"
+    },
+    {
+      "direction": "across",
+      "row": 1,
+      "col": 0,
+      "text": "Sour yellow fruit"
+    },
+    {
+      "direction": "across",
+      "row": 2,
+      "col": 0,
+      "text": "Highly skilled"
+    },
+    {
+      "direction": "across",
+      "row": 3,
+      "col": 0,
+      "text": "Person on a horse"
+    },
+    {
+      "direction": "across",
+      "row": 4,
+      "col": 0,
+      "text": "Mother"
+    },
+    {
+      "direction": "across",
+      "row": 4,
+      "col": 3,
+      "text": "To that degree"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 0,
+      "text": "Wake-up sound"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 1,
+      "text": "News outlets, collectively"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 3,
+      "text": "Wishes for good outcomes"
+    },
+    {
+      "direction": "down",
+      "row": 0,
+      "col": 4,
+      "text": "Short opening piece"
+    },
+    {
+      "direction": "down",
+      "row": 1,
+      "col": 2,
+      "text": "School for future doctors, informally"
+    }
+  ]
+}
