@@ -68,6 +68,7 @@ import type { CrosswordCustomInput } from "./crossword-setup.js";
 import { LiveClient } from "./live.js";
 import type { LiveBinding } from "./live.js";
 import { AdminAccess, AdminModule, HistoryMatches } from "./page-views.js";
+import { SetupGate } from "./setup.js";
 
 const TOKEN_PATHS: Record<string, true> = {
   "/invite": true,
@@ -2960,6 +2961,10 @@ function GuestRecoveryPage({ onSignIn }: { onSignIn: () => void }) {
 }
 
 export function App() {
+  return <SetupGate><SessionApp /></SetupGate>;
+}
+
+function SessionApp() {
   const navigate = useNavigate();
   const pathname = useLocation().pathname;
   const [session, setSession] = useState<SessionInfo | null>(null);

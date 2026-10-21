@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { randomUUID } from "node:crypto";
+import { installBundledGames } from "./install-bundled-games.js";
 import fs from "node:fs";
 import path from "node:path";
 import { ApiError, ERROR_CODES, LIVE_SUBPROTOCOL } from "@next-round/contracts";
@@ -307,6 +308,7 @@ export async function buildServer(
 
   if (options.checkRegistry === undefined) {
     app.addHook("onReady", async () => {
+      if (!options.gameRegistry) await installBundledGames(databasePool, gameRegistry);
       await verifyModuleRetentionReadiness(databasePool, gameRegistry);
     });
   }

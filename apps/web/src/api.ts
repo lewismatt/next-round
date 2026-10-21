@@ -141,6 +141,38 @@ export function getSession(): Promise<SessionInfo> {
   return request<SessionInfo>("/auth/session");
 }
 
+export function getSetupStatus(): Promise<{ configured: boolean }> {
+  return request("/setup");
+}
+
+export function setupInstance(input: {
+  setupToken: string;
+  instanceName: string;
+  username: string;
+  displayName: string;
+  password: string;
+}): Promise<void> {
+  return request("/setup", {
+    method: "POST",
+    body: {
+      ...input,
+      commandId: crypto.randomUUID(),
+      policy: {
+        schemaVersion: 1,
+        historyVisibility: "participants",
+        statsVisibility: "instance",
+        rejoinChat: "full",
+        retention: {
+          chatDaysAfterFinish: null,
+          privateStateDaysAfterFinish: null,
+          resultDaysAfterFinish: null,
+          notificationDays: null,
+        },
+      },
+    },
+  });
+}
+
 export function login(
   username: string,
   password: string,

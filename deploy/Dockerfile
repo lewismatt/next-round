@@ -73,6 +73,10 @@ RUN rm -rf /usr/local/lib/node_modules /usr/local/include/node /opt/yarn-* \
 COPY --from=production /runtime/ ./
 # The API's default static root is /app/public; retain the built SPA/game assets.
 COPY --from=builder /app/apps/web/dist/ ./public/
+# API and worker module loaders resolve immutable clients relative to their
+# compiled entrypoints. Retain that build layout as well as the SPA static root;
+# include shared chunks so both copies come from the same complete web build.
+COPY --from=builder /app/apps/web/dist/ ./apps/web/dist/
 # Keep application and audited third-party attribution available in the image.
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
 COPY third_party/ ./third_party/

@@ -131,6 +131,11 @@ jobs:
       - name: Build deployment image (target app)
         run: docker build --file deploy/Dockerfile --target app --tag "$IMAGE_TAG" .
 
+      - name: Register bundled games in a fresh deployment container
+        run: |
+          docker run --rm --interactive --workdir /app --entrypoint node \
+            "$IMAGE_TAG" --input-type=module < scripts/ci/image-module-smoke.mjs
+
       - name: Hash and verify a password with the image's Argon2
         run: |
           # Resolve argon2 the way the image's platform package does, so the

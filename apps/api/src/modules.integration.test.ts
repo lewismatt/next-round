@@ -11,6 +11,7 @@ import { server as testCounterServer } from "@next-round/game-test-counter/serve
 import {
   checkModuleRetentionReadiness,
   GameRegistry,
+  installGameVersion,
   generateCsrfToken,
   generateOpaqueSessionToken,
   SESSION_DEV_COOKIE_NAME,
@@ -853,4 +854,23 @@ describe.skipIf(!testDatabaseUrl)("F1-10 module lifecycle, pinned versions, disa
       await rm(tempAssetDir, { recursive: true, force: true });
     }
   });
+  it("installs fresh game metadata atomically and preserves disabled/default/version choices on restart", async () => {
+    const fresh = { ...testCounterManifest, id: "fresh-install" };
+    await installGameVersion(databasePool, fresh, { serverHash: "server-one", clientHash: "client-one" });
+    await databasePool.query("UPDATE next_round.modules SET enabled=false WHERE id='fresh-install'");
+    const newer = { ...fresh, version: "0.2.0" };
+    await Promise.all([
+      installGameVersion(databasePool, newer, { serverHash: "server-two", clientHash: "client-two" }),
+      installGameVersion(databasePool, newer, { serverHash: "server-two", clientHash: "client-two" }),
+    ]);
+    await installGameVersion(databasePool, fresh, { serverHash: "changed", clientHash: "changed" });
+    const modules = await databasePool.query("SELECT enabled, default_version FROM next_round.modules WHERE id='fresh-install'");
+    expect(modules.rows).toEqual([{ enabled: false, default_version: "0.1.0" }]);
+    const versions = await databasePool.query("SELECT version, server_hash, client_hash FROM next_round.module_versions WHERE module_id='fresh-install' ORDER BY version");
+    expect(versions.rows).toEqual([
+      { version: "0.1.0", server_hash: "server-one", client_hash: "client-one" },
+      { version: "0.2.0", server_hash: "server-two", client_hash: "client-two" },
+    ]);
+  });
+
 });
