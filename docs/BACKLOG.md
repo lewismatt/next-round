@@ -87,6 +87,9 @@ section on the work tracker mirrors this file for triage discussion.
 | BL-058 | Fixed | Live playtest (codex-local-feature-test-20261021) | `apps/web/src/App.tsx` catalog, creation and result attribution | Public resource metadata preserves rights.permissionNote, but rights summaries omitted it, hiding pending-attestation wording on private playtest content. | Close-out: shared React-escaped PermissionNote renders in creation, Admin library and saved results; null/absent historical notes omitted. Targeted escaping/absence tests and compiled-browser smoke against all three real metadata surfaces pass. No content, stored metadata or rights wording changes. Evidence: `docs/playtest-2026-10-21.md` close-out. |
 | BL-059 | Fixed | Live playtest (codex-local-feature-test-20261021) | `apps/web/src/App.tsx` SessionApp / authenticated header | Failed sign-out stored an invisible globalError on authenticated screens, so throttling appeared to do nothing. | Close-out: one authenticated header/error surface across routes, disabled “Signing out…” control, synchronous duplicate-submit lock, visible escaped failure and cleared-error retry; session cleanup only after success. Guest confirmation retained. Targeted tests plus compiled-browser held-request/429/session-retention/real-successful-retry smoke pass across Home/Admin/History/match/login/invite/guest routes. No rate budget changes. Evidence: `docs/playtest-2026-10-21.md` close-out. |
 | BL-060 | Fixed | smallpc deployment inspection (codex-local-feature-test-20261021) | smallpc compose override TRUST_PROXY (operator configuration) | The inherited tailnet override trusts 127.0.0.1, but Docker DNAT presents the compose gateway; forwarded identities were ignored and tailnet users shared IP-keyed budgets. | Close-out: freshly inspected `next-round_default` gateway `172.18.0.1`, set only that explicit IP with recreation/fail-closed comment, applied `sudo docker compose up -d api`. Logs distinguish desktop `100.127.186.88` and smallpc `100.87.120.128`; sibling worker `172.18.0.3` sending forged XFF `100.111.222.33` is logged as `172.18.0.3`. Health/ready 200; no ports, rates or Serve changes. Evidence: `docs/playtest-2026-10-21.md` close-out. README documents the recipe; no tracked loopback-trust generator exists. |
+| BL-061 | Open | PR #40 review, head `c3676e97` (codex-review-pr40-20261021) | `docs/f4-integration-review.md:46-52` | P3: the new review says all 20 public error codes are emitted, but `MODULE_DISABLED` and `INCOMPATIBLE_MODULE` occur only in catalog/status declarations. Disabled match creation returns `MODULE_UNAVAILABLE`; incompatible registry validation throws an ordinary `Error`. | Distinguish catalog parity from runtime emission coverage and record the existing behavior accurately; no runtime fix made in this review. Evidence: `packages/platform/src/match-service.ts:333-349`, `packages/platform/src/registry.ts:112-119`, `packages/contracts/src/errors.ts:21,27,51,55`. |
+| BL-062 | Open | PR #40 review, head `c3676e97` (codex-review-pr40-20261021) | `docs/f4-integration-review.md:41-42` | P3: `SDK_IDENTIFIER` is attributed to game-sdk, but its sole definition is in `packages/contracts/src/manifest.ts:6`, exported by contracts; game-sdk does not re-export it. | Correct the package/path attribution without changing the contract or adding an alias. |
+| BL-063 | Open | PR #40 review, head `c3676e97` (codex-review-pr40-20261021) | `games/crossword/README.md:3-4` | P3: the header still says F3-A / PR #33 is “not merged,” conflicting with the updated delivered milestone section and the integrated PR history. | Label the header as historical foundation evidence or bring it up to date; no README fix made in this review. |
 
 ## Sprint 5 triage (omp-s5-20261020)
 
@@ -220,3 +223,35 @@ when Matthew merges.
 - BL-058–BL-060 fixed in [PR #39](https://github.com/lewismatt/next-round/pull/39); code/browser and live proxy/anti-spoof evidence: `docs/playtest-2026-10-21.md`.
 - Close-out branch: **60 Fixed / 0 Open**. Main remains **57 Fixed / 3 Open** until this PR is integrated. No acceptance row closed.
 - T2/T8 residual browser checks completed. Live 50-outstanding cap not filled; D54 and human C5 remain explicitly open.
+
+## Independent F4 close-out review (codex-review-pr40-20261021)
+
+- Reviewed PR #40 at exact head `c3676e97236dac68749d08ae5bfa7760018060c0`,
+  base `c840972108661e532294a9657d84f5af665af802`. BL-061–BL-063 are
+  non-blocking documentation nits, logged without fixing the reviewed change.
+  This findings branch has **60 Fixed / 3 Open**; main remains **60 Fixed /
+  0 Open** until the findings are integrated.
+- Separate blocking review finding: the bundled-content tests pin grid-only
+  identities, not complete import documents. Running the unchanged committed
+  test/parser against temporary copies showed, for each of the three puzzles,
+  a one-byte grid mutation fails but a one-byte clue mutation and a one-byte
+  permission-note mutation each pass all four tests. The claimed full-file
+  attestation drift protection is not established. The reviewer made no fix.
+- All three actual documents pass the compiled import parser, match the
+  supplied identity pins, and carry the exact attested CC0-1.0 rights wording.
+  Byte equality with the external authoring-kit originals remains unverified:
+  the originals were not available in the checkout/local files or the Notion
+  Page 08/Design records and content/session searches. Original kit JSONs or
+  independently supplied whole-file hashes are required for that comparison.
+- Exact-head local verification passed: `pnpm build` (14 browser artifacts),
+  `pnpm exec vitest run games/crossword/src apps/web/src/crossword-setup.test.ts --maxWorkers=2`
+  (100 tests in five files), `pnpm typecheck`, `pnpm lint` (zero warnings),
+  and `pnpm check:spdx` (142 tracked source files), using Node 24.22.0 and
+  pnpm 12.14.0 after a frozen-lockfile install. The initial Corepack-only
+  build invocation failed because nested scripts could not find `pnpm`;
+  enabling the temporary toolchain's pnpm shim resolved the environment issue.
+- Run and jobs APIs independently confirmed CI run `39668689569`, attempt 1,
+  completed/success on the exact reviewed head, with all five jobs successful
+  (build/verification, PostgreSQL 18.6-alpine, PostgreSQL 17-alpine, deployment
+  image Argon2 runtime, Caddy WebSocket upgrade). No local PostgreSQL suite,
+  deployment, merge, or acceptance closure was performed.
