@@ -12,7 +12,7 @@ const output = path.join(root, 'third_party');
 const check = process.argv.includes('--check');
 const platform = 'linux/amd64';
 const images = [
-  { name: 'node', version: '24.22.0-bookworm-slim', digest: 'sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5', upstream: 'https://github.com/nodejs/node/tree/v24.22.0', license: 'MIT AND bundled third-party licenses', source: 'https://nodejs.org/dist/v24.22.0/node-v24.22.0.tar.xz' },
+  { name: 'node', version: '24.22.1-bookworm-slim', digest: 'sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205', upstream: 'https://github.com/nodejs/node/tree/v24.22.1', license: 'MIT AND bundled third-party licenses', source: 'https://nodejs.org/dist/v24.22.1/node-v24.22.1.tar.xz' },
   { name: 'postgres', version: '18.6-alpine', digest: 'sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873', upstream: 'https://github.com/postgres/postgres/tree/REL_18_6', license: 'PostgreSQL', source: 'https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2', legal: ['https://raw.githubusercontent.com/postgres/postgres/REL_18_6/COPYRIGHT'] },
   { name: 'caddy', version: '2.11.7-alpine', digest: 'sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f', upstream: 'https://github.com/caddyserver/caddy/tree/v2.11.7', license: 'Apache-2.0 AND bundled third-party licenses', source: 'https://github.com/caddyserver/caddy/archive/refs/tags/v2.11.7.tar.gz', legal: ['https://raw.githubusercontent.com/caddyserver/caddy/v2.11.7/LICENSE', 'https://raw.githubusercontent.com/caddyserver/caddy/v2.11.7/NOTICE'] },
 ];

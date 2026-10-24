@@ -3,15 +3,15 @@
   "images": [
     {
       "name": "node",
-      "version": "24.22.0-bookworm-slim",
-      "digest": "sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5",
-      "upstream": "https://github.com/nodejs/node/tree/v24.22.0",
+      "version": "24.22.1-bookworm-slim",
+      "digest": "sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205",
+      "upstream": "https://github.com/nodejs/node/tree/v24.22.1",
       "license": "MIT AND bundled third-party licenses",
-      "source": "https://nodejs.org/dist/v24.22.0/node-v24.22.0.tar.xz",
-      "variantDigest": "sha256:ec857ea6bb60cb3d0fa4d97495590c5fe7d51be8572c307b55957eeb06569cf7",
-      "containerSource": "https://github.com/nodejs/docker-node.git#f27125230b3c367dcf63043ea3fe286fb3d0914c:24/bookworm-slim",
-      "containerSourceRevision": "f27125230b3c367dcf63043ea3fe286fb3d0914c",
-      "reference": "node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5",
+      "source": "https://nodejs.org/dist/v24.22.1/node-v24.22.1.tar.xz",
+      "variantDigest": "sha256:2dd9a4f758e173b65fee15388f7706af6fb01ef50cf7a2c0538711d67a6981ae",
+      "containerSource": "https://github.com/nodejs/docker-node.git#80f02a542da739e6a662451d1db66456a0dea253:24/bookworm-slim",
+      "containerSourceRevision": "80f02a542da739e6a662451d1db66456a0dea253",
+      "reference": "node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205",
       "inventoryPlatform": "linux/amd64",
       "osRelease": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"12\"\nVERSION=\"12 (bookworm)\"\nVERSION_CODENAME=bookworm\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
       "packages": [
@@ -728,9 +728,9 @@
         },
         {
           "name": "perl-base",
-          "version": "5.36.0-7+deb12u3",
+          "version": "5.36.0-7+deb12u4",
           "source": "perl",
-          "sourceUrl": "https://snapshot.debian.org/package/perl/5.36.0-7%2Bdeb12u3/",
+          "sourceUrl": "https://snapshot.debian.org/package/perl/5.36.0-7%2Bdeb12u4/",
           "architecture": "amd64",
           "upstream": "http://dev.perl.org/perl5/",
           "license": "See package copyright material"
@@ -811,11 +811,11 @@
       "files": [
         {
           "path": "OCI image index",
-          "material": "materials/d9983e6ea0ec42751b58cc45c4b2447c5fad73d19c4925c0653bb01dcc92b5f1.txt"
+          "material": "materials/c624ff9a2cc57bc47410ee5cff7ac5bcb7c027d77a503c2124dbcacce510181e.txt"
         },
         {
           "path": "/var/lib/dpkg/status",
-          "material": "materials/eb7a7c1b0ca66b26e088916193a213a223176294a51b19503e75fab937726e4e.txt"
+          "material": "materials/ea8063c43d82b45fe00bfc01b7636c2738b89d7f163ff77c180710d02af9d6e8.txt"
         },
         {
           "path": "/usr/local/LICENSE",

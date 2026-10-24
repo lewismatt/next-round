@@ -316,7 +316,7 @@ proves Trivia's use of SDK 0.1, not compatibility with every possible future gam
 
 ### Prerequisites
 
-- Node.js 24.22.0+ (LTS)
+- Node.js 24.22.1+ (LTS)
 - pnpm 12.14.0+
 - Docker and Docker Compose
 
@@ -420,7 +420,7 @@ independent and must never be reused as the session key.
 ### Production image and architecture pins
 
 `deploy/Dockerfile` uses the immutable multi-architecture index for
-`node:24.22.0-bookworm-slim`, correcting the initial Alpine scaffold to the
+`node:24.22.1-bookworm-slim`, correcting the initial Alpine scaffold to the
 Debian-based runtime required by specification §8. PostgreSQL and Caddy likewise
 pin multi-architecture indexes rather than amd64 child manifests. Exact digests
 and upstream attribution are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
