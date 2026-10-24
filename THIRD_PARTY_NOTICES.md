@@ -30,7 +30,7 @@ Missing metadata, mismatched archives, license texts without an explicit supplem
 
 | Image | Tag | Multi-architecture index digest | Primary project terms |
 | --- | --- | --- | --- |
-| Node.js | `24.22.0-bookworm-slim` | `sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5` | [Node.js license and bundled notices](https://github.com/nodejs/node/blob/v24.22.0/LICENSE) |
+| Node.js | `24.22.1-bookworm-slim` | `sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205` | [Node.js license and bundled notices](https://github.com/nodejs/node/blob/v24.22.0/LICENSE) |
 | PostgreSQL | `18.6-alpine` | `sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873` | [PostgreSQL License and copyright](https://github.com/postgres/postgres/blob/REL_18_6/COPYRIGHT) |
 | Caddy | `2.11.7-alpine` | `sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f` | [Apache-2.0](https://github.com/caddyserver/caddy/blob/v2.11.7/LICENSE), plus bundled dependencies' terms |
 

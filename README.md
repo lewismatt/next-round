@@ -316,7 +316,7 @@ proves Trivia's use of SDK 0.1, not compatibility with every possible future gam
 
 ### Prerequisites
 
-- Node.js 24.22.0+ (LTS)
+- Node.js 24.22.1+ (LTS)
 - pnpm 12.14.0+
 - Docker and Docker Compose
 
