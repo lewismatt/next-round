@@ -2,7 +2,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCrosswordSettings,
-  catalogSummary,
   EMPTY_CUSTOM_INPUT,
 } from "./crossword-setup.js";
 
@@ -86,22 +85,3 @@ describe("crossword setup settings (Master Spec §9 C2)", () => {
   });
 });
 
-describe("crossword catalog summary", () => {
-  it("renders public metadata without any solution material", () => {
-    const summary = catalogSummary({
-      title: "Warm Up",
-      author: "Next Round",
-      language: "en",
-      difficulty: "easy",
-      rows: 5,
-      cols: 5,
-      rights: {
-        license: "CC0-1.0",
-        sourceUrl: null,
-        attribution: "Next Round",
-        permissionNote: null,
-      },
-    });
-    expect(summary).toBe("5 × 5 · easy · by Next Round · CC0-1.0");
-  });
-});

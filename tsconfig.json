@@ -15,6 +15,7 @@
     { "path": "./apps/api" },
     { "path": "./apps/worker" },
     { "path": "./apps/web" },
-    { "path": "./games/test-counter" }
+    { "path": "./games/test-counter" },
+    { "path": "./games/trivia" }
   ]
 }

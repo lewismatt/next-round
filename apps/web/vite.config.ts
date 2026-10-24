@@ -12,6 +12,14 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
+    {
+      name: "game-server-boundary",
+      moduleParsed(module) {
+        if (/\/games\/[^/]+\/src\/(?:server|content)\.ts$/.test(module.id)) {
+          this.error(`Server-only game code reached the browser build: ${module.id}`);
+        }
+      },
+    },
   ],
   resolve: {
     alias: {
@@ -33,6 +41,10 @@ export default defineConfig({
         "games/crossword/0.1.0/client": path.resolve(
           __dirname,
           "../../games/crossword/src/client.ts",
+        ),
+        "games/trivia/0.1.0/client": path.resolve(
+          __dirname,
+          "../../games/trivia/src/client.ts",
         ),
       },
       preserveEntrySignatures: "strict",

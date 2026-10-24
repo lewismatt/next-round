@@ -15,6 +15,7 @@
     "@next-round/db": "workspace:*",
     "@next-round/game-crossword": "workspace:*",
     "@next-round/game-test-counter": "workspace:*",
+    "@next-round/game-trivia": "workspace:*",
     "@next-round/platform": "workspace:*",
     "pg": "8.23.1",
     "pg-boss": "12.38.0"

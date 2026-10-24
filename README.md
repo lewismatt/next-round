@@ -9,7 +9,7 @@ Next Round is a self-hosted, open-source platform for turn-based games with frie
 
 ## Current implementation
 
-This is a development build, not a released crossword product. The platform
+This is a development build, not a production release. The platform
 implements bootstrap/password sessions, shared PostgreSQL credential budgets,
 invitation/guest admission, chat, notifications, revisioned match commands,
 private views, final results and career projections. State, deadlines, receipts
@@ -28,12 +28,16 @@ the turn, scoring, reveal, exposure and disabled-member rules, and a browser
 client that plays a grid. The platform stores versioned, server-private puzzle
 content with public catalog metadata, pins one immutable resource version per
 match, and keeps principal exposure facts per resource identity.
-[Sprint 5 evidence](docs/sprint5-evidence.md) records what that foundation does
-and does not cover. The three bundled rights-reviewed puzzles, the production
-Home/Games/History/Admin flows and the C5 acceptance harness remain open, so
-full production polish still belongs to F3. The
-remaining self-service session/profile routes and open security/operations nits
-are not claimed complete; see [the backlog](docs/BACKLOG.md).
+[Sprint 5 evidence](docs/sprint5-evidence.md) records its implementation history.
+The rights-reviewed puzzles and F3/F4 close-out landed in PR #40.
+
+The [Trivia module](docs/trivia-design.md) adds simultaneous private answers,
+stable round deadlines, public reveals and bank-free final results using the
+same SDK. Its original CC0 starter bank is imported through Admin; Solo/Group
+setup and the pinned client are available in the browser shell. See its design
+for rules, provenance, transaction/browser evidence and the SDK 0.1 verdict.
+Remaining self-service session/profile routes are not claimed complete.
+See [the backlog](docs/BACKLOG.md) for triaged issues.
 
 See the [review and remaining acceptance work](docs/reviews/2026-10-19.md).
 The [work tracker](https://app.notion.com/p/3fd972a22c7581eca2f7fe7fb46d593b)
@@ -127,6 +131,15 @@ or metadata create a new immutable content version. A match pins one resource
 version and snapshot, and every resource-bound command locks the resource
 identity first, so two matches on the same puzzle cannot both miss a prior
 exposure.
+
+Trivia is also registered in API and worker builds when its compiled client is
+present. Import `games/trivia/content/starter.json` via **Admin → Trivia library**,
+then choose **Start a game → Trivia**. Its resource format is
+`next-round.trivia/1`; settings are `{rounds, secondsPerRound}`. The platform
+pins the imported bank privately. No question bank or digest is embedded in the
+browser; each round exposes its question, then reveals answers at the deadline.
+The bank's CC0 provenance is agent-drafted, not a human content attestation.
+
 
 The API boundary validates settings and action payloads against the selected
 manifest schema. Unknown fields are rejected when the schema sets
@@ -276,10 +289,11 @@ their own scope rather than treating those columns as universally populated.
 Server packages importing Node built-ins declare `types: ["node"]` and the
 workspace's pinned `@types/node` in their own package.
 
-#### Second-game contract review: simultaneous trivia
+#### Second-game contract proof: simultaneous trivia
 
-This paper review maps a private-answer trivia game to SDK `next-round-game/0.1`;
-it is not an implemented game or a compatibility acceptance test.
+Sprint T implements the original paper review against SDK `next-round-game/0.1`.
+The mapping below is now exercised by real PostgreSQL tests and the compiled
+browser. [Rules, evidence and bounded SDK verdict](docs/trivia-design.md).
 
 | Requirement | Existing contract and game-author responsibility |
 | --- | --- |
@@ -291,10 +305,10 @@ it is not an implemented game or a compatibility acceptance test.
 | Results after private-state pruning | `final` stores per-member scores, outcome, eligibility and public attribution; `resultView` needs no answer bank or retained submissions. `career` derives metrics from the final result. |
 | Version and failure privacy | Pin exact module/assets and immutable resource version. Bump the SDK minor for a breaking contract change; use safe rule codes rather than embedding submitted answers in errors. |
 
-No contract change is required by this design. The serialized revision protocol
-does require explicit conflict UX for simultaneous submissions. A future game
-must prove that UX, private views and timeout races through real transactions
-before broader compatibility is claimed.
+No SDK change was required. Simultaneous actions do require explicit conflict
+UX: an authoritative refresh and user-initiated retry, fenced to the same round.
+Unknown-response retries retain their original command ID and revision. This
+proves Trivia's use of SDK 0.1, not compatibility with every possible future game.
 
 ---
 
