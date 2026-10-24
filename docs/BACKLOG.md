@@ -92,6 +92,7 @@ section on the work tracker mirrors this file for triage discussion.
 | BL-063 | Fixed | PR #40 review, head `c3676e97` (codex-review-pr40-20261021) | `games/crossword/README.md:3-4` | P3: the header still says F3-A / PR #33 is “not merged,” conflicting with the updated delivered milestone section and the integrated PR history. | Fixed in [PR #40](https://github.com/lewismatt/next-round/pull/40): identify the integrated F3 implementation and separate the pending launch-bundle/F4 review. |
 | BL-064 | Open | PR #42 review (Larry, 2026-10-24) | `games/trivia/src/server.ts` (`membership` pause/resume) | Pause computes remaining time from `state.dueAt!` and resume reads `state.suspendedRemainingMs!` with no defensive guard; both hold only by invariant (dueAt non-null while active, remaining set on pause). If either invariant ever broke, remaining becomes NaN and resume `toISOString()` throws into MODULE_FAILURE. | Open — add explicit guards or keep as a documented invariant. |
 | BL-065 | Open | PR #42 review (Larry, 2026-10-24) | `games/trivia/src/client.ts` (pending intent) | If `canSubmit` flips false mid-round with the round unchanged (e.g. member disabled), a pending unknown-outcome intent lingers with no visible retry button until the player picks a new answer or the round changes; it self-heals but the state is invisible. | Open — clear pending on eligibility loss or surface the retry. |
+| BL-071 | Open | [PR #43 review](https://github.com/lewismatt/next-round/pull/43#pullrequestreview-5638966952), head `3bbbdc17` (codex-review-pr43-20261024) | `README.md:422-424` | P3: present-tense production-image documentation still names `node:24.22.0-bookworm-slim` after the Dockerfile moves to 24.22.1. This paragraph describes the current pin, unlike dated sprint evidence. | Update with the PR #43 image-pin corrections; historical evidence stays unchanged. BL-066–BL-070 are reserved by the Page 08 Phase B scoping handoff and are not overwritten here. |
 
 ## Sprint 5 triage (omp-s5-20261020)
 
@@ -285,3 +286,12 @@ when Matthew merges.
   verified kit baseline. README and F4 review now state this explicitly;
   provenance sign-off still requires the external comparison. No merge,
   deployment or F3/F4 acceptance closure is claimed.
+
+
+## Independent Node security-pin review (codex-review-pr43-20261024)
+
+- PR #43 reviewed at `3bbbdc17d60dbcbdfba9c5b22d0d2807e3b3cb90`, base `98786fe6dd2a5b198cf12aee7174a15030398e4e`; [review](https://github.com/lewismatt/next-round/pull/43#pullrequestreview-5638966952) recommends changes and holds merge.
+- Blocking P2: `scripts/image-notices.mjs:15` still targets Node 24.22.0, so the documented `node scripts/image-notices.mjs --check` exits 1 at line 39 on Node v24.22.1 before invoking Docker. The updated image inventory references an old OCI material with amd64 digest `ec857ea6...`, contradicting its declared `2dd9a4f...` variant. Update the generator, regenerate and commit the actual inventory/material set, and pass `--check` before a fresh review.
+- Non-blocking BL-071 records the stale current README image description. This review makes no runtime or generator fixes. The reviewed six-file PR is unchanged.
+- CI run [40110466339](https://github.com/lewismatt/next-round/actions/runs/40110466339) independently verified completed/success, all five jobs green for the reviewed head. Logs confirm synthetic merge `2e96f9c` of head `3bbbdc17` into base `98786fe6`, Node v24.22.1 and the new Docker index/amd64 digests. Gates include build/typecheck/lint/SPDX, unit tests, PostgreSQL 18.6/17 integrations, image Argon2/module registration and Caddy upgrade. The general test job reports 283 passed / 128 database-dependent skipped; separate DB jobs provide integration coverage. CI does not execute the failing image-notices check.
+- No fresh local broad test suite, inventory regeneration, merge, deployment or acceptance closure. Next: adjudicate the review, amend PR #43, and independently review the amended head with green CI. This findings-only branch has 63 Fixed / 3 Open rows; BL-066–BL-070 remain reserved by the independent Phase B scoping record.
