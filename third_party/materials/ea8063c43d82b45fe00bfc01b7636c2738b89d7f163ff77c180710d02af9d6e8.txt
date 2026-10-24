@@ -1792,11 +1792,11 @@ Essential: yes
 Status: install ok installed
 Priority: required
 Section: perl
-Installed-Size: 7639
+Installed-Size: 7643
 Maintainer: Niko Tyni <ntyni@debian.org>
 Architecture: amd64
 Source: perl
-Version: 5.36.0-7+deb12u3
+Version: 5.36.0-7+deb12u4
 Replaces: libfile-path-perl (<< 2.18), libfile-temp-perl (<< 0.2311), libio-socket-ip-perl (<< 0.41), libscalar-list-utils-perl (<< 1:1.62), libsocket-perl (<< 2.033), libxsloader-perl (<< 0.31), perl (<< 5.10.1-12), perl-modules (<< 5.20.1-3)
 Provides: libfile-path-perl (= 2.18), libfile-temp-perl (= 0.2311), libio-socket-ip-perl (= 0.41), libscalar-list-utils-perl (= 1:1.62), libsocket-perl (= 2.033), libxsloader-perl (= 0.31), perlapi-5.36.0
 Pre-Depends: libc6 (>= 2.35), libcrypt1 (>= 1:4.1.0), dpkg (>= 1.17.17)

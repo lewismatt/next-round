@@ -728,9 +728,9 @@
         },
         {
           "name": "perl-base",
-          "version": "5.36.0-7+deb12u3",
+          "version": "5.36.0-7+deb12u4",
           "source": "perl",
-          "sourceUrl": "https://snapshot.debian.org/package/perl/5.36.0-7%2Bdeb12u3/",
+          "sourceUrl": "https://snapshot.debian.org/package/perl/5.36.0-7%2Bdeb12u4/",
           "architecture": "amd64",
           "upstream": "http://dev.perl.org/perl5/",
           "license": "See package copyright material"
@@ -811,11 +811,11 @@
       "files": [
         {
           "path": "OCI image index",
-          "material": "materials/d9983e6ea0ec42751b58cc45c4b2447c5fad73d19c4925c0653bb01dcc92b5f1.txt"
+          "material": "materials/c624ff9a2cc57bc47410ee5cff7ac5bcb7c027d77a503c2124dbcacce510181e.txt"
         },
         {
           "path": "/var/lib/dpkg/status",
-          "material": "materials/eb7a7c1b0ca66b26e088916193a213a223176294a51b19503e75fab937726e4e.txt"
+          "material": "materials/ea8063c43d82b45fe00bfc01b7636c2738b89d7f163ff77c180710d02af9d6e8.txt"
         },
         {
           "path": "/usr/local/LICENSE",
