@@ -46,6 +46,10 @@ export default defineConfig({
           __dirname,
           "../../games/trivia/src/client.ts",
         ),
+        "games/cipher/0.1.0/client": path.resolve(
+          __dirname,
+          "../../games/cipher/src/client.ts",
+        ),
       },
       preserveEntrySignatures: "strict",
       external: [

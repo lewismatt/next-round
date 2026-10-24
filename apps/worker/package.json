@@ -13,6 +13,7 @@
   "dependencies": {
     "@next-round/contracts": "workspace:*",
     "@next-round/db": "workspace:*",
+    "@next-round/game-cipher": "workspace:*",
     "@next-round/game-crossword": "workspace:*",
     "@next-round/game-test-counter": "workspace:*",
     "@next-round/game-trivia": "workspace:*",
