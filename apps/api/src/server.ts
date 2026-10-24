@@ -46,6 +46,7 @@ import { maintenanceRoutes } from "./routes/maintenance.js";
 import type { HealthCheckOptions } from "./routes/health.js";
 import { loadTestCounterFixtureIfEnabled } from "./test-counter-fixture.js";
 import { registerCrosswordModule } from "./crossword-fixture.js";
+import { registerTriviaModule } from "./trivia-module.js";
 import { LiveService, liveRoutes, type LiveSweepStats } from "./live/index.js";
 
 export interface ServerOptions extends HealthCheckOptions {
@@ -88,6 +89,7 @@ export async function buildServer(
       process.env.NEXT_ROUND_ENABLE_TEST_COUNTER === "true",
     );
     registerCrosswordModule(gameRegistry);
+    registerTriviaModule(gameRegistry);
   }
   const matchService = new MatchService(databasePool, gameRegistry);
   const authService = new AuthService(databasePool, setupToken, matchService);

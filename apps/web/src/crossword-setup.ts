@@ -134,7 +134,16 @@ export interface CrosswordCatalogMetadata {
   };
 }
 
-/** One-line public summary of a catalog puzzle: size, difficulty, rights. */
-export function catalogSummary(metadata: CrosswordCatalogMetadata): string {
+export interface TriviaCatalogMetadata {
+  title: string;
+  questionCount: number;
+  rights: CrosswordCatalogMetadata["rights"];
+}
+
+/** Public content summary; never reads private resource data. */
+export function catalogSummary(metadata: CrosswordCatalogMetadata | TriviaCatalogMetadata): string {
+  if ("questionCount" in metadata) {
+    return `${metadata.questionCount} questions · ${metadata.rights.license}`;
+  }
   return `${metadata.rows} × ${metadata.cols} · ${metadata.difficulty} · by ${metadata.author} · ${metadata.rights.license}`;
 }

@@ -1,0 +1,50 @@
+{
+  "format": "next-round.trivia/1",
+  "title": "First Round",
+  "attribution": "Original agent-drafted questions for Next Round, released under CC0-1.0; no human attestation claimed.",
+  "license": "CC0-1.0",
+  "questions": [
+    {
+      "id": "hexagon",
+      "prompt": "How many sides does a hexagon have?",
+      "choices": ["Five", "Six", "Seven", "Eight"],
+      "correctChoice": 1,
+      "explanation": "A hexagon is a polygon with six sides."
+    },
+    {
+      "id": "orbit",
+      "prompt": "Which planet has the shortest orbital period around the Sun?",
+      "choices": ["Venus", "Earth", "Mercury", "Mars"],
+      "correctChoice": 2,
+      "explanation": "Mercury completes an orbit in about 88 Earth days, the shortest period of the eight planets."
+    },
+    {
+      "id": "binary",
+      "prompt": "What is the decimal value of the binary number 101?",
+      "choices": ["Three", "Four", "Five", "Six"],
+      "correctChoice": 2,
+      "explanation": "The binary digits represent 1×4 + 0×2 + 1×1, which equals five."
+    },
+    {
+      "id": "instrument",
+      "prompt": "Which of these instruments normally has six strings?",
+      "choices": ["Standard guitar", "Violin", "Cello", "Trumpet"],
+      "correctChoice": 0,
+      "explanation": "A standard guitar has six strings. Violins and cellos normally have four; a trumpet has none."
+    },
+    {
+      "id": "water",
+      "prompt": "At standard atmospheric pressure, what is the freezing point of pure water in degrees Celsius?",
+      "choices": ["−10", "0", "10", "100"],
+      "correctChoice": 1,
+      "explanation": "Pure water freezes at zero degrees Celsius at standard atmospheric pressure."
+    },
+    {
+      "id": "chess",
+      "prompt": "In chess, which piece can jump over intervening pieces?",
+      "choices": ["Bishop", "Rook", "Queen", "Knight"],
+      "correctChoice": 3,
+      "explanation": "A knight jumps to its destination in an L-shaped move, regardless of intervening pieces."
+    }
+  ]
+}

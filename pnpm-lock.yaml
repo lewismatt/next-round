@@ -220,6 +220,9 @@ importers:
       '@next-round/game-test-counter':
         specifier: workspace:*
         version: link:../../games/test-counter
+      '@next-round/game-trivia':
+        specifier: workspace:*
+        version: link:../../games/trivia
       '@next-round/platform':
         specifier: workspace:*
         version: link:../../packages/platform
@@ -300,6 +303,9 @@ importers:
       '@next-round/game-test-counter':
         specifier: workspace:*
         version: link:../../games/test-counter
+      '@next-round/game-trivia':
+        specifier: workspace:*
+        version: link:../../games/trivia
       '@next-round/platform':
         specifier: workspace:*
         version: link:../../packages/platform
@@ -351,6 +357,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/game-sdk
     devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  games/trivia:
+    dependencies:
+      '@next-round/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@next-round/game-client':
+        specifier: workspace:*
+        version: link:../../packages/game-client
+      '@next-round/game-sdk':
+        specifier: workspace:*
+        version: link:../../packages/game-sdk
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.8
+        version: 24.10.8
       typescript:
         specifier: 7.0.2
         version: 7.0.2

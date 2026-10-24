@@ -10,6 +10,7 @@ import { installGameVersion, type GameRegistry } from "@next-round/platform";
 export async function installBundledGames(pool: DatabasePool, registry: GameRegistry): Promise<void> {
   const serverEntries: Record<string, () => string> = {
     crossword: () => import.meta.resolve("@next-round/game-crossword/server"),
+    trivia: () => import.meta.resolve("@next-round/game-trivia/server"),
     "test-counter": () => import.meta.resolve("@next-round/game-test-counter/server"),
   };
   for (const manifest of registry.list()) {

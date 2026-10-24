@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { GameManifest, Json } from "@next-round/contracts";
 import type { CommandReceipt, MatchSnapshot } from "@next-round/game-client";
+import type { CrosswordCatalogMetadata, TriviaCatalogMetadata } from "./crossword-setup.js";
 
 export interface Principal {
   id: string;
@@ -300,20 +301,7 @@ export function createMatch(input: {
 export interface GameResourceEntry {
   resourceId: string;
   version: number;
-  metadata: {
-    title: string;
-    author: string;
-    language: string;
-    difficulty: string;
-    rows: number;
-    cols: number;
-    rights: {
-      license: string;
-      sourceUrl: string | null;
-      attribution: string;
-      permissionNote: string | null;
-    };
-  };
+  metadata: CrosswordCatalogMetadata | TriviaCatalogMetadata;
   createdAt: string;
 }
 

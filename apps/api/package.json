@@ -8,7 +8,7 @@
     "typecheck": "tsc -b --noEmit",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "test:integration": "vitest run src/auth.integration.test.ts src/invitation-budgets.integration.test.ts src/http-parser.integration.test.ts src/admin-health.integration.test.ts src/auth-login-budget.integration.test.ts src/matches.integration.test.ts src/deadlines.integration.test.ts src/live.integration.test.ts src/modules.integration.test.ts src/crossword-resource.integration.test.ts src/crossword-acceptance.integration.test.ts"
+    "test:integration": "vitest run src/auth.integration.test.ts src/invitation-budgets.integration.test.ts src/http-parser.integration.test.ts src/admin-health.integration.test.ts src/auth-login-budget.integration.test.ts src/matches.integration.test.ts src/deadlines.integration.test.ts src/live.integration.test.ts src/modules.integration.test.ts src/crossword-resource.integration.test.ts src/crossword-acceptance.integration.test.ts src/trivia-acceptance.integration.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.3",
@@ -21,6 +21,7 @@
     "@next-round/db": "workspace:*",
     "@next-round/game-crossword": "workspace:*",
     "@next-round/game-test-counter": "workspace:*",
+    "@next-round/game-trivia": "workspace:*",
     "@next-round/platform": "workspace:*",
     "fastify": "5.12.7",
     "pino": "9.6.0"

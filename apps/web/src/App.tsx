@@ -283,6 +283,8 @@ function CreateMatchDialog({
   const [mode, setMode] = useState(firstMode?.id ?? "group");
   const [target, setTarget] = useState("10");
   const [turnSeconds, setTurnSeconds] = useState("none");
+  const [triviaRounds, setTriviaRounds] = useState("3");
+  const [triviaSeconds, setTriviaSeconds] = useState("30");
   const [visibility, setVisibility] = useState<"instance" | "invite">(
     "instance",
   );
@@ -311,6 +313,8 @@ function CreateMatchDialog({
       return;
     }
     let cancelled = false;
+    setResources([]);
+    setResourceId("");
     setResourcesLoading(true);
     getGameResources(selectedGame.id)
       .then((entries) => {
@@ -357,18 +361,32 @@ function CreateMatchDialog({
     if (needsResource) {
       if (!resourceId) {
         setError(
-          "Choose a puzzle first. If none are listed, an administrator needs to import one before a match can be created.",
+          "Choose content first. If none is listed, an administrator needs to import it before a match can be created.",
         );
         setBusy(false);
         return;
       }
-      const built = buildCrosswordSettings(mode, custom);
-      if (!built.ok) {
-        setError(built.error);
-        setBusy(false);
-        return;
+      if (selectedGame.id === "trivia") {
+        const rounds = Number(triviaRounds);
+        const secondsPerRound = Number(triviaSeconds);
+        const metadata = resources.find((entry) => entry.resourceId === resourceId)?.metadata;
+        const available = metadata && "questionCount" in metadata ? metadata.questionCount : 0;
+        if (!Number.isInteger(rounds) || rounds < 1 || rounds > Math.min(20, available) ||
+            !Number.isInteger(secondsPerRound) || secondsPerRound < 1 || secondsPerRound > 300) {
+          setError(`Choose 1–${Math.min(20, available)} rounds and 1–300 seconds per round.`);
+          setBusy(false);
+          return;
+        }
+        settings = { rounds, secondsPerRound };
+      } else {
+        const built = buildCrosswordSettings(mode, custom);
+        if (!built.ok) {
+          setError(built.error);
+          setBusy(false);
+          return;
+        }
+        settings = { ...built.settings };
       }
-      settings = { ...built.settings };
       selectedResourceId = resourceId;
     }
     try {
@@ -456,10 +474,26 @@ function CreateMatchDialog({
               </div>
             </>
           )}
+          {selectedGame?.id === "trivia" && (
+            <>
+              <div className="field">
+                <label htmlFor="trivia-rounds">Rounds</label>
+                <input id="trivia-rounds" type="number" min="1" max="20" step="1"
+                  value={triviaRounds} onChange={(event) => setTriviaRounds(event.target.value)} required />
+              </div>
+              <div className="field">
+                <label htmlFor="trivia-seconds">Seconds per round</label>
+                <input id="trivia-seconds" type="number" min="1" max="300" step="1"
+                  value={triviaSeconds} onChange={(event) => setTriviaSeconds(event.target.value)} required />
+              </div>
+              <p className="hint">One private answer per round. Answers reveal only at the deadline.
+                Late joiners start with the next question.</p>
+            </>
+          )}
           {needsResource && (
             <>
               <div className="field">
-                <label htmlFor="create-resource">Puzzle</label>
+                <label htmlFor="create-resource">{selectedGame?.id === "trivia" ? "Question bank" : "Puzzle"}</label>
                 <select
                   id="create-resource"
                   value={resourceId}
@@ -473,12 +507,12 @@ function CreateMatchDialog({
                   ))}
                 </select>
                 {resourcesLoading && (
-                  <p className="hint">Loading the puzzle library…</p>
+                  <p className="hint">Loading the content library…</p>
                 )}
                 {!resourcesLoading && resources.length === 0 && (
                   <p className="hint">
-                    No puzzles are in the library yet. An administrator can
-                    import one from the Admin page.
+                    No content is in the library yet. An administrator can
+                    import a document from the Admin page.
                   </p>
                 )}
                 {resources.length > 0 &&
@@ -502,7 +536,7 @@ function CreateMatchDialog({
                   timer. Settings lock when the match starts.
                 </p>
               )}
-              {mode === "solo" && (
+              {selectedGame?.id === "crossword" && mode === "solo" && (
                 <p className="hint">
                   Casual solo: no guess limits and no timer.
                 </p>
@@ -595,7 +629,7 @@ function CreateMatchDialog({
             <button
               className="button button-primary"
               type="submit"
-              disabled={busy}
+              disabled={busy || (needsResource && (resourcesLoading || resources.length === 0))}
             >
               {busy ? "Creating…" : "Create match"}
             </button>
@@ -1161,7 +1195,7 @@ function AdminPage({
     if (!raw) {
       setImportMessage((current) => ({
         ...current,
-        [gameId]: "Paste a puzzle document (JSON) first.",
+        [gameId]: "Paste a content document (JSON) first.",
       }));
       return;
     }
@@ -1178,11 +1212,12 @@ function AdminPage({
     setBusy(gameId);
     try {
       const receipt = await importGameResource(gameId, document);
+      const exposureNote = gameId === "crossword" ? " Importing records you as exposed to this puzzle." : "";
       setImportMessage((current) => ({
         ...current,
         [gameId]: receipt.duplicate
-          ? `Already in the library (version ${receipt.version}); the import still records you as exposed to this puzzle.`
-          : `Imported as version ${receipt.version}. Importing records you as exposed to this puzzle.`,
+          ? `Already in the library (version ${receipt.version}).${exposureNote}`
+          : `Imported as version ${receipt.version}.${exposureNote}`,
       }));
       setImportText((current) => ({ ...current, [gameId]: "" }));
       await loadRef.current();
@@ -1331,13 +1366,12 @@ function AdminPage({
                       [game.id]: event.target.value,
                     }))
                   }
-                  placeholder='{"format": "next-round.crossword/1", ...}'
+                  placeholder={`{"format": "next-round.${game.id}/1", ...}`}
                 />
               </div>
               <p className="hint">
-                Only import content with a reviewed license (CC0-1.0,
-                CC-BY-4.0, CC-BY-SA-4.0 or documented permission). Importing
-                records you as exposed to the puzzle.
+                Only import content with a reviewed license. Crossword imports
+                record puzzle exposure; trivia imports include the private answer key.
               </p>
               {importMessage[game.id] && (
                 <p className="status-message" role="status">
@@ -2062,7 +2096,9 @@ function GameRenderer({
                 expiredRef.current();
               if (isStale(cause)) {
                 await refreshRef.current();
-                throw new Error(
+                throw new ApiError(
+                  cause.status,
+                  cause.code,
                   "The match changed. The latest state is loaded; review it before acting again.",
                 );
               }
@@ -2749,6 +2785,14 @@ function MatchPage({
         <ResultView result={result} members={snapshot.members} />
       )}
       {!snapshot && result && <ResultView result={result} members={[]} />}
+      {snapshot?.phase === "finished" && snapshot.moduleId === "trivia" && (
+        <GameRenderer
+          snapshot={snapshot}
+          onRefresh={refreshSnapshot}
+          onOpenPanel={setSelectedPanel}
+          onSessionExpired={onSessionExpired}
+        />
+      )}
     
       {snapshot && snapshot.phase !== "finished" && (
         <div className="match-layout">
