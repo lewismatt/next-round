@@ -24,6 +24,9 @@ jobs:
         with:
           version: "12.14.0"
 
+      - name: Fetch Cipher module (external package)
+        run: ./scripts/fetch-cipher.sh
+
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
@@ -90,6 +93,9 @@ jobs:
         with:
           version: "12.14.0"
 
+      - name: Fetch Cipher module (external package)
+        run: ./scripts/fetch-cipher.sh
+
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
@@ -127,6 +133,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Fetch Cipher module (external package)
+        run: ./scripts/fetch-cipher.sh
 
       - name: Build deployment image (target app)
         run: docker build --file deploy/Dockerfile --target app --tag "$IMAGE_TAG" .

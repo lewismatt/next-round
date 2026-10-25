@@ -214,6 +214,9 @@ importers:
       '@next-round/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@next-round/game-cipher':
+        specifier: workspace:*
+        version: link:../../games/cipher
       '@next-round/game-crossword':
         specifier: workspace:*
         version: link:../../games/crossword
@@ -297,6 +300,9 @@ importers:
       '@next-round/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@next-round/game-cipher':
+        specifier: workspace:*
+        version: link:../../games/cipher
       '@next-round/game-crossword':
         specifier: workspace:*
         version: link:../../games/crossword
@@ -325,6 +331,28 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+
+  games/cipher:
+    dependencies:
+      '@next-round/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@next-round/game-client':
+        specifier: workspace:*
+        version: link:../../packages/game-client
+      '@next-round/game-sdk':
+        specifier: workspace:*
+        version: link:../../packages/game-sdk
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.8
+        version: 24.10.8
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@24.10.8)(vite@8.3.4(@types/node@24.10.8)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   games/crossword:
     dependencies:
