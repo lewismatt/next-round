@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import {
   Link,
+  NavLink,
   Route,
   Routes,
   useLocation,
@@ -69,6 +70,18 @@ import { LiveClient } from "./live.js";
 import type { LiveBinding } from "./live.js";
 import { AdminAccess, AdminModule, HistoryMatches, PermissionNote } from "./page-views.js";
 import { SignOutButton, SignOutContext, SignOutError, submitSignOut } from "./sign-out.js";
+import { Button } from "@next-round/ui";
+import { ThemeToggle } from "./appearance.js";
+import {
+  AccountIcon,
+  AdminIcon,
+  ArrowIcon,
+  EnvelopeIcon,
+  GameIllustration,
+  GamesIcon,
+  HistoryIcon,
+  HomeIcon,
+} from "./icons.js";
 import { SetupGate } from "./setup.js";
 
 const TOKEN_PATHS: Record<string, true> = {
@@ -136,14 +149,14 @@ function Header({
         Next Round
       </Link>
       <nav className="shell-nav" aria-label="Main navigation">
-        <Link to="/">Home</Link>
-        <Link to="/history">History</Link>
-        {session.permissions.isAdmin && <Link to="/admin">Admin</Link>}
+        <NavLink to="/" end>
+          Home
+        </NavLink>
+        <NavLink to="/history">History</NavLink>
+        {session.permissions.isAdmin && <NavLink to="/admin">Admin</NavLink>}
       </nav>
       <div className="header-actions">
-        <span className="header-identity">
-          Signed in as {session.principal.displayName}
-        </span>
+        <span className="header-identity">{session.principal.displayName}</span>
         {session.principal.kind === "guest" && (
           <Link className="button button-plain" to="/login">
             Sign in
@@ -155,14 +168,50 @@ function Header({
   );
 }
 
-function MobileNav({ isAdmin }: { isAdmin: boolean }) {
+function MobileNav({
+  isAdmin,
+  isGuest,
+}: {
+  isAdmin: boolean;
+  isGuest: boolean;
+}) {
+  const { pathname, hash } = useLocation();
   return (
     <nav className="mobile-nav" aria-label="Main navigation">
-      <Link to="/">Home</Link>
-      <Link to="/#games">Games</Link>
-      <Link to="/history">History</Link>
-      {isAdmin && <Link to="/admin">Admin</Link>}
-      <Link to="/login">Account</Link>
+      <Link
+        to="/"
+        aria-current={
+          pathname === "/" && hash !== "#games" ? "page" : undefined
+        }
+      >
+        <HomeIcon />
+        Home
+      </Link>
+      {!isGuest && (
+        <Link
+          to="/#games"
+          aria-current={
+            pathname === "/" && hash === "#games" ? "location" : undefined
+          }
+        >
+          <GamesIcon />
+          Games
+        </Link>
+      )}
+      <NavLink to="/history">
+        <HistoryIcon />
+        History
+      </NavLink>
+      {isAdmin && (
+        <NavLink to="/admin">
+          <AdminIcon />
+          Admin
+        </NavLink>
+      )}
+      <NavLink to="/login">
+        <AccountIcon />
+        Account
+      </NavLink>
     </nav>
   );
 }
@@ -243,22 +292,19 @@ function MatchCardView({
 }) {
   const currentPhaseLabel = phaseLabel(match.phase);
   return (
-    <article className="card">
-      <h3>{title}</h3>
-      <p className="card-meta">
-        {modeLabel(match.mode)} · {currentPhaseLabel}
-      </p>
+    <article className="card match-entry">
+      <GameIllustration gameId={match.moduleId} />
+      <div className="match-copy">
+        <h3>{title}</h3>
+        <p className="card-meta">
+          {modeLabel(match.mode)} · {currentPhaseLabel}
+        </p>
+      </div>
       {action && actionLabel && (
-        <div className="inline-actions">
-          <button
-            className="button button-primary"
-            type="button"
-            disabled={actionDisabled}
-            onClick={action}
-          >
-            {actionLabel}
-          </button>
-        </div>
+        <Button type="button" disabled={actionDisabled} onClick={action}>
+          {actionLabel}
+          <ArrowIcon data-icon="inline-end" />
+        </Button>
       )}
     </article>
   );
@@ -692,6 +738,12 @@ function CreateMatchDialog({
   );
 }
 
+const GAME_SUMMARIES = new Map([
+  ["crossword", "Fill the grid, solo or together."],
+  ["trivia", "A little knowledge. A little friendly competition."],
+  ["cipher", "Crack the code, one guess at a time."],
+]);
+
 interface HomeData {
   mine: MatchCard[];
   open: MatchCard[];
@@ -709,6 +761,8 @@ function HomePage({
   notice: string;
 }) {
   const navigate = useNavigate();
+  const { hash, key: navigationKey } = useLocation();
+  const scrolledNavigation = useRef<string | null>(null);
   const [home, setHome] = useState<HomeData>({
     mine: [],
     open: [],
@@ -763,6 +817,20 @@ function HomePage({
     return () => live.close();
   }, [session.principal.id]);
 
+  useEffect(() => {
+    if (
+      hash !== "#games" ||
+      loading ||
+      scrolledNavigation.current === navigationKey
+    )
+      return;
+    const catalog = document.getElementById("games");
+    if (catalog) {
+      scrolledNavigation.current = navigationKey;
+      catalog.scrollIntoView();
+    }
+  }, [hash, loading, navigationKey]);
+
   async function joinOpenMatch(match: MatchCard) {
     setBusyMatch(match.id);
     setRefreshNotice("");
@@ -813,67 +881,14 @@ function HomePage({
 
   return (
     <>
-    <main className="app-main">
-      <h1 className="page-title">Your Home</h1>
-      <p className="page-intro">
-        Resume a game or start a new one. Opening a game here never leaves it;
-        use its explicit Leave match control only when you want to give up
-        your seat.
-      </p>
-      {notice && (
-        <p className="status-message" role="status">
-          {notice}
-        </p>
-      )}
-      {refreshNotice && (
-        <p className="status-message" role="status">
-          {refreshNotice}
-        </p>
-      )}
-      {error && (
-        <p className="error-message" role="alert">
-          {error}
-        </p>
-      )}
-      {loading && <p role="status">Loading your authorized games…</p>}
-    
-      {session.principal.kind === "guest" ? (
-        <>
-          <section className="section" aria-labelledby="guest-match-heading">
-            <h2 id="guest-match-heading" className="section-heading">
-              Your invited game
-            </h2>
-            <p className="hint">
-              Guest access is limited to the game that invited you. Keep using
-              this browser to return to the same player.
-            </p>
-            <div className="card-grid">
-              {home.mine.map((match) => (
-                <MatchCardView
-                  key={match.id}
-                  match={match}
-                  title={gameTitle(match.moduleId)}
-                  action={() =>
-                    navigate(`/matches/${encodeURIComponent(match.id)}`)
-                  }
-                  actionLabel={
-                    match.phase === "finished" ? "View result" : "Resume game"
-                  }
-                />
-              ))}
-              {!loading && home.mine.length === 0 && (
-                <p className="status-message">
-                  No game is currently available in this guest session.
-                </p>
-              )}
-            </div>
-          </section>
-        </>
-      ) : (
-        <>
-          <div className="inline-actions">
-            <button
-              className="button button-primary"
+      <main className="app-main home-page">
+        <div className="home-heading">
+          <div>
+            <h1 className="page-title">Your Home</h1>
+            <p className="page-intro">Resume a game or start a new one.</p>
+          </div>
+          {session.principal.kind !== "guest" && (
+            <Button
               type="button"
               disabled={home.games.length === 0}
               onClick={() => {
@@ -882,147 +897,217 @@ function HomePage({
               }}
             >
               Start a game
-            </button>
-          </div>
-          <section
-            className="section"
-            aria-labelledby="current-matches-heading"
-          >
-            <h2 id="current-matches-heading" className="section-heading">
-              Your matches
-            </h2>
-            <div className="card-grid">
-              {home.mine.map((match) => (
-                <MatchCardView
-                  key={match.id}
-                  match={match}
-                  title={gameTitle(match.moduleId)}
-                  action={() =>
-                    navigate(`/matches/${encodeURIComponent(match.id)}`)
-                  }
-                  actionLabel={
-                    match.phase === "finished" ? "View result" : "Resume game"
-                  }
-                />
-              ))}
-              {!loading && home.mine.length === 0 && (
-                <p className="status-message">
-                  No matches yet. Start a game or join an open match.
-                </p>
-              )}
-            </div>
-          </section>
-          {home.invitations.length > 0 && (
-            <section
-              className="section"
-              aria-labelledby="pending-invitations-heading"
-            >
-              <h2
-                id="pending-invitations-heading"
-                className="section-heading"
+              <ArrowIcon data-icon="inline-end" />
+            </Button>
+          )}
+        </div>
+        {notice && (
+          <p className="status-message" role="status">
+            {notice}
+          </p>
+        )}
+        {refreshNotice && (
+          <p className="status-message" role="status">
+            {refreshNotice}
+          </p>
+        )}
+        {error && (
+          <p className="error-message" role="alert">
+            {error}
+          </p>
+        )}
+        {loading && <p role="status">Loading your authorized games…</p>}
+
+        {session.principal.kind === "guest" ? (
+          <>
+            <section className="section" aria-labelledby="guest-match-heading">
+              <h2 id="guest-match-heading" className="section-heading">
+                Your invited game
+              </h2>
+              <p className="hint">
+                Guest access is limited to the game that invited you. Keep using
+                this browser to return to the same player.
+              </p>
+              <div className="card-grid">
+                {home.mine.map((match) => (
+                  <MatchCardView
+                    key={match.id}
+                    match={match}
+                    title={gameTitle(match.moduleId)}
+                    action={() =>
+                      navigate(`/matches/${encodeURIComponent(match.id)}`)
+                    }
+                    actionLabel={
+                      match.phase === "finished" ? "View result" : "Resume game"
+                    }
+                  />
+                ))}
+                {!loading && home.mine.length === 0 && (
+                  <p className="status-message">
+                    No game is currently available in this guest session.
+                  </p>
+                )}
+              </div>
+            </section>
+          </>
+        ) : (
+          <>
+            <div className="home-columns">
+              <section
+                className="section current-matches"
+                aria-labelledby="current-matches-heading"
               >
-                Pending invitations
+                <h2 id="current-matches-heading" className="section-heading">
+                  Your matches
+                </h2>
+                <div className="card-grid">
+                  {home.mine.map((match) => (
+                    <MatchCardView
+                      key={match.id}
+                      match={match}
+                      title={gameTitle(match.moduleId)}
+                      action={() =>
+                        navigate(`/matches/${encodeURIComponent(match.id)}`)
+                      }
+                      actionLabel={
+                        match.phase === "finished"
+                          ? "View result"
+                          : "Resume game"
+                      }
+                    />
+                  ))}
+                  {!loading && home.mine.length === 0 && (
+                    <p className="status-message">
+                      No matches yet. Start a game or join an open match.
+                    </p>
+                  )}
+                </div>
+              </section>
+              <aside
+                className="home-rail"
+                aria-label="Invitations and open matches"
+              >
+                {home.invitations.length > 0 && (
+                  <section
+                    className="section"
+                    aria-labelledby="pending-invitations-heading"
+                  >
+                    <h2
+                      id="pending-invitations-heading"
+                      className="section-heading"
+                    >
+                      Pending invitations
+                    </h2>
+                    <div className="card-grid">
+                      {home.invitations.map((invitation) => (
+                        <article className="card" key={invitation.id}>
+                          <EnvelopeIcon className="invitation-illustration" />
+                          <h3>Invitation to a match</h3>
+                          <p className="card-meta">
+                            Expires{" "}
+                            {new Date(invitation.expiresAt).toLocaleString()}
+                          </p>
+                          <div className="inline-actions">
+                            <Button
+                              type="button"
+                              disabled={busyMatch === invitation.id}
+                              onClick={() => void acceptPending(invitation)}
+                            >
+                              {busyMatch === invitation.id
+                                ? "Accepting…"
+                                : "Accept invitation"}
+                            </Button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                <section
+                  className="section"
+                  aria-labelledby="open-games-heading"
+                >
+                  <h2 id="open-games-heading" className="section-heading">
+                    Open matches
+                  </h2>
+                  <div className="card-grid">
+                    {home.open.map((match) => (
+                      <MatchCardView
+                        key={match.id}
+                        match={match}
+                        title={gameTitle(match.moduleId)}
+                        action={() => void joinOpenMatch(match)}
+                        actionLabel={
+                          busyMatch === match.id ? "Joining…" : "Join match"
+                        }
+                        actionDisabled={busyMatch === match.id}
+                      />
+                    ))}
+                    {!loading && home.open.length === 0 && (
+                      <p className="status-message">
+                        No open matches are available right now.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              </aside>
+            </div>
+            <section
+              className="section game-catalog"
+              id="games"
+              aria-labelledby="game-catalog-heading"
+            >
+              <h2 id="game-catalog-heading" className="section-heading">
+                Games
               </h2>
               <div className="card-grid">
-                {home.invitations.map((invitation) => (
-                  <article className="card" key={invitation.id}>
-                    <h3>Invitation to a match</h3>
-                    <p className="card-meta">
-                      Expires{" "}
-                      {new Date(invitation.expiresAt).toLocaleString()}
-                    </p>
+                {home.games.map((game, index) => (
+                  <article
+                    className="card catalog-entry"
+                    key={`${game.id}-${game.version}`}
+                  >
+                    <span className="catalog-number" aria-hidden="true">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <GameIllustration gameId={game.id} />
+                    <h3>{game.name}</h3>
+                    <p>{GAME_SUMMARIES.get(game.id) ?? game.description}</p>
                     <div className="inline-actions">
-                      <button
-                        className="button button-primary"
+                      <Button
                         type="button"
-                        disabled={busyMatch === invitation.id}
-                        onClick={() => void acceptPending(invitation)}
+                        onClick={() => {
+                          setCreateGameId(game.id);
+                          setCreateOpen(true);
+                        }}
                       >
-                        {busyMatch === invitation.id
-                          ? "Accepting…"
-                          : "Accept invitation"}
-                      </button>
+                        <span>
+                          Create match
+                          <span className="sr-only">: {game.name}</span>
+                        </span>
+                      </Button>
                     </div>
                   </article>
                 ))}
+                {!loading && home.games.length === 0 && (
+                  <p className="status-message">
+                    No games are available to start right now.
+                  </p>
+                )}
               </div>
             </section>
-          )}
-          <section
-            className="section"
-            id="games"
-            aria-labelledby="open-games-heading"
-          >
-            <h2 id="open-games-heading" className="section-heading">
-              Open matches
-            </h2>
-            <div className="card-grid">
-              {home.open.map((match) => (
-                <MatchCardView
-                  key={match.id}
-                  match={match}
-                  title={gameTitle(match.moduleId)}
-                  action={() => void joinOpenMatch(match)}
-                  actionLabel={
-                    busyMatch === match.id ? "Joining…" : "Join match"
-                  }
-                  actionDisabled={busyMatch === match.id}
-                />
-              ))}
-              {!loading && home.open.length === 0 && (
-                <p className="status-message">
-                  No open matches are available right now.
-                </p>
-              )}
-            </div>
-          </section>
-          <section className="section" aria-labelledby="game-catalog-heading">
-            <h2 id="game-catalog-heading" className="section-heading">
-              Games
-            </h2>
-            <div className="card-grid">
-              {home.games.map((game) => (
-                <article className="card" key={`${game.id}-${game.version}`}>
-                  <h3>{game.name}</h3>
-                  <p>{game.description}</p>
-                  <p className="card-meta">
-                    Available modes:{" "}
-                    {game.modes.map((mode) => mode.label).join(", ")}
-                  </p>
-                  <div className="inline-actions">
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={() => {
-                        setCreateGameId(game.id);
-                        setCreateOpen(true);
-                      }}
-                    >
-                      Create {game.name} match
-                    </button>
-                  </div>
-                </article>
-              ))}
-              {!loading && home.games.length === 0 && (
-                <p className="status-message">
-                  No games are available to start right now.
-                </p>
-              )}
-            </div>
-          </section>
-        </>
+          </>
+        )}
+      </main>
+      {createOpen && (
+        <CreateMatchDialog
+          games={home.games}
+          initialGameId={createGameId}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(matchId) =>
+            navigate(`/matches/${encodeURIComponent(matchId)}`)
+          }
+        />
       )}
-    </main>
-    {createOpen && (
-      <CreateMatchDialog
-        games={home.games}
-        initialGameId={createGameId}
-        onClose={() => setCreateOpen(false)}
-        onCreated={(matchId) =>
-          navigate(`/matches/${encodeURIComponent(matchId)}`)
-        }
-      />
-    )}
     </>
   );
 }
@@ -3021,7 +3106,19 @@ function GuestRecoveryPage({ onSignIn }: { onSignIn: () => void }) {
 }
 
 export function App() {
-  return <SetupGate><SessionApp /></SetupGate>;
+  return (
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <div className="appearance-control">
+        <ThemeToggle />
+      </div>
+      <SetupGate>
+        <SessionApp />
+      </SetupGate>
+    </>
+  );
 }
 
 function SessionApp() {
@@ -3347,6 +3444,7 @@ function SessionApp() {
     <div className="app-shell">
       {session && <Header session={session} onSignOut={requestLogout} />}
       {session && !logoutPrompt && <SignOutError />}
+      <div id="main-content" tabIndex={-1} />
       {initializing ? (
         <div className="center-page">
           <p role="status">Checking your session…</p>
@@ -3539,7 +3637,12 @@ function SessionApp() {
           />
         </Routes>
       )}
-      {session && <MobileNav isAdmin={session.permissions.isAdmin} />}
+      {session && (
+        <MobileNav
+          isAdmin={session.permissions.isAdmin}
+          isGuest={session.principal.kind === "guest"}
+        />
+      )}
       {logoutPrompt && session?.principal.kind === "guest" && (
         <Dialog
           title="Sign out of guest access?"
