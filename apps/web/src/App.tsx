@@ -285,6 +285,8 @@ function CreateMatchDialog({
   const [turnSeconds, setTurnSeconds] = useState("none");
   const [triviaRounds, setTriviaRounds] = useState("3");
   const [triviaSeconds, setTriviaSeconds] = useState("30");
+  const [cipherPreset, setCipherPreset] = useState("standard");
+  const [cipherTurnSeconds, setCipherTurnSeconds] = useState("86400");
   const [visibility, setVisibility] = useState<"instance" | "invite">(
     "instance",
   );
@@ -356,6 +358,22 @@ function CreateMatchDialog({
         return;
       }
       settings = { target: targetValue, turnSeconds: seconds };
+    }
+    if (selectedGame.id === "cipher") {
+      const seconds =
+        cipherTurnSeconds === "none" ? null : Number(cipherTurnSeconds);
+      if (
+        !["cadet", "standard", "expert"].includes(cipherPreset) ||
+        (seconds !== null &&
+          (!Number.isInteger(seconds) || seconds < 30 || seconds > 604800))
+      ) {
+        setError(
+          "Choose a Cipher preset and a turn timer from 30 seconds to 7 days, or no timer.",
+        );
+        setBusy(false);
+        return;
+      }
+      settings = { preset: cipherPreset, turnSeconds: seconds };
     }
     let selectedResourceId: string | undefined;
     if (needsResource) {
@@ -470,6 +488,37 @@ function CreateMatchDialog({
                       </option>
                     ),
                   )}
+                </select>
+              </div>
+            </>
+          )}
+          {selectedGame?.id === "cipher" && (
+            <>
+              <div className="field">
+                <label htmlFor="cipher-preset">Preset</label>
+                <select
+                  id="cipher-preset"
+                  value={cipherPreset}
+                  onChange={(event) => setCipherPreset(event.target.value)}
+                >
+                  <option value="cadet">Cadet · 4 symbols, no repeats, 12 guesses</option>
+                  <option value="standard">Standard · 4 symbols, repeats, 10 guesses</option>
+                  <option value="expert">Expert · 5 symbols, 8-symbol alphabet, 12 guesses</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="cipher-turn-limit">Turn timer</label>
+                <select
+                  id="cipher-turn-limit"
+                  value={cipherTurnSeconds}
+                  onChange={(event) => setCipherTurnSeconds(event.target.value)}
+                >
+                  <option value="none">No timer</option>
+                  <option value="3600">1 hour</option>
+                  <option value="21600">6 hours</option>
+                  <option value="86400">24 hours</option>
+                  <option value="259200">3 days</option>
+                  <option value="604800">7 days</option>
                 </select>
               </div>
             </>

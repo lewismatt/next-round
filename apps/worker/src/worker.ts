@@ -12,6 +12,7 @@ import {
 import { loadTestCounterFixtureIfEnabled } from "./test-counter-fixture.js";
 import { registerCrosswordModule } from "./crossword-fixture.js";
 import { registerTriviaModule } from "./trivia-module.js";
+import { registerCipherModule } from "./cipher-module.js";
 
 const { Pool } = pg;
 
@@ -288,6 +289,7 @@ export class WorkerRunner {
       );
       registerCrosswordModule(this.registry);
       registerTriviaModule(this.registry);
+      registerCipherModule(this.registry);
     }
 
     this.matchService = new MatchService(this.pool, this.registry);

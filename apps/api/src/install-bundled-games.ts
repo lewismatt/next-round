@@ -11,6 +11,7 @@ export async function installBundledGames(pool: DatabasePool, registry: GameRegi
   const serverEntries: Record<string, () => string> = {
     crossword: () => import.meta.resolve("@next-round/game-crossword/server"),
     trivia: () => import.meta.resolve("@next-round/game-trivia/server"),
+    cipher: () => import.meta.resolve("@next-round/game-cipher/server"),
     "test-counter": () => import.meta.resolve("@next-round/game-test-counter/server"),
   };
   for (const manifest of registry.list()) {
