@@ -145,13 +145,19 @@ function Header({
 }) {
   return (
     <header className="site-header">
+      <div className="edition-note">
+        <span>The puzzle &amp; games edition</span>
+        <span>A place for curious minds.</span>
+      </div>
       <Link className="brand" to="/" aria-label="Next Round home">
         Next Round
       </Link>
+      <p className="masthead-caption">Good company. A fresh challenge. Another round.</p>
       <nav className="shell-nav" aria-label="Main navigation">
         <NavLink to="/" end>
           Home
         </NavLink>
+        {session.principal.kind !== "guest" && <Link to="/#games">Games</Link>}
         <NavLink to="/history">History</NavLink>
         {session.permissions.isAdmin && <NavLink to="/admin">Admin</NavLink>}
       </nav>
@@ -884,8 +890,9 @@ function HomePage({
       <main className="app-main home-page">
         <div className="home-heading">
           <div>
-            <h1 className="page-title">Your Home</h1>
-            <p className="page-intro">Resume a game or start a new one.</p>
+            <p className="eyebrow">Pencils ready. The table is yours.</p>
+            <h1 className="page-title">The puzzle page.</h1>
+            <p className="page-intro">A little wordplay. A bit of friendly competition.</p>
           </div>
           {session.principal.kind !== "guest" && (
             <Button
@@ -952,13 +959,57 @@ function HomePage({
           </>
         ) : (
           <>
+            <section
+              className="section game-catalog"
+              id="games"
+              aria-labelledby="game-catalog-heading"
+            >
+              <div className="section-heading catalog-heading">
+                <h2 id="game-catalog-heading">The games</h2>
+                <p>Pick your puzzle. Find your people.</p>
+              </div>
+              <div className="card-grid">
+                {home.games.map((game, index) => (
+                  <article
+                    className="card catalog-entry"
+                    key={`${game.id}-${game.version}`}
+                  >
+                    <span className="catalog-number" aria-hidden="true">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <GameIllustration gameId={game.id} />
+                    <h3>{game.name}</h3>
+                    <p>{GAME_SUMMARIES.get(game.id) ?? game.description}</p>
+                    <div className="inline-actions">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setCreateGameId(game.id);
+                          setCreateOpen(true);
+                        }}
+                      >
+                        <span>
+                          Play {game.name}
+                        </span>
+                        <ArrowIcon data-icon="inline-end" />
+                      </Button>
+                    </div>
+                  </article>
+                ))}
+                {!loading && home.games.length === 0 && (
+                  <p className="status-message">
+                    No games are available to start right now.
+                  </p>
+                )}
+              </div>
+            </section>
             <div className="home-columns">
               <section
                 className="section current-matches"
                 aria-labelledby="current-matches-heading"
               >
                 <h2 id="current-matches-heading" className="section-heading">
-                  Your matches
+                  Back at the table
                 </h2>
                 <div className="card-grid">
                   {home.mine.map((match) => (
@@ -996,7 +1047,7 @@ function HomePage({
                       id="pending-invitations-heading"
                       className="section-heading"
                     >
-                      Pending invitations
+                      You’re invited
                     </h2>
                     <div className="card-grid">
                       {home.invitations.map((invitation) => (
@@ -1052,51 +1103,13 @@ function HomePage({
                 </section>
               </aside>
             </div>
-            <section
-              className="section game-catalog"
-              id="games"
-              aria-labelledby="game-catalog-heading"
-            >
-              <h2 id="game-catalog-heading" className="section-heading">
-                Games
-              </h2>
-              <div className="card-grid">
-                {home.games.map((game, index) => (
-                  <article
-                    className="card catalog-entry"
-                    key={`${game.id}-${game.version}`}
-                  >
-                    <span className="catalog-number" aria-hidden="true">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <GameIllustration gameId={game.id} />
-                    <h3>{game.name}</h3>
-                    <p>{GAME_SUMMARIES.get(game.id) ?? game.description}</p>
-                    <div className="inline-actions">
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setCreateGameId(game.id);
-                          setCreateOpen(true);
-                        }}
-                      >
-                        <span>
-                          Create match
-                          <span className="sr-only">: {game.name}</span>
-                        </span>
-                      </Button>
-                    </div>
-                  </article>
-                ))}
-                {!loading && home.games.length === 0 && (
-                  <p className="status-message">
-                    No games are available to start right now.
-                  </p>
-                )}
-              </div>
-            </section>
           </>
         )}
+        <footer className="edition-footer">
+          <span>Next Round</span>
+          <p>Made for a good pause.</p>
+          <Link to="/history">Past games <ArrowIcon /></Link>
+        </footer>
       </main>
       {createOpen && (
         <CreateMatchDialog
@@ -3108,7 +3121,16 @@ function GuestRecoveryPage({ onSignIn }: { onSignIn: () => void }) {
 export function App() {
   return (
     <>
-      <a className="skip-link" href="#main-content">
+      <a className="skip-link" href="#main-content" onClick={(event) => {
+        const main = document.querySelector("main");
+        if (main) {
+          event.preventDefault();
+          main.id = "main-content";
+          main.tabIndex = -1;
+          main.focus();
+          main.scrollIntoView();
+        }
+      }}>
         Skip to content
       </a>
       <div className="appearance-control">
@@ -3444,7 +3466,6 @@ function SessionApp() {
     <div className="app-shell">
       {session && <Header session={session} onSignOut={requestLogout} />}
       {session && !logoutPrompt && <SignOutError />}
-      <div id="main-content" tabIndex={-1} />
       {initializing ? (
         <div className="center-page">
           <p role="status">Checking your session…</p>

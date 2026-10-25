@@ -1,63 +1,49 @@
-# Puzzle Club validation
+# Newspaper redesign validation
 
-Implementation branch: `feat/puzzle-club-interface`, based on main `8fcb2ca842430f764012f2b14599f3efb2a87edf`. The commit containing this document and its screenshots is the reviewed source snapshot; no production deployment is included.
+Branch: `design/newspaper-interface`. Baseline: main `8f605dc40c3ecc727cc18a24a45e3b6f3f83467f`. The commit containing these notes and captures is the tested source snapshot. This replaces the PR #47 interface validation; earlier evidence remains in Git history.
 
-## Automated checks
+## Build gates
 
-Node 24.22.1 and pnpm 12.14.0 were run through an isolated npm-exec tool environment because the host's default Node is 22. Dependencies were installed with the frozen lockfile, and the external Cipher module was fetched at the repository's pinned revision. No dependency pins or lockfile changes were needed.
+Run with Node **24.22.1** and pnpm **12.14.0** through `npm exec --yes --package=node@24.22.1 --package=pnpm@12.14.0 -- …`, since the host default is Node 22 and has no pnpm executable.
 
-| Check | Result |
+| Command | Observed result |
 | --- | --- |
-| `pnpm build` | Pass; browser boundary scan passed for 18 artifacts |
-| `pnpm typecheck` | Pass across the workspace |
+| `sh scripts/fetch-cipher.sh` | Fetched pinned Cipher `4fbbfee1655a5f5c87456534f868c7bd9b0fac51` |
+| `pnpm install --frozen-lockfile` | Pass; lockfile and dependency pins unchanged |
+| `pnpm build` | Full workspace pass, including browser-boundary scan |
+| `pnpm typecheck` | Full workspace pass |
 | `pnpm lint` | Pass, zero warnings |
-| `pnpm exec vitest run --maxWorkers=2` | 25 files / 294 tests passed; 14 files / 128 database-dependent tests skipped |
-| Appearance first-paint tests | Explicit preferences override OS; invalid values and blocked storage fall back safely; dark class and native color scheme agree |
-| `git diff --check` | Pass |
-| `pnpm check:spdx` after staging | Pass; 159 tracked source files verified |
+| `pnpm check:spdx` | Pass, 159 tracked source files |
+| Final `pnpm --filter @next-round/web build && pnpm check:browser-bundle` | Pass after responsive/control fixes and texture removal; 17 browser artifacts scanned, no server fixture secret |
 
-The production entry chunk is about 502 kB minified / 146 kB gzip and emits Vite's non-blocking size warning, recorded as BL-072. No limit was increased to hide it.
+The existing non-blocking Vite warning remains: main JavaScript is 503.07 kB minified / 146.17 kB gzip. It is already tracked as BL-072; no limit was raised to hide it. No rules/API/database changes were made, and no new unit tests or local PostgreSQL matrix are claimed for this UI change.
 
-## Browser checks
+## Browser smoke
 
-The flow under test was: compiled app Home → theme switch / game creation / navigation → correct visible state with the selected appearance.
+Managed Chromium rendered the actual compiled build at a disposable loopback server. HTTP fixtures supplied synthetic sessions, public manifests, matches, invitations and empty/error/guest states. Native WebSocket subscription acknowledgments were served. The Warm Up play view was produced by real `parseCrosswordImport`, `server.transition(create/start)` and `server.view` calls, then mounted through the production GameBridge/client path. The fixture server is not application code and is not committed.
 
-The built-in in-app Chromium browser was used through `cua_repl`; final PNG captures used its developer screenshot capability at the checked viewport dimensions. No Playwright fallback or new browser dependency was needed. A disposable server at `http://127.0.0.1:4317` served the actual production build with controlled HTTP and native-WebSocket fixtures. It supplied synthetic sessions, matches and invitations and real public game manifests. The server and fixture script stayed outside committed application source.
-
-| Check | Result |
+| Scenario | Observed result |
 | --- | --- |
-| Identity, meaningful content, framework overlay | Correct Next Round title/Home; populated content; no framework overlay |
-| Console health | No app warnings/errors on populated Home and theme/dialog/navigation flow; the injected error state intentionally returns HTTP 503 |
-| Desktop | Final captures at 1280×1100, both themes; no horizontal overflow |
-| Phone | Final captures at 390×844, both themes; primary actions measure 44px high and bottom navigation targets 48px |
-| Breakpoints | 360, 430, 768, 1024 and 1440 CSS-pixel widths checked; no horizontal document overflow |
-| Theme persistence | Switched theme, reloaded and observed the selected theme; a second tab's theme selection updated the first tab |
-| Creation | Start opens the existing accessible dialog; catalog Cipher action preselects Cipher; mode controls respond; Escape closes and restores focus |
-| Navigation | History shows retained-results/standings presentation; Games reaches the catalog and marks its navigation item selected |
-| Live refresh | With `#games` retained and the reader scrolled back to the top, an actual fixture WS invalidation reloads Home data without snapping back to the catalog |
-| Empty/error | Empty Home disables Start and retains useful explanatory text; a controlled 503 produces a readable alert without overflow |
-| Guest | Invited-game Home remains available; Start and catalog navigation are absent; no phone overflow |
+| Newspaper Home | Masthead, numbered puzzle columns, match rows, invitation/open-match rail and footer render in both palettes; final PNGs visually inspected |
+| Phone Home | 390×844 screenshots in both themes; fixed navigation remains usable and content continues below the viewport |
+| Home widths | 320, 360, 390, 430, 720, 768, 1024 and 1440 CSS px: no horizontal document overflow; all Home button targets at least 44px high |
+| Crossword widths | 320, 390, 720, 768, 1024 and 1440 checked; no horizontal document overflow |
+| Tablet correction | Initial 768px check exposed a 9.625px collapsed board; after stacking board/clues through 1100px, the same viewport renders a 361.625px board without overflow |
+| Button contrast correction | Initial dark Submit word label and fill were both `rgb(239, 237, 229)`; the zero-specificity reset restores label `rgb(32, 33, 31)` on that fill. Light label/fill are `rgb(255, 255, 255)` / `rgb(34, 34, 31)` |
+| Theme persistence | UI selection survives reload, HTML theme and native color scheme agree; a second tab's UI selection updates the first tab; cleared selection plus emulated dark OS preference boots dark |
+| Creation dialog | Play Cipher selects Cipher; Mode changes to Solo; Escape closes and restores focus to Play Cipher |
+| Navigation | History opens; desktop Games reaches `/#games`; skip-link activation focuses the actual MAIN landmark |
+| Crossword interaction | Production play client mounts; selecting 5 Across selects the clue; entering LEMON retains a local draft and sends zero commands |
+| Long identity | Long synthetic display name wraps in the phone header without horizontal overflow |
+| Guest | Invited-game presentation remains; Start control absent |
+| Empty | Useful empty copy, disabled Start, no phone overflow |
+| Error | Controlled HTTP 503 renders a readable alert without phone overflow |
+| Normal console | Final normal routes have no captured console errors or page exceptions |
 
-The boot script's OS fallback is unit-tested. Live OS-media emulation was not browser-verified: the in-app browser does not expose the attempted raw-CDP storage operation. Actual local-storage reload and cross-tab behavior were verified through the UI. Full live-game command submission, production authentication, PostgreSQL integrations and other browser engines were not rerun in this visual fixture; existing automated suites/CI remain the integration gates.
+Measured text/background contrast: light body 14.62:1 and muted text 5.71:1; dark body 13.79:1 and muted text 8.08:1. This is a focused palette measurement, not a claim of a complete accessibility audit.
 
-## Concept-to-render review
+## Capture and verification limits
 
-Both selected concept PNGs and the latest implementation captures were opened with `view_image` in the final QA pass. A concept board contains two viewports, so its 1536×1024 board dimensions are not a single application viewport; desktop and phone were compared separately at the dimensions above.
+Six real PNG screenshots live in `screenshots/`: desktop and phone Home plus crossword play, each in light and dark. Desktop viewport is 1440×1280 CSS px, phone 390×844; browser device scale 1.25. Desktop/play captures are full-page; phone captures show the viewport. Crossword captures show a selected clue with no submitted answer.
 
-| Comparison | Evidence / disposition |
-| --- | --- |
-| Copy | Your Home, short intro, section labels, game summaries and primary actions match the approved concepts; identity, dates, statuses and alerts remain data-driven |
-| Layout | Centered masthead, open match rows, invitation rail and game index match; phone reflows into one column with full-width actions |
-| Typography | Serif content/masthead, 64px desktop page title, distinct readable sans-serif controls; native serif fallbacks are intentional |
-| Palette/material | Newsprint/slate light and charcoal/white/amber dark use shared semantic tokens; one subtle local paper texture sits behind live text |
-| Controls | Flat low-radius actions; an early pale-on-pale dark-label conflict and narrow catalog/invitation actions were corrected before final capture |
-| Icons | Consistent simple vector grid, pegs, question cards, envelope and labeled navigation; decorative images stay outside the accessibility tree |
-| Responsive behavior | No clipped primary content at checked widths; safe-area bottom padding and scrollable continuation retain access to lower content |
-
-The implementation was faithfully verified against the selected design, with the explicit product adaptations recorded in the main design document: usable appearance/sign-out controls, permission-dependent phone navigation, native font fallbacks and variable real data. No material unaddressed visual mismatch was found in the checked Home views. Artwork is reusable SVG; the generated concepts themselves are never shipped as UI.
-
-## Asset provenance
-
-The paper tile was generated using the built-in Image Gen tool, then converted from PNG to WebP for transfer size. Its generation prompt was:
-
-> Create one production web UI background asset: a perfectly seamless tile of fine uncoated newspaper paper grain, 1024x1024. Full-frame flat orthographic scan, neutral pale warm-gray/off-white with extremely subtle tiny cellulose fibers and gentle natural matte variation. Microtexture only, edited and quiet; texture must work as a low-opacity repeating overlay behind readable newspaper puzzle app typography. All four edges must tile seamlessly. No objects, text, letters, logos, printed marks, ink, borders, shadows, folds, stains, scratches, creases, vignettes, lighting gradients, rough parchment or yellow/brown vintage coloration. Uniform brightness, fine detail, very low contrast. This is an actual texture asset rather than a UI mockup.
+This smoke does not claim production authentication, command acceptance, multiplayer transactions, PostgreSQL integration, real-time invalidation delivery, all game variants, or other browser engines. No production service, database, account or deployment was changed. Existing Phase B scope and backlog items are separate.
