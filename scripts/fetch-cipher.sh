@@ -9,7 +9,7 @@
 # Mirrors scripts/fetch-core.sh in the cipher repository, inverted.
 # The fetched tree is gitignored; this script is the pin.
 set -eu
-CIPHER_REF="${CIPHER_REF:-34551fa4c6bcce0b4c72e9897a541fafbe912030}"
+CIPHER_REF="${CIPHER_REF:-4fbbfee1655a5f5c87456534f868c7bd9b0fac51}"
 CIPHER_URL="${CIPHER_URL:-https://github.com/lewismatt/next-round-cipher.git}"
 cd "$(dirname "$0")/.."
 if [ ! -d games/cipher/.git ]; then
