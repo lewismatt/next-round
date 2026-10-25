@@ -21,7 +21,7 @@ export function SetupGate({ children }: { children: ReactNode }) {
   }, [attempt]);
   if (configured === true) return children;
   return (
-    <main className="center-page">
+    <main className="center-page" id="main-content" tabIndex={-1}>
       <section className="card auth-card">
         {configured === false ? <SetupForm onComplete={() => {
           navigate("/login", { replace: true });
