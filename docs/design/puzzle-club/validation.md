@@ -1,8 +1,8 @@
 # Newspaper redesign validation
 
-Branch: `design/newspaper-interface`. Baseline: main `8f605dc40c3ecc727cc18a24a45e3b6f3f83467f`. The commit containing these notes and captures is the tested source snapshot. This replaces the PR #47 interface validation; earlier evidence remains in Git history.
+Branch: `design/newspaper-interface`. Baseline: main `8f605dc40c3ecc727cc18a24a45e3b6f3f83467f`. Initial redesign verification is recorded at `47065552ae508a8bcaadf9fe1b1668a921aeff2c`; the light-paper refinement and its new captures are recorded below. This replaces the PR #47 interface validation; earlier evidence remains in Git history.
 
-## Build gates
+## Initial redesign gates (4706555)
 
 Run with Node **24.22.1** and pnpm **12.14.0** through `npm exec --yes --package=node@24.22.1 --package=pnpm@12.14.0 -- …`, since the host default is Node 22 and has no pnpm executable.
 
@@ -40,10 +40,21 @@ Managed Chromium rendered the actual compiled build at a disposable loopback ser
 | Error | Controlled HTTP 503 renders a readable alert without phone overflow |
 | Normal console | Final normal routes have no captured console errors or page exceptions |
 
-Measured text/background contrast: light body 14.62:1 and muted text 5.71:1; dark body 13.79:1 and muted text 8.08:1. This is a focused palette measurement, not a claim of a complete accessibility audit.
+Original `4706555` text/background contrast: light body 14.62:1 and muted text 5.71:1; dark body 13.79:1 and muted text 8.08:1. Updated light-material measurements appear below. This is a focused palette measurement, not a claim of a complete accessibility audit.
 
 ## Capture and verification limits
 
 Six real PNG screenshots live in `screenshots/`: desktop and phone Home plus crossword play, each in light and dark. Desktop viewport is 1440×1280 CSS px, phone 390×844; browser device scale 1.25. Desktop/play captures are full-page; phone captures show the viewport. Crossword captures show a selected clue with no submitted answer.
 
 This smoke does not claim production authentication, command acceptance, multiplayer transactions, PostgreSQL integration, real-time invalidation delivery, all game variants, or other browser engines. No production service, database, account or deployment was changed. Existing Phase B scope and backlog items are separate.
+
+## Light newsprint refinement
+
+Matthew approved both themes and requested only a little more newspaper character in the light background. Light paper/card/popover tokens change from `#f7f5ee` to `#efece2`; a local 128×128, 10,973-byte grain tile repeats behind the light page. Black grain alpha is bounded to 0–7/255. The rule applies only to `:root:not(.dark) body`; layout, dark tokens and interaction code are unchanged.
+
+- `pnpm --filter @next-round/web build && pnpm check:browser-bundle` passed with the same pinned toolchain. The boundary scan includes the new tile: 18 artifacts, no server fixture secret. Existing BL-072 warning unchanged.
+- Managed Chromium rendered the new production build with the same disposable visual fixtures. The grain decoded successfully at 128×128; computed light background is `rgb(239, 236, 226)`.
+- Desktop Home, phone Home and crossword light screenshots were refreshed. The 320px and 390px Home checks have no horizontal overflow. Theme switching and light-preference reload work.
+- Dark mode was visually checked and remains `rgb(32, 33, 31)` paper / `rgb(239, 237, 229)` ink with `background-image: none`. Dark screenshot files were not modified.
+- Light body/base contrast is 13.49:1, muted/base 5.27:1. Compositing the darkest possible grain gives 12.72:1 and 4.96:1 respectively; text is not obscured by a foreground overlay.
+- Final normal-flow browser console errors and page exceptions are empty. The temporary fixture server and browser tab are removed after capture; no production state changes.

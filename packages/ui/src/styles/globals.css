@@ -10,12 +10,12 @@
 
 :root {
   color-scheme: light;
-  --background: #f7f5ee;
+  --background: #efece2;
   --foreground: #22221f;
-  --paper: #f7f5ee;
-  --card: #f7f5ee;
+  --paper: #efece2;
+  --card: #efece2;
   --card-foreground: var(--foreground);
-  --popover: #f7f5ee;
+  --popover: #efece2;
   --popover-foreground: var(--foreground);
   --primary: #22221f;
   --primary-foreground: #ffffff;

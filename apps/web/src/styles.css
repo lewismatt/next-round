@@ -27,6 +27,11 @@ body {
   background: var(--bg);
   color: var(--text);
 }
+/* Fine grain stays behind live content and is absent from the dark theme. */
+:root:not(.dark) body {
+  background-image: url("/newsprint-grain.png");
+  background-size: 128px 128px;
+}
 #root {
   position: relative;
 }

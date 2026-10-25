@@ -16,7 +16,7 @@ Desktop captures use a 1440×1280 CSS-pixel viewport and include the full page. 
 
 ## Visual system
 
-The newspaper character comes from composition rather than a texture layer:
+The newspaper character comes primarily from composition, with a restrained newsprint surface in light mode:
 
 - An oversized serif masthead, a small edition line and an italic strapline.
 - Double masthead/footer rules; strong section rules and fine column dividers.
@@ -27,16 +27,18 @@ The newspaper character comes from composition rather than a texture layer:
 
 | Token | Paper & ink | Dark paper |
 | --- | --- | --- |
-| Paper | `#f7f5ee` | `#20211f` |
+| Paper | `#efece2` | `#20211f` |
 | Ink | `#22221f` | `#efede5` |
 | Secondary text | `#626159` | `#b8b8ad` |
 | Printed rule | `#b9b6aa` | `#55564e` |
 | Primary fill | `#22221f` | `#efede5` |
 | Primary label | `#ffffff` | `#20211f` |
 
-The palettes share semantic tokens in `packages/ui/src/styles/globals.css`; application and crossword styles consume those tokens. Destructive actions retain semantic red. The previous slate/amber accents and generated paper overlay are removed, including the unused runtime texture asset. The older files in `concepts/` remain historical references, not the current fidelity target.
+The palettes share semantic tokens in `packages/ui/src/styles/globals.css`; application and crossword styles consume those tokens. Destructive actions retain semantic red. The previous slate/amber accents and large generated paper overlay are removed. After Matthew approved both themes and requested a little more newspaper character in the light background, the light paper was warmed slightly and given a tiny, faint grain tile. Dark mode remains unchanged. The older files in `concepts/` remain historical references, not the current fidelity target.
 
 Native Georgia/Times/serif fallbacks provide the masthead and reading face. Existing locally bundled UI fonts and shadcn Button remain; no dependency or package pins change.
+
+Light-only `public/newsprint-grain.png` is an original, deterministic 128×128 RGBA tile (10,973 bytes), generated with Python's `Random(211)` and black pixels with alpha values 0–7 out of 255. It repeats behind live page content, not over text or controls. It adds no remote requests, filters, animation or JavaScript runtime work. The old 199 kB generated texture is not restored. All three light screenshots reflect this refinement; dark screenshots are unchanged.
 
 ## Behavior preserved
 
