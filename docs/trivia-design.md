@@ -3,7 +3,8 @@
 # Trivia — Second Game Module (Sprint T)
 
 **Status:** Implemented in [PR #42](https://github.com/lewismatt/next-round/pull/42),
-awaiting independent review and integration. Implements the README second-game
+reviewed by Larry (recommend merge) and MERGED 2026-10-24 as `98786fe6`.
+BL-064/BL-065 remain open from that review; see [the backlog](BACKLOG.md). Implements the README second-game
 review against SDK `next-round-game/0.1` with **no contract change**.
 Sprint T proves that contract against a second real game (Option A, 2026-10-23);
 it does not declare a general SDK compatibility guarantee.

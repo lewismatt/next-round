@@ -2,7 +2,8 @@
 
 Status: **F3 implementation integrated** ([PR #33](https://github.com/lewismatt/next-round/pull/33),
 [PR #34](https://github.com/lewismatt/next-round/pull/34)); launch-puzzle
-bundling and F4 close-out are under review in [PR #40](https://github.com/lewismatt/next-round/pull/40).
+bundling and the F4 close-out landed in [PR #40](https://github.com/lewismatt/next-round/pull/40)
+(merged 2026-10-21); F3 §10 and F4 are closed.
 
 ## Overview
 

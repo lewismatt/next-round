@@ -304,3 +304,33 @@ when Matthew merges.
 - Full Docker notices regeneration/check passed on the author's host per the amendment evidence (3 images / 173 OS packages / 0 unresolved). The review host has no Docker; its check reaches Docker then returns ENOENT, so no independent full Docker regeneration is claimed.
 - CI [40112537094](https://github.com/lewismatt/next-round/actions/runs/40112537094) independently verified completed/success, all five jobs. Logs confirm synthetic merge `c10ca8f` of the reviewed head into `98786fe6` and correct deployment image digests. No redundant local application suite or deployment.
 - PR #43 merged under Matthew's explicit conditional authorization as `e7c7d3960bc6486fe44788b5f7f403409a04fa50`; GitHub confirms merged head `0a09cf32`. This findings-only PR remains ready for independent documentation review. Updated branch counts: 64 Fixed / 2 Open (reserved Phase B entries not included).
+
+
+## Cipher integration and repository clean-up (Larry, 2026-10-25)
+
+- [PR #46](https://github.com/lewismatt/next-round/pull/46) merged at
+  Matthew's word as `99f03082cfd7c088fdbfbf88d458a844eb404a90`: the external
+  Cipher module is bundled via `scripts/fetch-cipher.sh` (fetched workspace
+  package pinned to cipher `4fbbfee1`); registration in API and worker, the
+  `install-bundled-games` entry, the web bundle input and match-creation
+  settings are on main. Post-merge CI run
+  [40171155547](https://github.com/lewismatt/next-round/actions/runs/40171155547)
+  terminal SUCCESS, 5/5 jobs. No Cipher code is tracked in this repo;
+  `games/cipher/` is gitignored.
+- Repository clean-up at Matthew's direction, after verifying each
+  branch's content against main: `design/ui-directions` (empty — its head
+  was main itself; the UI redesign is to be redone), `sprint/trivia`,
+  `chore/node-24.22.1-security-bump` and `docs/pr43-review-findings`
+  (merged PRs #42/#43/#44), `docs/pr36-independent-review` (tip
+  `c8be9513`; superseded — the review file is blob-identical on main and
+  BL-051–BL-054 are Fixed), `docs/pr40-review-findings` (tip `e0df6428`;
+  superseded — the review section is verbatim on main and BL-061–BL-063
+  are Fixed) and `feat/cipher-platform-integration` (merged as PR #46)
+  were deleted. The repository now carries a single branch, `main`, and
+  no open PRs.
+- A docs pass the same day trued up the README (Cipher section, monorepo
+  structure, the required fetch step in the install and Docker flows),
+  CONTRIBUTING's workflow commands, the Sprint T status header in
+  `docs/trivia-design.md` and the status line in
+  `games/crossword/README.md`. Backlog counts are unchanged by this pass:
+  64 Fixed / 2 Open (BL-064, BL-065).
