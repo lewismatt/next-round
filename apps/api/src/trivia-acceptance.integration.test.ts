@@ -429,7 +429,9 @@ describe.skipIf(!databaseUrl)("trivia real-PostgreSQL acceptance", () => {
       revision: number;
     }>("SELECT state,revision FROM next_round.matches WHERE id=$1", [id]);
     expect(paused.rows[0].state.suspended).toBe(true);
-    expect(Object.values(paused.rows[0].state.answers)).toEqual([1]);
+    expect(Object.values(paused.rows[0].state.answers)).toEqual([
+      fixtureById[first.game.question!.id].correctChoice,
+    ]);
     expect(paused.rows[0].state.suspendedRemainingMs).toBeGreaterThan(0);
     expect(
       (
