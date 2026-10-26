@@ -364,17 +364,19 @@ pnpm typecheck
 ./scripts/fetch-cipher.sh   # the build context must contain games/cipher/
 ./scripts/fetch-trivia.sh   # ... and games/trivia/
 cp deploy/.env.example deploy/.env
-# Generate POSTGRES_PASSWORD, SESSION_SECRET and SETUP_TOKEN locally (see below).
+# Generate POSTGRES_PASSWORD, RUNTIME_DATABASE_PASSWORD, SESSION_SECRET and SETUP_TOKEN locally.
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml build
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 ```
 
-Populate the three blank secrets in `deploy/.env` with independently generated
+Populate the four blank secrets in `deploy/.env` with independently generated
 values from `node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))'`.
 Run it separately for each secret. Keep the file private (`chmod 600 deploy/.env`)
-and out of Git. Blank database and session secrets prevent Compose startup. The
-API rejects a missing or short `SESSION_SECRET` and rejects a malformed nonblank
+and out of Git and unencrypted backups. Blank database and session secrets prevent
+Compose startup; the migration CLI requires exactly 64 hexadecimal characters
+for `RUNTIME_DATABASE_PASSWORD`. Keep an encrypted, access-controlled recovery copy.
+The API rejects a missing or short `SESSION_SECRET` and rejects a malformed nonblank
 `SETUP_TOKEN` before listening. `APP_ORIGIN` names the one browser origin accepted
 for mutations. The initial setup request consumes `SETUP_TOKEN` by committing the
 singleton instance and first administrator in one transaction. Remove the token
@@ -391,9 +393,10 @@ sweeps recover overdue deadlines and undelivered outbox rows using the same
 database; do not delete pending rows or pg-boss data to repair a missed wakeup.
 See [transaction and recovery behavior](docs/transaction-authority.md).
 
-Each API process opens one dedicated `LISTEN next_round_live` session through
-`DATABASE_DIRECT_URL`, falling back to `DATABASE_URL`. Both URLs must name the
-same database. Do not use transaction pooling for the listener. Set
+Each API process and worker opens a dedicated PostgreSQL `LISTEN` session through
+`DATABASE_DIRECT_URL`, falling back to `DATABASE_URL` even when the direct setting
+is blank. Both URLs must name the same database and `next_round_runtime` role in
+Compose. Do not use transaction pooling for the listener. Set
 `LIVE_RECONCILE_INTERVAL_MS` on API and worker processes; the default is `10000`.
 Startup rejects zero, negative, fractional, non-numeric, and greater-than-86400000
 millisecond values. Sweep logs include query count, database wait and total
@@ -428,6 +431,47 @@ all-address ranges are rejected. Compose gives Caddy a stable private address an
 trusts only that address; its API port is not published. If `172.30.0.0/24` conflicts
 with your network, change `PROXY_SUBNET` and `CADDY_PROXY_IP` together. Caddy must
 remain the only service assigned that address. Keep direct API access private.
+
+Compose publishes only Caddy TCP 80/443. PostgreSQL has no host port; use
+`docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec postgres psql -U next_round -d next_round`
+(adjust the database/user to your `POSTGRES_*` settings) for operator SQL.
+The backend network is internal; Caddy is not a member. API/worker/migrate run
+non-root with a read-only root filesystem, all capabilities dropped,
+no-new-privileges and a 64 MiB writable `/tmp`. PostgreSQL and Caddy retain
+their vendor entrypoint permissions and writable named volumes.
+
+| Service | Memory | CPUs | PIDs |
+| --- | --- | --- | --- |
+| API | 1 GiB | 2 | 128 |
+| Worker | 512 MiB | 1 | 128 |
+| Migrate | 512 MiB | 1 | 128 |
+| PostgreSQL | 1 GiB | 2 | 256 |
+| Caddy | 256 MiB | 1 | 128 |
+
+Override via `<SERVICE>_MEM_LIMIT`, `<SERVICE>_CPUS`, `<SERVICE>_PIDS_LIMIT`
+(`API`, `WORKER`, `MIGRATE`, `POSTGRES`, `CADDY`). Defaults assume at least
+4 GiB host RAM; they are containment limits, not a measured capacity guarantee.
+Every container rotates JSON logs at 10 MiB with three files. Monitor disk:
+this does not limit PostgreSQL data, WAL or application tables.
+
+Caddy enforces one CSP permitting only same-origin scripts/styles/fonts and the
+exact deployment WebSocket origin, plus QR data images. No inline/eval allowance
+is needed. Custom proxies must preserve an equivalent policy; direct development
+API responses do not supply it. Caddy bounds header/body reads to 10/30 seconds
+and idle HTTP connections to 60 seconds without a WebSocket write deadline.
+
+**Exposure gate:** the pinned Caddy 2.11.7 body-read timeout does not disconnect
+some stalled HTTP/1.1 uploads; the loopback HTTPS probe remained open past 45
+seconds. Keep this stack off the public internet until a fixed upstream release
+is pinned and that probe passes. See the [Caddy blocker and verification
+details](docs/operations.md#public-exposure-blocker-stalled-http11-uploads).
+Live sockets are limited per API process to 100 total and five per principal;
+each socket gets 20 application frames/second, burst 40. Excess is closed with
+1008. Multiple tabs consume the same principal budget; reconnect after closing
+unused tabs rather than replaying commands automatically.
+
+This is a single-host **Docker Compose** contract, not a validated Swarm
+`docker stack deploy` configuration. See the [public testing checklist](docs/operations.md#public-internet-testing).
 
 For a private Tailscale Serve → loopback-published Docker API deployment, Docker
 DNAT presents the compose bridge gateway as the ingress peer, not `127.0.0.1`.
@@ -467,7 +511,7 @@ never as image build arguments or copied application files.
 Compose builds `next-round-app:local` once for `migrate`, API and worker. The image
 contains the compiled migration CLI and reviewed SQL with Drizzle metadata in
 `packages/db/migrations`. The one-shot `migrate` service waits for PostgreSQL
-health, then runs `node packages/db/dist/migrate-cli.js`. API and worker require
+health, then runs `node packages/db/dist/compose-migrate-cli.js`. API and worker require
 both a healthy database and successful migration completion. A nonzero migration
 exit prevents their startup. This does not stop processes that were already
 running, so stop the application services before an upgrade.
@@ -508,9 +552,30 @@ The CLI prefers a nonblank `DATABASE_DIRECT_URL`, otherwise it uses `DATABASE_UR
 Both must name the same application database if both are set. The migration role
 needs permission to create and update the `next_round` and `pgboss` schemas.
 Use a direct connection that preserves the PostgreSQL session, not a
-transaction-pooled endpoint. Compose constructs `DATABASE_URL` from `POSTGRES_*`;
-its optional `DATABASE_DIRECT_URL` must use a hostname reachable from the
-container, such as `postgres`, rather than the host's `localhost`.
+transaction-pooled endpoint. Compose instead runs `compose-migrate-cli.js` with
+separate bootstrap and runtime URLs; its optional `DATABASE_DIRECT_URL` must use
+the runtime role and a container-reachable hostname such as `postgres`, not `localhost`.
+
+**Existing-volume privilege cutover:** add an independently generated
+`RUNTIME_DATABASE_PASSWORD` before the upgrade commands above. Preserve the
+current `POSTGRES_USER`/`POSTGRES_PASSWORD`; editing `.env` does not rotate a
+bootstrap password already stored in PostgreSQL. Bootstrap credentials are
+provided only to PostgreSQL and the one-shot migration container, never API/worker.
+The migration service creates/adopts `next_round_runtime` only without elevated
+attributes or any role membership, and transfers objects only in `next_round`
+and `pgboss` from the bootstrap owner. It leaves database ownership and other
+schemas alone. Unexpected ownership/privilege failures roll back provisioning
+and prevent writers starting; customized external databases need an operator
+grant/ownership correction, not a superuser fallback.
+
+After committing provisioning, the service closes its privileged session and
+runs the existing checksum migration runner as runtime. A subsequent connection
+or migration failure leaves the completed privilege cutover in place; repair
+the configuration/cause and rerun migrate with writers still stopped. This is
+idempotent, not an all-or-nothing upgrade or automatic rollback. Runtime owns
+application schemas and all application data, including pg-boss DDL; it is not a
+DML-only sandbox. It cannot create roles/databases or administer cluster files.
+Retain existing immutable migration files and checksums.
 
 The runner holds a session advisory lock while checking and applying ordered SQL
 and explicitly migrating pg-boss. Concurrent runners wait for that lock.
@@ -543,7 +608,8 @@ remain a separate operator procedure.
 ### Real PostgreSQL migration checks
 
 The integration command requires `TEST_DATABASE_URL` for a disposable PostgreSQL
-instance. Its role must be able to create and drop isolated test databases.
+instance. Its role must create/drop databases and roles. The cutover suite refuses
+to adopt a pre-existing `next_round_runtime`; use a dedicated disposable server.
 Never point it at a production server. The API integration suite checks bootstrap,
 sessions, private match views, outsider denial, raw-state route absence,
 finished-result projection, command retry, and an overlapping two-session

@@ -384,7 +384,7 @@ export function mount(
 
     const gridHtml =
       rows > 0 && cols > 0
-        ? `<div class="crossword-grid" role="grid" aria-label="Crossword grid" style="--crossword-cols: ${cols}">${cellHtml.join("")}</div>`
+        ? `<div class="crossword-grid" role="grid" aria-label="Crossword grid">${cellHtml.join("")}</div>`
         : `<p class="crossword-hint">The grid appears once the match starts.</p>`;
 
     root.innerHTML = `
@@ -462,6 +462,8 @@ export function mount(
         </footer>
       </div>
     `;
+    const grid = root.querySelector<HTMLElement>(".crossword-grid");
+    if (grid) grid.style.setProperty("--crossword-cols", String(cols));
 
     const clueButtons = root.querySelectorAll<HTMLButtonElement>(
       ".crossword-clue[data-word-id]",
@@ -500,7 +502,6 @@ export function mount(
       });
     });
 
-    const grid = root.querySelector<HTMLElement>(".crossword-grid");
     grid?.addEventListener("keydown", (event) => {
       const key = event.key.toUpperCase();
       if (!/^[A-Z]$/.test(key)) return;

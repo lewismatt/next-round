@@ -26,7 +26,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "migrate": "node dist/migrate-cli.js",
-    "test:integration": "vitest run src/migrations.integration.test.ts"
+    "test:integration": "vitest run src/migrations.integration.test.ts src/compose-migrate.integration.test.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",

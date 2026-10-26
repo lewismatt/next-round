@@ -68,7 +68,7 @@ export function SetupForm({ onComplete }: { onComplete: () => void }) {
     <h1 className="page-title">Set up Next Round</h1>
     <p className="page-intro">Create this instance and its first administrator. You will sign in after setup.</p>
     <form onSubmit={(event) => void submit(event)}>
-      <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0 }}>
+      <fieldset disabled={busy} className="setup-fields">
         <div className="field"><label htmlFor="setup-token">Setup token</label>
           <input id="setup-token" name="setupToken" type="password" autoComplete="off" required maxLength={1024} />
           <p className="hint">Use the SETUP_TOKEN from your server configuration.</p></div>

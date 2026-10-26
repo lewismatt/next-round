@@ -256,8 +256,10 @@ export class WorkerRunner {
     this.config = {
       connectionString,
       listenerConnectionString:
-        options.databaseDirectUrl ??
-        (options.connectionString ? connectionString : process.env.DATABASE_DIRECT_URL ?? connectionString),
+        options.databaseDirectUrl ||
+        (options.connectionString
+          ? connectionString
+          : process.env.DATABASE_DIRECT_URL || connectionString),
       schema: options.schema || process.env.PGBOSS_SCHEMA || "pgboss",
       reconcileIntervalMs,
     };

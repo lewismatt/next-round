@@ -16,6 +16,11 @@
 * {
   box-sizing: border-box;
 }
+.setup-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 2rem;

@@ -217,6 +217,7 @@ jobs:
           docker run -d --name caddy-ci \
             --add-host api:host-gateway \
             -e CADDY_DOMAIN=http://localhost \
+            -e CSP_WEBSOCKET_ORIGIN=ws://localhost:8080 \
             -p 8080:80 \
             -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
             "$image"
@@ -239,3 +240,66 @@ jobs:
       - name: Stop Caddy
         if: always()
         run: docker rm -f caddy-ci || true
+
+  stack-security:
+    name: Compose fresh install, privilege upgrade and browser security
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout full history for exact baseline
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 24 LTS
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24.22.1"
+
+      - name: Setup pnpm 12.14.0
+        uses: pnpm/action-setup@v6
+        with:
+          version: "12.14.0"
+
+      - name: Record exact pre-change baseline
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$PR_BASE_SHA" ]; then
+            baseline="$PR_BASE_SHA"
+          else
+            baseline=$(git rev-parse HEAD^1)
+          fi
+          git cat-file -e "$baseline^{commit}"
+          echo "BASELINE_SHA=$baseline" >> "$GITHUB_ENV"
+
+      - name: Build untouched baseline image
+        run: |
+          baseline_dir=$(mktemp -d "$RUNNER_TEMP/nr-security-baseline.XXXXXX")
+          git worktree add --detach "$baseline_dir" "$BASELINE_SHA"
+          trap 'git worktree remove --force "$baseline_dir"' EXIT
+          (
+            cd "$baseline_dir"
+            sh scripts/fetch-cipher.sh
+            docker build -f deploy/Dockerfile --target app -t next-round-app:security-baseline .
+          )
+
+      - name: Build compiled acceptance helpers and browser runtime
+        run: |
+          sh scripts/fetch-cipher.sh
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm exec playwright install --with-deps chromium
+
+      - name: Build hardened image through stock Compose
+        env:
+          POSTGRES_PASSWORD: ci-build-configuration-only
+          RUNTIME_DATABASE_PASSWORD: "1111111111111111111111111111111111111111111111111111111111111111"
+          SESSION_SECRET: "2222222222222222222222222222222222222222222222222222222222222222"
+        run: docker compose -f deploy/docker-compose.yml build
+
+      - name: Prove fresh and existing-volume deployments on both majors
+        run: |
+          node scripts/ci/stack-security-smoke.mjs --baseline-image=next-round-app:security-baseline --baseline-ref="$BASELINE_SHA" --postgres-major=18
+          node scripts/ci/stack-security-smoke.mjs --baseline-image=next-round-app:security-baseline --baseline-ref="$BASELINE_SHA" --postgres-major=17
+

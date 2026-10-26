@@ -208,7 +208,7 @@ export async function buildServer(
 
   // 1. Register Helmet for security headers
   await app.register(helmet, {
-    contentSecurityPolicy: false, // SPA and WebSockets handled via reverse proxy / policy
+    contentSecurityPolicy: false, // deploy/Caddyfile enforces the deployment CSP.
   });
 
   // 2. Register Cookie plugin for session and CSRF management

@@ -1,6 +1,17 @@
 # Caddy Reverse Proxy & TLS Configuration for Next Round
 # Native WebSocket upgrade, API routing, and security headers
 
+{
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 30s
+			idle 60s
+		}
+		max_header_size 16KiB
+	}
+}
+
 {$CADDY_DOMAIN:localhost} {
 	encode zstd gzip
 
@@ -11,6 +22,9 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 	}
+
+	# Caddy owns the deployment CSP; defer so upstream headers cannot replace it.
+	header >Content-Security-Policy "default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; img-src 'self' data:; font-src 'self'; connect-src 'self' {$CSP_WEBSOCKET_ORIGIN:wss://localhost}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 
 	# API and live native WebSocket routes
 	handle /api/* {
