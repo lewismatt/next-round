@@ -30,6 +30,13 @@ content with public catalog metadata, pins one immutable resource version per
 match, and keeps principal exposure facts per resource identity.
 [Sprint 5 evidence](docs/sprint5-evidence.md) records its implementation history.
 The rights-reviewed puzzles and F3/F4 close-out landed in PR #40.
+Crossword now lives in its own repository
+([next-round-crossword](https://github.com/lewismatt/next-round-crossword))
+and is bundled into this platform as a fetched workspace package:
+`scripts/fetch-crossword.sh` clones it into `games/crossword/`
+(gitignored) at a pinned commit, the same mechanism as Trivia and
+Cipher. Its puzzle library grows through agent drafts gated by D54;
+see that repository's authoring brief.
 
 The [Trivia module](https://github.com/lewismatt/next-round-trivia) is the
 second game: simultaneous private answers, stable round deadlines, public
@@ -88,7 +95,8 @@ packages/
   game-harness/        Simulated clients, clock controls, and fault injection
 games/
   test-counter/        Minimal internal SDK test game fixture
-  crossword/           First full game module (content contract, rules, client)
+  crossword/           First full game module — fetched external package
+                       (scripts/fetch-crossword.sh); gitignored, not tracked
   trivia/              Second full game module — fetched external package
                        (scripts/fetch-trivia.sh); gitignored, not tracked
   cipher/              Third game module — fetched external package
@@ -352,6 +360,8 @@ proves Trivia's use of SDK 0.1, not compatibility with every possible future gam
                             # installing, and before the Docker build)
 ./scripts/fetch-trivia.sh   # same for the external Trivia module, fetched
                             # into games/trivia/
+./scripts/fetch-crossword.sh   # same for the external Crossword module,
+                            # fetched into games/crossword/
 pnpm install --frozen-lockfile
 ```
 
@@ -367,6 +377,7 @@ pnpm typecheck
 ```bash
 ./scripts/fetch-cipher.sh   # the build context must contain games/cipher/
 ./scripts/fetch-trivia.sh   # ... and games/trivia/
+./scripts/fetch-crossword.sh   # ... and games/crossword/
 cp deploy/.env.example deploy/.env
 # Generate POSTGRES_PASSWORD, SESSION_SECRET and SETUP_TOKEN locally (see below).
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet

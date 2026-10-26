@@ -101,6 +101,7 @@ project ownership or the preserved upstream terms.
    ```bash
    ./scripts/fetch-cipher.sh   # fetches the external Cipher workspace package
    ./scripts/fetch-trivia.sh   # fetches the external Trivia workspace package
+   ./scripts/fetch-crossword.sh   # fetches the external Crossword workspace package
    pnpm install --frozen-lockfile
    pnpm lint
    pnpm typecheck

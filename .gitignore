@@ -15,3 +15,5 @@ blob-report
 games/cipher/
 # Fetched Trivia module package (external repo, pinned by scripts/fetch-trivia.sh)
 games/trivia/
+# Fetched Crossword module package (external repo, pinned by scripts/fetch-crossword.sh)
+games/crossword/
