@@ -17,8 +17,11 @@ const forbidden = [
 if (!fs.existsSync(counterClient)) {
   throw new Error(`Counter browser artifact is missing: ${counterClient}`);
 }
-for (const game of ["crossword", "trivia"]) {
-  if (!fs.existsSync(path.join(browserRoot, `games/${game}/0.1.0/client.js`))) {
+for (const [game, version] of [
+  ["crossword", "0.1.0"],
+  ["trivia", "0.2.0"],
+]) {
+  if (!fs.existsSync(path.join(browserRoot, `games/${game}/${version}/client.js`))) {
     throw new Error(`${game} browser artifact is missing`);
   }
 }
