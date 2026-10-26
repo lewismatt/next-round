@@ -98,6 +98,7 @@ section on the work tracker mirrors this file for triage discussion.
 | BL-073 | Fixed | Puzzle Club mobile navigation review (codex-puzzle-club-ui-20261025) | `apps/web/src/App.tsx` (`MobileNav`) | Guest navigation offered a Games anchor even though guest Home has only the invited match and no catalog target. | Hide Games for guest sessions while retaining their invited match, History and Account routes. Verified with a controlled guest browser fixture on this branch. |
 | BL-074 | Fixed | Trivia extraction (Larry, 2026-10-25) | `games/trivia/` in core | Trivia was the only external-pattern game still tracked in core: Cipher and Golden Ladder live in their own repositories and are bundled as fetched workspace packages, while Trivia (Sprint T, PR #42) sat in the monorepo tree, splitting the module model across two patterns. | Fixed by this PR when merged: the module is extracted byte-faithful to lewismatt/next-round-trivia (initial full-tree commit `8637d328`), `games/trivia/` is gitignored, and core bundles it via `scripts/fetch-trivia.sh` pinned to that commit — the same mechanism as Cipher. No game logic changed. BL-064/BL-065 stay Open; their locations are now the external repo's `src/server.ts` / `src/client.ts`, which the fetched tree restores at the same core paths. |
 | BL-075 | Fixed | Trivia 0.2.0 adoption (Larry, 2026-10-25) | `scripts/fetch-trivia.sh`; `apps/api/src/trivia-module.ts`; `apps/worker/src/trivia-module.ts`; `apps/web/vite.config.ts` | Core still pinned Trivia 0.1.0 (`8637d328`), whose banks play in strict order capped at 20 rounds and whose schema rejects categorized questions — so the categorized question pool built in the Trivia repo (format `next-round.trivia/2`, launch floor 300) could not be used by the platform at all. | Fixed by this PR when merged: the fetch pin moves to the Trivia repo's 0.2.0 commit `de146427` (format /2 with category + difficulty, seeded draw stored in state, optional `category` match setting, stateVersion 2; /1 banks still import with unchanged identities), the bundled-client paths move to `games/trivia/0.2.0/` in the API, worker, web bundle, bundle check and image smoke script, and the real-PostgreSQL trivia acceptance test is adapted to look up the seeded draw's current question instead of assuming bank order. No platform logic changed; a category picker in the web UI is deliberately out of scope (settings without `category` keep working). |
+| BL-076 | Fixed | Trivia pool refresh (Larry, 2026-10-26) | `scripts/fetch-trivia.sh` | Core's Trivia pin (`de146427`) predates the question pool's growth in the Trivia repo: Grok's 100 and Larry's second 50 were banked after the pin, so a deployment of core main served the 70-question pool while the reviewed pool stood at 220. | Fixed by this PR when merged: the fetch pin moves to the Trivia repo's `597b4478` (pool 220 — geography 40, every other category 20; difficulty totals 88/87/45). Content-only refresh: the module stays at 0.2.0, the fetched tree's only code-adjacent change is its own bank test mirror, no platform logic changed, and `pnpm-lock.yaml` is unchanged (the fetched package's dependency set is identical). Later bankings will again lag the pin until the next bump — that lag is structural, accepted when the pool model went no-cap. |
 
 ## Sprint 5 triage (omp-s5-20261020)
 
@@ -379,4 +380,13 @@ when Matthew merges.
   package's added `vitest` devDependency (the standalone repo's test
   script, per the Cipher package shape).
 - Backlog counts on this branch: 66 Fixed / 3 Open (BL-064, BL-065,
+  BL-072). BL-064/BL-065 are untouched and remain Open.
+
+## Trivia pool refresh close-out (Larry, 2026-10-26)
+
+- Pin bump only: `scripts/fetch-trivia.sh` now fetches the Trivia repo at
+  `597b4478` (pool 220) instead of `de146427` (pool 70). Module version
+  stays 0.2.0; bundled-client paths are unchanged; `pnpm-lock.yaml`
+  unchanged. Recorded as BL-076.
+- Backlog counts on this branch: 67 Fixed / 3 Open (BL-064, BL-065,
   BL-072). BL-064/BL-065 are untouched and remain Open.
