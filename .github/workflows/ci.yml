@@ -27,6 +27,9 @@ jobs:
       - name: Fetch Cipher module (external package)
         run: ./scripts/fetch-cipher.sh
 
+      - name: Fetch Trivia module (external package)
+        run: ./scripts/fetch-trivia.sh
+
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
@@ -96,6 +99,9 @@ jobs:
       - name: Fetch Cipher module (external package)
         run: ./scripts/fetch-cipher.sh
 
+      - name: Fetch Trivia module (external package)
+        run: ./scripts/fetch-trivia.sh
+
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
@@ -136,6 +142,9 @@ jobs:
 
       - name: Fetch Cipher module (external package)
         run: ./scripts/fetch-cipher.sh
+
+      - name: Fetch Trivia module (external package)
+        run: ./scripts/fetch-trivia.sh
 
       - name: Build deployment image (target app)
         run: docker build --file deploy/Dockerfile --target app --tag "$IMAGE_TAG" .

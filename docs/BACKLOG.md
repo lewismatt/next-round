@@ -96,6 +96,7 @@ section on the work tracker mirrors this file for triage discussion.
 
 | BL-072 | Open | Puzzle Club UI implementation (codex-puzzle-club-ui-20261025) | `apps/web/src/App.tsx`; Vite production `main.js` | Production build reports a main chunk just above 500 kB minified (about 146 kB gzip). The page builds and the bundle boundary scan passes, but route-level splitting would reduce initial JavaScript for slower phones. | Non-blocking follow-up: measure and split route/dialog code; do not suppress the warning by increasing the limit. |
 | BL-073 | Fixed | Puzzle Club mobile navigation review (codex-puzzle-club-ui-20261025) | `apps/web/src/App.tsx` (`MobileNav`) | Guest navigation offered a Games anchor even though guest Home has only the invited match and no catalog target. | Hide Games for guest sessions while retaining their invited match, History and Account routes. Verified with a controlled guest browser fixture on this branch. |
+| BL-074 | Fixed | Trivia extraction (Larry, 2026-10-25) | `games/trivia/` in core | Trivia was the only external-pattern game still tracked in core: Cipher and Golden Ladder live in their own repositories and are bundled as fetched workspace packages, while Trivia (Sprint T, PR #42) sat in the monorepo tree, splitting the module model across two patterns. | Fixed by this PR when merged: the module is extracted byte-faithful to lewismatt/next-round-trivia (initial full-tree commit `8637d328`), `games/trivia/` is gitignored, and core bundles it via `scripts/fetch-trivia.sh` pinned to that commit — the same mechanism as Cipher. No game logic changed. BL-064/BL-065 stay Open; their locations are now the external repo's `src/server.ts` / `src/client.ts`, which the fetched tree restores at the same core paths. |
 
 ## Sprint 5 triage (omp-s5-20261020)
 
@@ -337,3 +338,44 @@ when Matthew merges.
   `docs/trivia-design.md` and the status line in
   `games/crossword/README.md`. Backlog counts are unchanged by this pass:
   64 Fixed / 2 Open (BL-064, BL-065).
+
+
+## Trivia extraction (Larry, 2026-10-25)
+
+- At Matthew's direction, Trivia moved out of this repository into its own:
+  [lewismatt/next-round-trivia](https://github.com/lewismatt/next-round-trivia),
+  public, Apache-2.0, initial full-tree commit
+  `8637d3281b43ad96c447d0319699c9eb738881be` (on a README-only Contents-API
+  init commit, the empty-repository pattern used for Golden Ladder). The
+  extraction is byte-faithful: every `src/` file, `content/starter.json`,
+  and the LICENSE are blob-identical to core `f833971b`; the standalone
+  scaffolding (root package, `scripts/fetch-core.sh` pinned to core
+  `f833971b`, standalone tsconfig/vitest/CI) mirrors the Cipher and Golden
+  Ladder module repos. `docs/trivia-design.md` moved with the module; the
+  README links to it there. The new repo's CI run 40246862003 completed
+  SUCCESS, and local verification before publishing was build, typecheck,
+  and vitest 5/5 green.
+- This PR is the core half: `games/trivia/` is no longer tracked and is
+  gitignored; `scripts/fetch-trivia.sh` pins trivia `8637d328` and is run
+  in all three CI jobs, the CONTRIBUTING workflow commands, and the README
+  install and Docker flows, exactly where `scripts/fetch-cipher.sh` runs.
+  Core keeps, unchanged, the registration shims
+  (`apps/api/src/trivia-module.ts`, `apps/worker/src/trivia-module.ts`),
+  the `install-bundled-games` entry, the web bundle input, and
+  `apps/api/src/trivia-acceptance.integration.test.ts`. The root
+  `tsconfig.json` project reference to `games/trivia` is removed, as with
+  Cipher: the fetched package builds via its own `tsc -p` under
+  `pnpm -r run build`.
+- Dockerfile: the explicit `COPY games/trivia/package.json` line in the
+  dependencies stage is removed so Trivia mirrors Cipher exactly. Traced
+  mechanism: `pnpm install --frozen-lockfile` creates the
+  `node_modules/@next-round/game-cipher` link from the lockfile's
+  `games/cipher:` importer alone (verified locally with a
+  dependencies-stage simulation — the link dangles until the builder
+  stage's `COPY . .` materializes the fetched tree, which the CI image job
+  fetches into the build context before `docker build`). The lockfile's
+  `games/trivia:` importer therefore stays, updated only for the fetched
+  package's added `vitest` devDependency (the standalone repo's test
+  script, per the Cipher package shape).
+- Backlog counts on this branch: 66 Fixed / 3 Open (BL-064, BL-065,
+  BL-072). BL-064/BL-065 are untouched and remain Open.
