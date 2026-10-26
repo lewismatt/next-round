@@ -31,10 +31,16 @@ match, and keeps principal exposure facts per resource identity.
 [Sprint 5 evidence](docs/sprint5-evidence.md) records its implementation history.
 The rights-reviewed puzzles and F3/F4 close-out landed in PR #40.
 
-The [Trivia module](docs/trivia-design.md) adds simultaneous private answers,
-stable round deadlines, public reveals and bank-free final results using the
-same SDK. Its original CC0 starter bank is imported through Admin; Solo/Group
-setup and the pinned client are available in the browser shell. See its design
+The [Trivia module](https://github.com/lewismatt/next-round-trivia) is the
+second game: simultaneous private answers, stable round deadlines, public
+reveals and bank-free final results using the same SDK. Trivia lives in its
+own repository and is bundled into this platform as a fetched workspace
+package: `scripts/fetch-trivia.sh` clones it into `games/trivia/`
+(gitignored) at a pinned commit, and the API and worker register it
+alongside Crossword and Cipher. Its original CC0 starter bank is imported
+through Admin; Solo/Group setup and the pinned client are available in the
+browser shell. See the Trivia repository's
+[design](https://github.com/lewismatt/next-round-trivia/blob/main/docs/trivia-design.md)
 for rules, provenance, transaction/browser evidence and the SDK 0.1 verdict.
 
 The [Cipher module](https://github.com/lewismatt/next-round-cipher) is the
@@ -83,7 +89,8 @@ packages/
 games/
   test-counter/        Minimal internal SDK test game fixture
   crossword/           First full game module (content contract, rules, client)
-  trivia/              Second full game module (simultaneous private answers)
+  trivia/              Second full game module — fetched external package
+                       (scripts/fetch-trivia.sh); gitignored, not tracked
   cipher/              Third game module — fetched external package
                        (scripts/fetch-cipher.sh); gitignored, not tracked
 deploy/
@@ -305,7 +312,7 @@ workspace's pinned `@types/node` in their own package.
 
 Sprint T implements the original paper review against SDK `next-round-game/0.1`.
 The mapping below is now exercised by real PostgreSQL tests and the compiled
-browser. [Rules, evidence and bounded SDK verdict](docs/trivia-design.md).
+browser. [Rules, evidence and bounded SDK verdict](https://github.com/lewismatt/next-round-trivia/blob/main/docs/trivia-design.md).
 
 | Requirement | Existing contract and game-author responsibility |
 | --- | --- |
@@ -339,6 +346,8 @@ proves Trivia's use of SDK 0.1, not compatibility with every possible future gam
                             # module into games/cipher/ (the apps depend on
                             # it via workspace:*; CI runs this step before
                             # installing, and before the Docker build)
+./scripts/fetch-trivia.sh   # same for the external Trivia module, fetched
+                            # into games/trivia/
 pnpm install --frozen-lockfile
 ```
 
@@ -353,6 +362,7 @@ pnpm typecheck
 
 ```bash
 ./scripts/fetch-cipher.sh   # the build context must contain games/cipher/
+./scripts/fetch-trivia.sh   # ... and games/trivia/
 cp deploy/.env.example deploy/.env
 # Generate POSTGRES_PASSWORD, SESSION_SECRET and SETUP_TOKEN locally (see below).
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet

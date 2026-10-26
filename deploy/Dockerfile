@@ -18,7 +18,6 @@ COPY packages/ui/package.json ./packages/ui/
 COPY packages/game-harness/package.json ./packages/game-harness/
 COPY games/test-counter/package.json ./games/test-counter/
 COPY games/crossword/package.json ./games/crossword/
-COPY games/trivia/package.json ./games/trivia/
 RUN pnpm install --frozen-lockfile
 
 FROM dependencies AS builder

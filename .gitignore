@@ -13,3 +13,5 @@ blob-report
 *.tsbuildinfo
 # Fetched Cipher module package (external repo, pinned by scripts/fetch-cipher.sh)
 games/cipher/
+# Fetched Trivia module package (external repo, pinned by scripts/fetch-trivia.sh)
+games/trivia/

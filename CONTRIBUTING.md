@@ -100,6 +100,7 @@ project ownership or the preserved upstream terms.
 3. Ensure all tests, typechecks, and builds pass cleanly:
    ```bash
    ./scripts/fetch-cipher.sh   # fetches the external Cipher workspace package
+   ./scripts/fetch-trivia.sh   # fetches the external Trivia workspace package
    pnpm install --frozen-lockfile
    pnpm lint
    pnpm typecheck
