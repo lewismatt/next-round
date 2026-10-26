@@ -30,6 +30,15 @@ const DEFAULT_HEARTBEAT_SECONDS = 25;
 const DEFAULT_MAX_SUBSCRIPTIONS = 20;
 const DEFAULT_MAX_BUFFERED_AMOUNT = 64 * 1024; // 64 KiB
 const MAX_REQUEST_ID_LENGTH = 128;
+const MESSAGE_BURST = 40;
+const MESSAGES_PER_SECOND = 20;
+
+function positiveConnectionLimit(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return value;
+}
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -72,6 +81,8 @@ export class LiveService {
   private readonly heartbeatSeconds: number;
   private readonly maxSubscriptions: number;
   private readonly maxBufferedAmount: number;
+  private readonly maxConnections: number;
+  private readonly maxConnectionsPerPrincipal: number;
   private readonly enableListener: boolean;
   private readonly logger: FastifyBaseLogger;
   private readonly onSweep?: (stats: LiveSweepStats) => void;
@@ -79,6 +90,7 @@ export class LiveService {
   private listenerClient: DedicatedClient | null = null;
   private listenerConnected = false;
   private readonly connections = new Map<string, LiveConnection>();
+  private readonly principalConnections = new Map<string, number>();
 
   private isDegraded = false;
   private isStopped = false;
@@ -112,6 +124,14 @@ export class LiveService {
       options.maxSubscriptionsPerConnection ?? DEFAULT_MAX_SUBSCRIPTIONS;
     this.maxBufferedAmount =
       options.maxBufferedAmount ?? DEFAULT_MAX_BUFFERED_AMOUNT;
+    this.maxConnections = positiveConnectionLimit(
+      options.maxConnections ?? 100,
+      "maxConnections",
+    );
+    this.maxConnectionsPerPrincipal = positiveConnectionLimit(
+      options.maxConnectionsPerPrincipal ?? 5,
+      "maxConnectionsPerPrincipal",
+    );
     this.enableListener = options.enableListener ?? true;
     this.logger =
       options.logger ??
@@ -270,7 +290,15 @@ export class LiveService {
     socket: WebSocket,
     principalId: string,
     sessionId: string,
-  ): LiveConnection {
+  ): LiveConnection | null {
+    const principalCount = this.principalConnections.get(principalId) ?? 0;
+    if (
+      this.connections.size >= this.maxConnections ||
+      principalCount >= this.maxConnectionsPerPrincipal
+    ) {
+      socket.close(1008, "Connection limit exceeded");
+      return null;
+    }
     const id = randomUUID();
     const connection: LiveConnection = {
       id,
@@ -279,10 +307,13 @@ export class LiveService {
       socket,
       subscriptions: new Map(),
       missedPongs: 0,
+      messageTokens: MESSAGE_BURST,
+      messageRefilledAt: performance.now(),
       closed: false,
     };
 
     this.connections.set(id, connection);
+    this.principalConnections.set(principalId, principalCount + 1);
 
     this.sendFrame(connection, {
       type: "hello",
@@ -334,6 +365,19 @@ export class LiveService {
     rawBytes: unknown,
   ): Promise<void> {
     if (connection.closed) return;
+
+    const now = performance.now();
+    connection.messageTokens = Math.min(
+      MESSAGE_BURST,
+      connection.messageTokens +
+        ((now - connection.messageRefilledAt) / 1000) * MESSAGES_PER_SECOND,
+    );
+    connection.messageRefilledAt = now;
+    if (connection.messageTokens < 1) {
+      this.closeConnection(connection, 1008, "Message rate exceeded");
+      return;
+    }
+    connection.messageTokens--;
 
     let text: string;
     if (typeof rawBytes === "string") {
@@ -925,7 +969,12 @@ export class LiveService {
       connection.heartbeatTimer = undefined;
     }
 
-    this.connections.delete(connection.id);
+    if (this.connections.delete(connection.id)) {
+      const remaining =
+        (this.principalConnections.get(connection.principalId) ?? 1) - 1;
+      if (remaining === 0) this.principalConnections.delete(connection.principalId);
+      else this.principalConnections.set(connection.principalId, remaining);
+    }
 
     connection.subscriptions.clear();
   }

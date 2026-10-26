@@ -3,11 +3,21 @@
 /* global WebSocket */
 // Completes one WebSocket upgrade through Caddy's published port and exchanges
 // one frame. Exits non-zero on any failure so the CI job fails.
+import assert from "node:assert/strict";
 const url = process.argv[2];
 if (!url) {
   console.error("usage: caddy-ws-client.mjs <ws-url>");
   process.exit(2);
 }
+const health = new URL("/api/__ci/health", url);
+health.protocol = health.protocol === "wss:" ? "https:" : "http:";
+const response = await fetch(health);
+assert.equal(response.status, 200);
+const csp = response.headers.get("content-security-policy");
+assert.ok(csp?.includes(`connect-src 'self' ${new URL(url).origin}`));
+assert.ok(csp.includes("script-src-attr 'none'"));
+assert.equal(csp.includes(","), false, "CSP must not be duplicated");
+console.log("Enforced CSP names the fixture's exact WebSocket origin.");
 const message = "m9-caddy-frame";
 const expected = `ack:${message}`;
 

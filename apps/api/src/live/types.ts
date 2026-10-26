@@ -19,6 +19,8 @@ export interface LiveConnection {
   readonly socket: WebSocket;
   readonly subscriptions: Map<string, LiveSubscription>;
   missedPongs: number;
+  messageTokens: number;
+  messageRefilledAt: number;
   heartbeatTimer?: NodeJS.Timeout;
   closed: boolean;
 }
@@ -46,6 +48,8 @@ export interface LiveServiceOptions {
   heartbeatSeconds?: number;
   maxSubscriptionsPerConnection?: number;
   maxBufferedAmount?: number;
+  maxConnections?: number;
+  maxConnectionsPerPrincipal?: number;
   enableListener?: boolean;
   logger?: FastifyBaseLogger;
   onSweep?: (stats: LiveSweepStats) => void;

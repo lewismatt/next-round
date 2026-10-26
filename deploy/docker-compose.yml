@@ -2,30 +2,44 @@
 # Image tags and digests pinned per Master Specification v1.2 (§1)
 name: next-round
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-app: &app
   image: next-round-app:local
   build:
     context: ..
     dockerfile: deploy/Dockerfile
     target: app
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,mode=1777"]
+  logging: *logging
 
 services:
   postgres:
     image: postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     restart: unless-stopped
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
+    cpus: ${POSTGRES_CPUS:-2.0}
+    pids_limit: ${POSTGRES_PIDS_LIMIT:-256}
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-next_round}
       POSTGRES_USER: ${POSTGRES_USER:-next_round}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-next_round} -d ${POSTGRES_DB:-next_round}",
+          "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-next_round} -d ${POSTGRES_DB:-next_round}",
         ]
       interval: 3s
       timeout: 3s
@@ -33,11 +47,16 @@ services:
 
   migrate:
     <<: *app
-    command: ["node", "packages/db/dist/migrate-cli.js"]
+    command: ["node", "packages/db/dist/compose-migrate-cli.js"]
     restart: "no"
+    mem_limit: ${MIGRATE_MEM_LIMIT:-512m}
+    cpus: ${MIGRATE_CPUS:-1.0}
+    pids_limit: ${MIGRATE_PIDS_LIMIT:-128}
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      DATABASE_BOOTSTRAP_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      DATABASE_URL: postgres://next_round_runtime:${RUNTIME_DATABASE_PASSWORD:?Generate RUNTIME_DATABASE_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      RUNTIME_DATABASE_PASSWORD: ${RUNTIME_DATABASE_PASSWORD:?Generate RUNTIME_DATABASE_PASSWORD in deploy/.env}
       DATABASE_DIRECT_URL: ${DATABASE_DIRECT_URL:-}
     depends_on:
       postgres:
@@ -46,11 +65,14 @@ services:
   api:
     <<: *app
     restart: unless-stopped
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    cpus: ${API_CPUS:-2.0}
+    pids_limit: ${API_PIDS_LIMIT:-128}
     environment:
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
-      DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      DATABASE_URL: postgres://next_round_runtime:${RUNTIME_DATABASE_PASSWORD:?Generate RUNTIME_DATABASE_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
       DATABASE_DIRECT_URL: ${DATABASE_DIRECT_URL:-}
       LIVE_RECONCILE_INTERVAL_MS: ${LIVE_RECONCILE_INTERVAL_MS:-10000}
       SESSION_SECRET: ${SESSION_SECRET:?Generate SESSION_SECRET in deploy/.env}
@@ -70,9 +92,13 @@ services:
     <<: *app
     command: ["node", "apps/worker/dist/index.js"]
     restart: unless-stopped
+    mem_limit: ${WORKER_MEM_LIMIT:-512m}
+    cpus: ${WORKER_CPUS:-1.0}
+    pids_limit: ${WORKER_PIDS_LIMIT:-128}
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-next_round}:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      DATABASE_URL: postgres://next_round_runtime:${RUNTIME_DATABASE_PASSWORD:?Generate RUNTIME_DATABASE_PASSWORD in deploy/.env}@postgres:5432/${POSTGRES_DB:-next_round}
+      DATABASE_DIRECT_URL: ${DATABASE_DIRECT_URL:-}
       LIVE_RECONCILE_INTERVAL_MS: ${LIVE_RECONCILE_INTERVAL_MS:-10000}
     depends_on:
       postgres:
@@ -83,8 +109,14 @@ services:
   caddy:
     image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
     restart: unless-stopped
+    mem_limit: ${CADDY_MEM_LIMIT:-256m}
+    cpus: ${CADDY_CPUS:-1.0}
+    pids_limit: ${CADDY_PIDS_LIMIT:-128}
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
     environment:
       CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
+      CSP_WEBSOCKET_ORIGIN: wss://${CADDY_DOMAIN:-localhost}
     networks:
       proxy:
         ipv4_address: ${CADDY_PROXY_IP:-172.30.0.10}
@@ -99,6 +131,8 @@ services:
       - api
 
 networks:
+  default:
+    internal: true
   proxy:
     ipam:
       config:

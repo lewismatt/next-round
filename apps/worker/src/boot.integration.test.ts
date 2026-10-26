@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -174,6 +176,48 @@ describe.skipIf(!testDatabaseUrl)(
         running: false,
         bossStarted: false,
       });
+    }, 60_000);
+
+    it("uses the configured direct-session role in the compiled worker executable", async () => {
+      const { migrateDatabase } = (await import(migrateModule.href)) as CompiledMigrateModule;
+      await migrateDatabase({ connectionString });
+      const role = `nr_direct_${randomBytes(8).toString("hex")}`;
+      const password = randomBytes(32).toString("hex");
+      await admin.query(`CREATE ROLE "${role}" LOGIN PASSWORD ${admin.escapeLiteral(password)}`);
+      const directUrl = new URL(connectionString);
+      directUrl.username = role;
+      directUrl.password = password;
+      const child = spawn(process.execPath, [new URL("../dist/index.js", import.meta.url).pathname], {
+        env: { ...process.env, DATABASE_URL: connectionString, DATABASE_DIRECT_URL: directUrl.href },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      const exited = once(child, "exit");
+      const { promise: started, resolve, reject } = Promise.withResolvers<void>();
+      let output = "";
+      child.stdout.on("data", (data: Buffer) => {
+        output += data.toString();
+        if (output.includes("Background worker running.")) resolve();
+      });
+      child.once("error", reject);
+      child.once("exit", () => reject(new Error("Worker exited before starting")));
+      // External executable deadline; completion is signalled by startup output.
+      const deadline = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error("Worker startup timed out"));
+      }, 30_000);
+      try {
+        await started;
+        const listeners = await admin.query<{ usename: string }>(
+          "SELECT usename FROM pg_stat_activity WHERE datname=$1 AND usename=$2",
+          [databaseName, role],
+        );
+        expect(listeners.rows).toEqual([{ usename: role }]);
+      } finally {
+        clearTimeout(deadline);
+        child.kill("SIGTERM");
+        await exited;
+        await admin.query(`DROP ROLE "${role}"`);
+      }
     }, 60_000);
   },
 );

@@ -164,7 +164,12 @@ async function refreshed(client, revision) {
   }, `automatic refresh revision ${revision}`, 25000);
 }
 async function listeners() {
-  return (await pool.query("SELECT pid,application_name FROM pg_stat_activity WHERE datname=$1 AND usename=$2 ORDER BY pid", [name, role])).rows;
+  return (
+    await pool.query(
+      "SELECT pid,application_name FROM pg_stat_activity WHERE datname=$1 AND usename=$2 AND application_name LIKE 'next-round-live:%' ORDER BY pid",
+      [name, role],
+    )
+  ).rows;
 }
 
 try {

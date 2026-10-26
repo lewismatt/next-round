@@ -99,6 +99,118 @@ nonaccepted guest invitations, using expiry indexes and bounded row locking.
 Accepted guest invitations remain available for session-bound receipt recovery.
 Cleanup never deletes current rolling-window budget rows.
 
+## Public internet testing
+
+The hardened baseline keeps five Compose services and named volumes. It adds
+one independently generated `RUNTIME_DATABASE_PASSWORD`; follow the
+[existing-volume cutover](../README.md#database-migrations-and-upgrades) with
+all writers stopped. Back up first, preserve the existing bootstrap password
+and previous compatible image, and do not delete a volume to fix migration
+failure. Bootstrap credentials stay in postgres/migrate; API/worker use
+non-superuser `next_round_runtime`, which still owns all application data.
+
+Before announcing the URL, Matthew performs these operator checks:
+
+- Use invitation-only test accounts, synthetic/non-sensitive content and a
+  unique administrator password. Finish first-admin setup privately, remove
+  `SETUP_TOKEN`, then recreate API. No extra proxy login gate is enabled.
+- Keep `deploy/.env` mode 0600, outside Git/build contexts, public tickets and
+  unencrypted backups. Keep an access-controlled encrypted recovery copy with
+  database recovery material; retain Caddy data/config and the matching image.
+- Verify from outside the host over **IPv4 and IPv6**: only Caddy TCP 80/443
+  is public for this stack; API 3000, PostgreSQL 5432 and Caddy admin 2019
+  are unreachable. Restrict SSH to existing administrative access.
+  Docker-published ports can bypass UFW; UFW status alone is not proof.
+- Confirm the public certificate and HTTP-to-HTTPS redirect, one enforced CSP,
+  working same-origin WSS, sanitized logs, and a tested backup/restore using the
+  existing runbook. No HSTS preload or unrelated-subdomain policy is added.
+- Monitor memory, disk/WAL/table growth and pending worker age. Compose limits
+  and log rotation contain local consumption, not volumetric DDoS. Patch the
+  host and periodically review runtime/image advisories: digest-pinned is not
+  permanently patched. Test and record pin/notices changes before deployment.
+
+### Reproducible disposable stack proof
+
+Use the pinned Node/pnpm toolchain, Docker Compose with `!override` support and
+at least 4 GiB available RAM. Install/build the workspace and Chromium first:
+
+```sh
+sh scripts/fetch-cipher.sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm exec playwright install chromium
+```
+
+Build `next-round-app:security-baseline` from the untouched Git revision being
+upgraded, in a separate worktree after its pinned Cipher fetch. Record that
+revision as `BASELINE_SHA`, then build the hardened image with the normal
+Compose build command and run:
+
+```sh
+node scripts/ci/stack-security-smoke.mjs --baseline-image=next-round-app:security-baseline --baseline-ref="$BASELINE_SHA" --postgres-major=18
+node scripts/ci/stack-security-smoke.mjs --baseline-image=next-round-app:security-baseline --baseline-ref="$BASELINE_SHA" --postgres-major=17
+```
+
+The runner requires both baseline arguments. It owns unique disposable projects
+and volumes, binds test Caddy only to loopback 8080/8443, and fails rather than
+stopping an existing port occupant. Local test certificate exceptions are scoped
+to test clients. It exercises fresh setup and a populated-volume upgrade,
+runtime privilege/data/checksum preservation, container/network containment,
+HTTP/cookie/Origin/CSRF boundaries, real WS limits/longevity and compiled
+Chromium game/theme/CSP behavior. CI runs both majors sequentially using the
+exact PR base (or previous main commit) as baseline. This is local stack
+evidence, not a penetration test or proof of the deployed host's firewall.
+
+### Public-exposure blocker: stalled HTTP/1.1 uploads (2026-10-25)
+
+On the pinned stock Caddy 2.11.7, the configured 30-second body-read timeout
+does not reliably close a stalled HTTP/1.1 request. In the disposable HTTPS
+stack, a login POST declaring a 100,000-byte body and sending only `{` remained
+open beyond 45 seconds. This reproduces [upstream Caddy issue #8165](https://github.com/caddyserver/caddy/issues/8165).
+Adding `Connection: close`, an error handler or `abort` to the stock Caddyfile
+did not disconnect the probe. Do not treat a header timeout, HTTP/2-only probe,
+larger request body or a configured timeout as passing this gate. Keep public
+exposure blocked until a fixed upstream release is pinned and the exact
+stalled-body scenario disconnects within the configured bound. The stock
+five-service Compose deployment and image pin remain unchanged; no custom
+proxy image or older Caddy release is authorized by this handoff.
+
+Local full-stack runs on 2026-10-26 used baseline image
+`next-round-app:security-baseline` from `f833971b432cc5f88617cd64900ca61b8de1a03f`:
+
+```sh
+node scripts/ci/stack-security-smoke.mjs --baseline-image=next-round-app:security-baseline --baseline-ref=f833971b432cc5f88617cd64900ca61b8de1a03f --postgres-major=18
+node scripts/ci/stack-security-smoke.mjs --baseline-image=next-round-app:security-baseline --baseline-ref=f833971b432cc5f88617cd64900ca61b8de1a03f --postgres-major=17
+```
+
+Both PostgreSQL majors completed fresh setup and populated baseline-volume
+upgrade scenarios. Role cutover, data and migration-ledger preservation, worker
+processing, container/network containment, cookie and request denials,
+Chromium/CSP behavior, and WebSocket survival beyond 60 seconds plus 1008 abuse
+closure/peer invalidation passed. Both runs exited nonzero only because the
+stalled partial HTTP/1.1 body remained open for 45 seconds. These are disposable
+loopback tests, not external scans or live-host verification.
+
+### Dependency audit disposition
+
+The 2026-10-25 `pnpm audit --prod` run exits 1: four moderate and four low
+findings, representing four `fast-uri` advisories in each of locked 3.x/4.x.
+No high/critical finding was reported. Advisories:
+[encoded schemes](https://github.com/advisories/GHSA-w74x-v6f9-j3xg),
+[host canonicalization](https://github.com/advisories/GHSA-wjr9-j795-jxcr),
+[relative-path equivalence](https://github.com/advisories/GHSA-xhq7-xmqj-769h),
+[suffix scheme injection](https://github.com/advisories/GHSA-333x-w4r6-6crp).
+They affect URI normalization/host policy/suffix serialization, not a demonstrated
+Next Round exploit. Inspected app code does not call `fast-uri` directly;
+locked uses are in Fastify/AJV/Swagger schema tooling. The module schema
+compiler rejects unsupported `$ref` keywords and installed module code is trusted.
+No attacker-controlled URI-to-render/outbound-policy path was found in that
+inspection; this is not an exhaustive reachability proof. BL-075 tracks a
+reviewed update to patched 3.1.9/4.2.3 with lockfile/notices regeneration.
+Do not call this audit clean. Public exposure remains blocked on any newly
+identified reachable high/critical runtime issue.
+
+
 ## Evidence record
 
 Record evidence after running the checks. Do not fill this table from expected behavior or code inspection.

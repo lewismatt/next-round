@@ -17,6 +17,7 @@ const reconcileIntervalMs = parsePositiveIntegerInterval(
 export async function main(): Promise<void> {
   const worker = createWorker({
     connectionString,
+    databaseDirectUrl: process.env.DATABASE_DIRECT_URL,
     reconcileIntervalMs,
   });
 
