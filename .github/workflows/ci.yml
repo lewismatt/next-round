@@ -30,6 +30,9 @@ jobs:
       - name: Fetch Trivia module (external package)
         run: ./scripts/fetch-trivia.sh
 
+      - name: Fetch Crossword module (external package)
+        run: ./scripts/fetch-crossword.sh
+
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
@@ -102,6 +105,9 @@ jobs:
       - name: Fetch Trivia module (external package)
         run: ./scripts/fetch-trivia.sh
 
+      - name: Fetch Crossword module (external package)
+        run: ./scripts/fetch-crossword.sh
+
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
@@ -145,6 +151,9 @@ jobs:
 
       - name: Fetch Trivia module (external package)
         run: ./scripts/fetch-trivia.sh
+
+      - name: Fetch Crossword module (external package)
+        run: ./scripts/fetch-crossword.sh
 
       - name: Build deployment image (target app)
         run: docker build --file deploy/Dockerfile --target app --tag "$IMAGE_TAG" .
