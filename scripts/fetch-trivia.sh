@@ -9,7 +9,7 @@
 # Mirrors scripts/fetch-cipher.sh. The fetched tree is gitignored; this
 # script is the pin.
 set -eu
-TRIVIA_REF="${TRIVIA_REF:-de146427e3ff412e186357bdcfd15e1116e1b038}"
+TRIVIA_REF="${TRIVIA_REF:-597b4478fc4a412aa35e00b1eb491384f4dbffdb}"
 TRIVIA_URL="${TRIVIA_URL:-https://github.com/lewismatt/next-round-trivia.git}"
 cd "$(dirname "$0")/.."
 if [ ! -d games/trivia/.git ]; then
