@@ -42,7 +42,7 @@ export default defineConfig({
           __dirname,
           "../../games/crossword/src/client.ts",
         ),
-        "games/trivia/0.1.0/client": path.resolve(
+        "games/trivia/0.2.0/client": path.resolve(
           __dirname,
           "../../games/trivia/src/client.ts",
         ),

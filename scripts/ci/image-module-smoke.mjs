@@ -19,15 +19,20 @@ for (const executable of ["api", "worker"]) {
   registerCrosswordModule(registry);
   assert.ok(registry.has("crossword", "0.1.0"), `${executable}: crossword skipped`);
   registerTriviaModule(registry);
-  assert.ok(registry.has("trivia", "0.1.0"), `${executable}: trivia skipped`);
+  assert.ok(registry.has("trivia", "0.2.0"), `${executable}: trivia skipped`);
   registerCipherModule(registry);
   assert.ok(registry.has("cipher", "0.1.0"), `${executable}: cipher skipped`);
   assert.equal((await lstat("/app/apps/web/dist")).isDirectory(), true,
     "The image must contain the web build, not a runtime workaround symlink");
   loadTestCounterFixtureIfEnabled(registry, true);
   assert.ok(registry.has("test-counter", "0.1.0"), `${executable}: counter missing`);
-  for (const game of ["crossword", "trivia", "cipher", "test-counter"]) {
-    const relative = `games/${game}/0.1.0/client.js`;
+  for (const [game, version] of [
+    ["crossword", "0.1.0"],
+    ["trivia", "0.2.0"],
+    ["cipher", "0.1.0"],
+    ["test-counter", "0.1.0"],
+  ]) {
+    const relative = `games/${game}/${version}/client.js`;
     const client = `/app/apps/web/dist/${relative}`;
     assert.equal((await lstat(client)).isFile(), true);
     assert.deepEqual(await readFile(client), await readFile(`/app/public/${relative}`));

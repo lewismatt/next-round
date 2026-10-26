@@ -153,8 +153,12 @@ exposure.
 
 Trivia is also registered in API and worker builds when its compiled client is
 present. Import `games/trivia/content/starter.json` via **Admin → Trivia library**,
-then choose **Start a game → Trivia**. Its resource format is
-`next-round.trivia/1`; settings are `{rounds, secondsPerRound}`. The platform
+then choose **Start a game → Trivia**. The module is version 0.2.0: its
+resource format is `next-round.trivia/2` (each question carries a category
+and a difficulty; `next-round.trivia/1` banks are still accepted), and
+settings are `{rounds, secondsPerRound}` with an optional `category`
+restricting the draw to one category. A match draws its questions from the
+whole bank in a seeded order rather than playing the bank in order. The platform
 pins the imported bank privately. No question bank or digest is embedded in the
 browser; each round exposes its question, then reveals answers at the deadline.
 The bank's CC0 provenance is agent-drafted, not a human content attestation.

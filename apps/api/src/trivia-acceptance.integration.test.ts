@@ -48,6 +48,23 @@ const document = {
     },
   ],
 };
+// Module 0.2.0 draws each match's question order from a seeded shuffle, so
+// tests look up the currently drawn question instead of assuming bank order.
+const fixtureById: Record<
+  string,
+  { correctChoice: number; explanation: string; otherPrompt: string }
+> = {
+  one: {
+    correctChoice: 1,
+    explanation: "First hidden explanation",
+    otherPrompt: "Second private prompt",
+  },
+  two: {
+    correctChoice: 0,
+    explanation: "Second hidden explanation",
+    otherPrompt: "First public prompt",
+  },
+};
 type Session = { principalId: string; cookie: string; csrf: string };
 type Snapshot = {
   revision: number;
@@ -56,6 +73,7 @@ type Snapshot = {
   deadlines: Deadline[];
   game: {
     roundIndex: number;
+    question: { id: string; prompt: string } | null;
     myChoice: number | null;
     canSubmit: boolean;
     scores: Record<string, number>;
@@ -272,6 +290,9 @@ describe.skipIf(!databaseUrl)("trivia real-PostgreSQL acceptance", () => {
   it("serializes two simultaneous answers, requires explicit retry, and replays receipts without replacement", async () => {
     const id = await create();
     const before = await snapshot(id);
+    const drawn = fixtureById[before.game.question!.id];
+    const right = drawn.correctChoice;
+    const wrong = 1 - right;
     const hostId = before.members.find(
       (m) => m.principalId === host.principalId,
     )!.id;
@@ -284,7 +305,7 @@ describe.skipIf(!databaseUrl)("trivia real-PostgreSQL acceptance", () => {
       session: Session,
       commandId: string,
       expectedRevision: number,
-      choice = 1,
+      choice = right,
     ) =>
       command(id, "actions", session, expectedRevision, {
         commandId,
@@ -309,27 +330,30 @@ describe.skipIf(!databaseUrl)("trivia real-PostgreSQL acceptance", () => {
       200,
     );
     expect((await snapshot(id)).revision).toBe(latest.revision);
-    const retry = await submit(loser, randomUUID(), latest.revision, 0);
+    const retry = await submit(loser, randomUUID(), latest.revision, wrong);
     expect(retry.statusCode, retry.body).toBe(200);
     const hostView = await snapshot(id);
     const peerView = await snapshot(id, peer);
-    expect(hostView.game.myChoice).toBe(winner === host ? 1 : 0);
-    expect(peerView.game.myChoice).toBe(winner === peer ? 1 : 0);
+    expect(hostView.game.myChoice).toBe(winner === host ? right : wrong);
+    expect(peerView.game.myChoice).toBe(winner === peer ? right : wrong);
     expect(JSON.stringify(hostView.game)).not.toMatch(
-      /correctChoice|answers|hidden explanation|Second private prompt/,
+      new RegExp(
+        `correctChoice|answers|hidden explanation|${drawn.otherPrompt}`,
+      ),
     );
     expect(hostView.deadlines).toEqual(before.deadlines);
     expect(
-      (await submit(winner, randomUUID(), hostView.revision, 0)).statusCode,
+      (await submit(winner, randomUUID(), hostView.revision, wrong))
+        .statusCode,
     ).toBe(422);
     await closeRound(id);
     const revealed = await snapshot(id);
     expect(revealed.game.reveals[0]).toMatchObject({
-      correctChoice: 1,
-      explanation: "First hidden explanation",
+      correctChoice: right,
+      explanation: drawn.explanation,
       answers: {
-        [hostId]: winner === host ? 1 : 0,
-        [peerId]: winner === peer ? 1 : 0,
+        [hostId]: winner === host ? right : wrong,
+        [peerId]: winner === peer ? right : wrong,
       },
     });
     expect(revealed.game.scores).toEqual({
@@ -372,7 +396,10 @@ describe.skipIf(!databaseUrl)("trivia real-PostgreSQL acceptance", () => {
       (
         await command(id, "actions", host, first.revision, {
           type: "submit",
-          payload: { roundIndex: 0, choice: 1 },
+          payload: {
+            roundIndex: 0,
+            choice: fixtureById[first.game.question!.id].correctChoice,
+          },
         })
       ).statusCode,
     ).toBe(200);
@@ -437,6 +464,7 @@ describe.skipIf(!databaseUrl)("trivia real-PostgreSQL acceptance", () => {
   it("keeps final results and career points usable after real private-state pruning", async () => {
     const id = await create(1);
     const s = await snapshot(id);
+    const right = fixtureById[s.game.question!.id].correctChoice;
     const hostId = s.members.find(
       (m) => m.principalId === host.principalId,
     )!.id;
@@ -447,7 +475,7 @@ describe.skipIf(!databaseUrl)("trivia real-PostgreSQL acceptance", () => {
       (
         await command(id, "actions", host, s.revision, {
           type: "submit",
-          payload: { roundIndex: 0, choice: 1 },
+          payload: { roundIndex: 0, choice: right },
         })
       ).statusCode,
     ).toBe(200);
@@ -455,7 +483,7 @@ describe.skipIf(!databaseUrl)("trivia real-PostgreSQL acceptance", () => {
       (
         await command(id, "actions", peer, (await snapshot(id)).revision, {
           type: "submit",
-          payload: { roundIndex: 0, choice: 0 },
+          payload: { roundIndex: 0, choice: 1 - right },
         })
       ).statusCode,
     ).toBe(200);

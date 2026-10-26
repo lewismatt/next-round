@@ -7,7 +7,7 @@ import { server } from "@next-round/game-trivia/server";
 import type { GameRegistry } from "@next-round/platform";
 
 const bundledClientRoot = fileURLToPath(
-  new URL("../../../apps/web/dist/games/trivia/0.1.0/", import.meta.url),
+  new URL("../../../apps/web/dist/games/trivia/0.2.0/", import.meta.url),
 );
 
 export function registerTriviaModule(
